@@ -218,4 +218,63 @@ func TestValidationErrorContract(t *testing.T) {
 	}
 }
 
+// TestApproveAttributionContract pins the approve request fields the detail
+// view sends. The names are td's (`reviewed_by`, `self_review`), and td rejects
+// the pair with a 400 whose wording the UI shows verbatim — so the UI offers
+// them as mutually exclusive choices rather than relying on this round trip.
+func TestApproveAttributionContract(t *testing.T) {
+	front, id := newProject(t)
+
+	resp, err := http.Post(front+"/v1/issues/"+id+"/approve", "application/json",
+		jsonBody(`{"reviewed_by":"a reviewer","self_review":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for reviewed_by + self_review", resp.StatusCode)
+	}
+
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body.Error.Message, "mutually exclusive") {
+		t.Errorf("message = %q, want td's mutual-exclusion wording", body.Error.Message)
+	}
+}
+
+// TestRecordReviewContract pins the record-only path. Its note field is
+// `summary`, not the `reason` the transition endpoints take — posting `reason`
+// here fails as a missing summary.
+func TestRecordReviewContract(t *testing.T) {
+	front, id := newProject(t)
+
+	resp, err := http.Post(front+"/v1/issues/"+id+"/reviews", "application/json",
+		jsonBody(`{"decision":"approved","reason":"wrong field name"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 when summary is absent", resp.StatusCode)
+	}
+
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body.Error.Message, "summary") {
+		t.Errorf("message = %q, want td to name the summary field", body.Error.Message)
+	}
+}
+
 func jsonBody(s string) *strings.Reader { return strings.NewReader(s) }
