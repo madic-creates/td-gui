@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -37,6 +38,11 @@ type Manager struct {
 	baseURL string
 	token   string
 	cmd     *exec.Cmd
+
+	mu        sync.Mutex
+	waitCh    chan struct{}
+	stopping  bool
+	restarted bool
 }
 
 // NewManager returns a Manager for the given configuration.
@@ -112,7 +118,9 @@ func (m *Manager) spawn(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start td serve: %w", err)
 	}
+	m.mu.Lock()
 	m.cmd = cmd
+	m.mu.Unlock()
 
 	// td serve writes .todos/serve-port once it is listening. Poll for it,
 	// then confirm with a probe rather than trusting the file alone.
@@ -126,6 +134,7 @@ func (m *Manager) spawn(ctx context.Context) error {
 				if resp.StatusCode == http.StatusOK {
 					m.baseURL = url
 					m.token = token
+					m.watchChild(cmd)
 					return nil
 				}
 			}
@@ -146,20 +155,93 @@ func (m *Manager) spawn(ctx context.Context) error {
 // A reused foreign instance may be serving a td monitor or an agent and is
 // left running.
 func (m *Manager) Stop() error {
-	if m.cmd == nil || m.cmd.Process == nil {
+	m.mu.Lock()
+	m.stopping = true
+	cmd, ch := m.cmd, m.waitCh
+	m.cmd = nil
+	m.mu.Unlock()
+
+	if cmd == nil || cmd.Process == nil {
 		return nil
 	}
-	proc := m.cmd.Process
-	m.cmd = nil
-	if err := proc.Signal(os.Interrupt); err != nil {
-		return proc.Kill()
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		return cmd.Process.Kill()
 	}
-	done := make(chan struct{})
-	go func() { _, _ = proc.Wait(); close(done) }()
+	if ch == nil {
+		return nil
+	}
 	select {
-	case <-done:
+	case <-ch:
 		return nil
 	case <-time.After(5 * time.Second):
-		return proc.Kill()
+		return cmd.Process.Kill()
 	}
+}
+
+// watchChild reaps the process in one place. exec.Cmd.Wait may only be called
+// once, so both Stop and Supervise observe this channel instead of calling it
+// themselves.
+func (m *Manager) watchChild(cmd *exec.Cmd) {
+	ch := make(chan struct{})
+	m.mu.Lock()
+	m.waitCh = ch
+	m.mu.Unlock()
+	go func() {
+		_ = cmd.Wait()
+		close(ch)
+	}()
+}
+
+// killChildForTest terminates the spawned process without marking the manager
+// as stopping, simulating an unexpected backend death.
+func (m *Manager) killChildForTest() {
+	m.mu.Lock()
+	cmd := m.cmd
+	m.mu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+}
+
+// Supervise watches a spawned backend and restarts it exactly once if it dies
+// unexpectedly, calling onRestart with the new base URL and token.
+//
+// One attempt, not a retry loop: a backend that dies twice is failing for a
+// reason td-gui cannot fix, and an endless respawn would hide that behind a
+// UI that looks almost alive. After the single attempt the SSE connection
+// stays down and the UI shows its persistent disconnected banner.
+func (m *Manager) Supervise(ctx context.Context, onRestart func(baseURL, token string)) {
+	if !m.Owned() {
+		return // a foreign instance is not ours to supervise
+	}
+	go func() {
+		for {
+			m.mu.Lock()
+			ch := m.waitCh
+			m.mu.Unlock()
+			if ch == nil {
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ch:
+			}
+
+			m.mu.Lock()
+			stopping, alreadyRestarted := m.stopping, m.restarted
+			m.restarted = true
+			m.mu.Unlock()
+
+			if stopping || alreadyRestarted {
+				return
+			}
+
+			if err := m.spawn(ctx); err != nil {
+				return
+			}
+			onRestart(m.BaseURL(), m.Token())
+		}
+	}()
 }

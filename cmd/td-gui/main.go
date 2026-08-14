@@ -95,10 +95,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	apiSwitch := proxy.NewSwitch(api)
+
+	mgr.Supervise(ctx, func(baseURL, token string) {
+		next, err := proxy.New(baseURL, token)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "td-gui: Neustart des Backends fehlgeschlagen:", err)
+			return
+		}
+		apiSwitch.Set(next)
+		fmt.Fprintf(os.Stderr, "td-gui: Backend neu gestartet auf %s\n", baseURL)
+	})
 
 	mux := http.NewServeMux()
-	mux.Handle("/v1/", api)
-	mux.Handle("/health", api)
+	mux.Handle("/v1/", apiSwitch)
+	mux.Handle("/health", apiSwitch)
 	mux.Handle("/", assets)
 
 	srv := &http.Server{
