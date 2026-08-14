@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -105,21 +105,21 @@ describe('IssueList', () => {
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
   })
 
-  // Priority order and title order deliberately DISAGREE inside the `open`
-  // group: td-open-a is the higher priority but sorts last by title. If they
-  // agreed, the sort-by-title test below would pass without the click doing
-  // anything at all.
+  // Three open issues whose priority order is NOT the reverse of their title
+  // order — with only two, title-descending and priority-ascending coincide and
+  // the direction toggle goes untested.
   const mixed = [
     makeIssue({ id: 'td-open-a', status: 'open', priority: 'P0', title: 'Zebra' }),
     makeIssue({ id: 'td-prog', status: 'in_progress', priority: 'P2', title: 'Middle' }),
-    makeIssue({ id: 'td-open-b', status: 'open', priority: 'P3', title: 'Alpha' }),
+    makeIssue({ id: 'td-open-b', status: 'open', priority: 'P1', title: 'Alpha' }),
+    makeIssue({ id: 'td-open-c', status: 'open', priority: 'P3', title: 'Mango' }),
   ]
 
   function serveMixed() {
     server.use(http.get('/v1/issues', () =>
       HttpResponse.json({
         ok: true,
-        data: { issues: mixed, limit: 500, offset: 0, total: 3, has_more: false },
+        data: { issues: mixed, limit: 500, offset: 0, total: 4, has_more: false },
       })))
   }
 
@@ -131,34 +131,32 @@ describe('IssueList', () => {
   it('splits the list into status groups with counts', async () => {
     serveMixed()
     renderList()
-    // Queried by region rather than plain text: the status filter's own
-    // checkboxes are labelled with these same words ("open", "in_progress", …)
-    // and are present from the very first render, so a bare findByText would
-    // resolve against the filter before the data — and thus the group
-    // sections — ever arrive. The group's <section aria-label> gives each
-    // group an unambiguous accessible name to query instead.
-    expect(await screen.findByRole('region', { name: 'in_progress' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'open' })).toBeInTheDocument()
-    // in_progress comes first even though td-open-a (P0) outranks td-prog (P2):
-    // the group order wins over the sort.
-    expect(renderedIds()).toEqual(['td-prog', 'td-open-a', 'td-open-b'])
+
+    const progress = await screen.findByRole('region', { name: 'in_progress' })
+    const open = screen.getByRole('region', { name: 'open' })
+    // The count is per group, not the size of the whole response.
+    expect(within(progress).getByText('1')).toBeInTheDocument()
+    expect(within(open).getByText('3')).toBeInTheDocument()
+
+    // in_progress leads even though td-open-a is P0, the highest priority in the
+    // list: the grouping outranks the sort.
+    expect(renderedIds()).toEqual(['td-prog', 'td-open-a', 'td-open-b', 'td-open-c'])
   })
 
   it('sorts within a group and never moves a row across a group boundary', async () => {
     const user = userEvent.setup()
     serveMixed()
     renderList()
-    // See the rationale above: query by region, not by the collides-with-the-
-    // filter plain text.
     await screen.findByRole('region', { name: 'in_progress' })
 
     await user.click(screen.getByRole('button', { name: 'Sort by title, ascending' }))
-
-    // Alpha < Zebra flips the open group; td-prog stays alone on top.
-    expect(renderedIds()).toEqual(['td-prog', 'td-open-b', 'td-open-a'])
+    // Alpha, Mango, Zebra — and td-prog stays alone in its own group on top.
+    expect(renderedIds()).toEqual(['td-prog', 'td-open-b', 'td-open-c', 'td-open-a'])
 
     await user.click(screen.getByRole('button', { name: /^Sorted by title/ }))
-    expect(renderedIds()).toEqual(['td-prog', 'td-open-a', 'td-open-b'])
+    // Zebra, Mango, Alpha — deliberately NOT the same as the priority order
+    // (td-open-a, td-open-b, td-open-c), so a reset to the default fails here.
+    expect(renderedIds()).toEqual(['td-prog', 'td-open-a', 'td-open-c', 'td-open-b'])
   })
 
   it('shows when each issue was last updated', async () => {
