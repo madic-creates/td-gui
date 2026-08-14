@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router'
 import { useIssue } from '../../api/queries'
 import { ApiError } from '../../api/client'
 import TransitionBar from './TransitionBar'
+import CommentForm from './CommentForm'
 import type { Handoff } from '../../api/types'
 
 export default function IssueDetail() {
@@ -67,6 +68,7 @@ export default function IssueDetail() {
             <li key={comment.id} className="whitespace-pre-wrap">{comment.text}</li>
           ))}
         </ul>
+        <CommentForm issueId={issue.id} />
       </section>
     </div>
   )

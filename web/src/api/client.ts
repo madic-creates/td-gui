@@ -70,3 +70,9 @@ export function apiGet<T>(path: string): Promise<T> {
 export function apiSend<T>(method: 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   return request<T>(method, path, body)
 }
+
+/** Returns the server's message for a field, if the error carries one. */
+export function fieldErrorFor(error: unknown, field: string): string | undefined {
+  if (!(error instanceof ApiError)) return undefined
+  return error.fields.find(f => f.field === field)?.message
+}

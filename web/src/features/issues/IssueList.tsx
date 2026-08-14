@@ -27,6 +27,10 @@ export default function IssueList() {
 
   return (
     <div className="p-6">
+      <Link to="/new" className="mb-4 inline-block rounded border px-3 py-1 text-sm">
+        Neues Issue
+      </Link>
+
       <IssueFilters
         params={params}
         onChange={next => setParams({ ...next, offset: 0 })}
