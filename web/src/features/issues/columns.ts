@@ -23,9 +23,10 @@ export const ROW = `${ROW_LAYOUT} h-row border-b border-line-subtle py-2`
 export const COL = {
   id: 'w-[74px] shrink-0',
   title: 'flex-1 truncate',
-  // w-7, not the skeleton's old w-5: the real row never constrained the
-  // priority tag before, and "P0" in semibold mono needs the headroom.
-  priority: 'w-7 shrink-0',
+  // Wide enough for the header's "PRIO ▴", not just the cell's "P0" — the
+  // header and the value share this column, so it is sized for the longer of
+  // the two. Right-aligned to match the updated and status columns.
+  priority: 'w-12 shrink-0 text-right',
   updated: 'w-[64px] shrink-0 text-right',
   status: 'w-[74px] shrink-0 text-right',
 } as const

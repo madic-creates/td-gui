@@ -32,7 +32,7 @@ function SortButton({ column, sort, onChange }: SortButtonProps) {
       type="button"
       aria-label={name}
       onClick={() => onChange(next)}
-      className={active ? 'text-ink' : 'text-ink-faint hover:text-ink-muted'}
+      className={`whitespace-nowrap ${active ? 'text-ink' : 'text-ink-faint hover:text-ink-muted'}`}
     >
       {LABEL[column]}
       <span aria-hidden="true">{active ? (sort.direction === 'asc' ? ' ▴' : ' ▾') : ''}</span>
