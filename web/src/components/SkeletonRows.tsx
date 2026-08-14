@@ -15,6 +15,7 @@ export default function SkeletonRows({ rows = 5 }: { rows?: number }) {
           <span className={`${COL.id} h-[11px] rounded-sm bg-surface-hover`} />
           <span className={`${COL.title} h-[11px] rounded-sm bg-surface-hover`} />
           <span className={`${COL.priority} h-[11px] rounded-sm bg-surface-hover`} />
+          <span className={`${COL.updated} h-[11px] rounded-sm bg-surface-hover`} />
           <span className={`${COL.status} h-[11px] rounded-sm bg-surface-hover`} />
         </div>
       ))}

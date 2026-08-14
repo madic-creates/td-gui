@@ -8,6 +8,10 @@ import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
 import EmptyState from '../../components/EmptyState'
 import SkeletonRows from '../../components/SkeletonRows'
+import IssueGroupHeader from './IssueGroupHeader'
+import IssueListHeader from './IssueListHeader'
+import { DEFAULT_SORT, groupByStatus, type Sort } from './ordering'
+import { relativeTime } from '../../lib/format'
 import { COL, ROW } from './columns'
 
 /* td serve cannot sort, so sorting has to happen here — which is only honest
@@ -17,6 +21,7 @@ const FETCH_LIMIT = 500
 
 export default function IssueList() {
   const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const { data, error, isPending } = useIssues(params)
 
   // Assigned rather than early-returned so the filters stay mounted in every
@@ -38,6 +43,7 @@ export default function IssueList() {
       />
     )
   } else {
+    const groups = groupByStatus(data.issues, sort)
     body = (
       <>
         {data.total > data.issues.length && (
@@ -46,22 +52,30 @@ export default function IssueList() {
             narrow this down.
           </p>
         )}
-        <ul>
-          {/* rows unchanged for now; Task 7 replaces this block */}
-          {data.issues.map(issue => (
-            <li key={issue.id}>
-              <Link
-                to={`/issues/${issue.id}`}
-                className={`${ROW} hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]`}
-              >
-                <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>
-                <span className={`${COL.title} text-ink`}>{issue.title}</span>
-                <span className={COL.priority}><PriorityTag priority={issue.priority} /></span>
-                <span className={COL.status}><StatusTag status={issue.status} /></span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <IssueListHeader sort={sort} onChange={setSort} />
+        {groups.map(group => (
+          <section key={group.status} aria-label={group.status}>
+            <IssueGroupHeader status={group.status} count={group.issues.length} />
+            <ul>
+              {group.issues.map(issue => (
+                <li key={issue.id}>
+                  <Link
+                    to={`/issues/${issue.id}`}
+                    className={`${ROW} hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]`}
+                  >
+                    <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>
+                    <span className={`${COL.title} text-ink`}>{issue.title}</span>
+                    <span className={COL.priority}><PriorityTag priority={issue.priority} /></span>
+                    <span className={`${COL.updated} text-ink-faint`}>
+                      {relativeTime(issue.updated_at)}
+                    </span>
+                    <span className={COL.status}><StatusTag status={issue.status} /></span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </>
     )
   }
