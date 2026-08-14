@@ -144,6 +144,11 @@ Backoff von 1s bis maximal 10s. Der Ping alle 30 Sekunden dient als
 Verbindungs-Lebenszeichen — bleibt er aus, zeigt die Oberfläche einen
 „getrennt"-Zustand, statt stillschweigend veraltete Daten anzuzeigen.
 
+Gegen die laufende API verifiziert: nach einem Schreibvorgang kommt derselbe
+`refresh` **zweimal** an — einmal aus dem Broadcast nach dem Write, einmal aus
+dem Polling-Zyklus. Die Verarbeitung muss idempotent sein; eine reine
+Cache-Invalidierung ist das von Natur aus.
+
 Schreibvorgänge gehen ohne Optimistic Updates direkt raus und invalidieren
 danach. Bei Latenzen im einstelligen Millisekundenbereich wäre optimistisches
 Rendern nur eine zusätzliche Fehlerquelle.
@@ -153,12 +158,19 @@ Rendern nur eine zusätzliche Fehlerquelle.
 ### Enthalten
 
 **Issue-Liste.** Filter über die API-Parameter (`status`, `type`, `priority`,
-`labels`, `search`) mit `limit`/`offset`-Pagination, nicht clientseitig. Die
-Antwort liefert `pagination.total` mit.
+`labels`, `search`) mit `limit`/`offset`-Pagination, nicht clientseitig.
 
-**Issue-Detail.** `GET /v1/issues/{id}` liefert in einem Aufruf Beschreibung,
-Logs, Kommentare, den letzten Handoff, Dependencies und `blocked_by`,
-`active_review` sowie `available_transitions`.
+`GET /v1/issues` antwortet mit
+`{ok:true, data:{issues:[…], limit, offset, total, has_more}}` — die Liste hat
+also ihre eigene Hülle und nutzt **nicht** das generische
+`{items, pagination}`-Schema aus `response.go`. Gegen die laufende API
+verifiziert.
+
+**Issue-Detail.** `GET /v1/issues/{id}` liefert in einem Aufruf
+`{issue, logs, comments, dependencies, blocked_by, latest_handoff}`. Die
+Issue-Felder liegen dabei **verschachtelt unter `issue`**, und
+`available_transitions` sowie `active_review` hängen an diesem inneren Objekt,
+nicht an `data`.
 
 **Anlegen und Bearbeiten.** `POST /v1/issues`, `PATCH /v1/issues/{id}`,
 Kommentare über `POST /v1/issues/{id}/comments`.
@@ -196,6 +208,12 @@ zentraler `apiFetch` packt die Hülle aus und wirft einen typisierten
 | `not_found` | 404 | Issue wurde zwischenzeitlich gelöscht — zurück zur Liste mit Hinweis |
 | `conflict` | 409 | Jemand anders war schneller. Neu laden und aktuellen Stand zeigen, nicht stur wiederholen |
 | `internal` | 500 | Meldung anzeigen, Details ins Browser-Log |
+
+Eine Konsequenz daraus: Das Frontend validiert **nicht** selbst gegen feste
+Grenzen. Die Titel-Mindestlänge etwa ist pro Projekt konfigurierbar — in einem
+frisch initialisierten Projekt lag sie bei der Verifikation bei 15 Zeichen, die
+Spec von td nennt 3 als Standard. Ein clientseitig hartkodierter Wert wäre
+schlicht falsch. Der Server validiert, das Formular zeigt die Antwort an.
 
 Zum 403-Fall: td formuliert Policy-Ablehnungen sehr präzise („du hast das
 implementiert, du kannst es nicht freigeben"). Diese Meldung durch ein
