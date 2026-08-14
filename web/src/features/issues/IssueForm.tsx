@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, fieldErrorFor } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
+import ErrorPanel from '../../components/ErrorPanel'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
 const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
@@ -17,46 +18,46 @@ export default function IssueForm() {
   // so any hardcoded value here would eventually be wrong.
   return (
     <form
-      className="max-w-xl space-y-4 p-6"
+      className="max-w-xl space-y-4 px-5 py-4"
       onSubmit={e => {
         e.preventDefault()
         create.mutate({ title, description: description || undefined, type, priority })
       }}
     >
       <div>
-        <label htmlFor="title" className="block text-sm font-medium">Title</label>
+        <label htmlFor="title" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Title</label>
         <input
           id="title" value={title} onChange={e => setTitle(e.target.value)}
-          className="mt-1 w-full rounded border px-3 py-1"
+          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
         />
         <FieldError error={create.error} field="title" />
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium">Description</label>
+        <label htmlFor="description" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Description</label>
         <textarea
           id="description" rows={5} value={description}
           onChange={e => setDescription(e.target.value)}
-          className="mt-1 w-full rounded border px-3 py-1"
+          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
         />
         <FieldError error={create.error} field="description" />
       </div>
 
       <div className="flex gap-4">
         <div>
-          <label htmlFor="type" className="block text-sm font-medium">Type</label>
+          <label htmlFor="type" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Type</label>
           <select
             id="type" value={type} onChange={e => setType(e.target.value as IssueType)}
-            className="mt-1 rounded border px-3 py-1"
+            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
           >
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="priority" className="block text-sm font-medium">Priority</label>
+          <label htmlFor="priority" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Priority</label>
           <select
             id="priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}
-            className="mt-1 rounded border px-3 py-1"
+            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
           >
             {priorities.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
@@ -64,14 +65,14 @@ export default function IssueForm() {
       </div>
 
       <button type="submit" disabled={create.isPending}
-        className="rounded border px-4 py-1 disabled:opacity-40">
+        className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
         Create
       </button>
 
-      {create.isSuccess && <p className="text-green-700">Issue created.</p>}
+      {create.isSuccess && <p className="text-success">Issue created.</p>}
 
       {create.error instanceof ApiError && create.error.code !== 'validation_error' && (
-        <p className="text-red-600" role="alert">{create.error.message}</p>
+        <ErrorPanel message={create.error.message} />
       )}
     </form>
   )
@@ -80,5 +81,5 @@ export default function IssueForm() {
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)
   if (!message) return null
-  return <p className="mt-1 text-sm text-red-600">{message}</p>
+  return <p className="mt-1.5 text-[11px] text-danger">{message}</p>
 }

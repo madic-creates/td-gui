@@ -22,10 +22,12 @@ needs, without adding features, endpoints or new screens.
 
 ## Chosen direction: terminal-adjacent
 
-Monospace-forward, dense, dark-first, colour used only for signal. td-gui is a
-window onto td state that sits next to a running Claude Code session; its data
-is overwhelmingly identifiers, status enums and log lines. Density and
-scannability matter more than whitespace.
+Dense, dark-first, colour used only for signal, monospace reserved for the
+data whose columns must align rather than leading the whole design. td-gui is
+a window onto td state that sits next to a running Claude Code session; its
+data is overwhelmingly identifiers, status enums and log lines, so those stay
+monospace even though prose — titles, descriptions, comments — reads in
+sans-serif. Density and scannability matter more than whitespace.
 
 Two directions were rejected: a Linear/GitHub-style product look (familiar but
 generic) and an editorial serif treatment (attractive but degrades badly past
@@ -45,24 +47,46 @@ These are explicitly out of scope. Each would be its own change:
 
 ### Typography rule
 
-Monospace for data, sans-serif for prose. Applied consistently:
+Sans-serif is the body default; monospace is reserved for data whose columns
+must align. This was revised after the initial pass shipped monospace as the
+body default at 12px: on Linux the stack resolved past every named face to
+generic `monospace` (Noto Sans Mono, never a face the design chose), and
+monospace had been applied to running text — issue titles, buttons, chips,
+labels — not just aligned data. The project owner reviewed three rendered
+variants and chose sans as the base.
 
-| Monospace | Sans-serif |
+Monospace stays only on these ten elements; everything else, including issue
+titles, is sans:
+
+| File | Element |
 |---|---|
-| Issue IDs, status, priority | Issue title in the detail header |
-| Field labels, section labels | Description body |
-| Log types, timestamps | Comment text |
-| Issue titles **in the list** | Handoff bullet items |
-| Pagination, filter chips | Empty-state hint text |
+| `components/StatusTag.tsx` | the status span |
+| `components/PriorityTag.tsx` | the priority span |
+| `components/AppShell.tsx` | the `td-gui` brand link |
+| `features/issues/IssueList.tsx` | the issue-id column span |
+| `features/issues/IssueList.tsx` | the pagination counter (`1–1 of 1`) |
+| `features/issues/IssueDetail.tsx` | the issue-id span in the header |
+| `features/issues/IssueDetail.tsx` | the `type` tag in the header |
+| `features/issues/IssueDetail.tsx` | the activity log-type column |
+| `features/issues/IssueDetail.tsx` | the activity relative-timestamp |
+| `features/issues/IssueDetail.tsx` | the comment header (session id + time) |
 
-List titles stay monospace because they are scanned in an aligned column.
-The detail title becomes sans because there it is a heading, not a cell.
+Issue titles — in the list and in the detail header — are sans. In the list
+they are still scanned in an aligned column, but that column's alignment
+comes from the fixed-width ID and status cells either side of it, not from
+the title glyphs themselves, so sans reads better there without giving up
+scannability.
 
-Stacks:
+Stacks — the macOS/Windows names are kept ahead of the Linux-installed ones
+so those platforms are unaffected, with the Linux faces added because the
+original stack had zero coverage there:
 
 ```
---font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace
---font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+  Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif
+--font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+  "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+  monospace
 ```
 
 ### Colour tokens
@@ -82,27 +106,36 @@ free.
 | `line-subtle` | `#eff1f2` | `#161b22` | row dividers |
 | `ink` | `#1f2328` | `#e6edf3` | primary text |
 | `ink-muted` | `#57606a` | `#8b949e` | IDs, meta, labels |
-| `ink-faint` | `#6e7781` | `#7d8590` | placeholders, disabled |
-| `accent` | `#9a6700` | `#d29922` | brand, active filters, focus ring |
+| `ink-faint` | `#686f79` | `#7d8590` | placeholders, disabled |
+| `accent` | `#956400` | `#d29922` | brand, active filters, focus ring |
 | `accent-bg` | `#fff8e6` | `#1c1710` | active filter chip background |
 | `danger` | `#cf222e` | `#f85149` | errors, destructive transitions |
 | `success` | `#1a7f37` | `#3fb950` | connected dot, approve, handoff "Done" |
-| `warn` | `#9a6700` | `#e3b341` | disconnected banner |
+| `warn` | `#916100` | `#e3b341` | disconnected banner |
 
 Status tokens, one per td status:
 
 | Status | Light | Dark |
 |---|---|---|
 | `open` | `#0969da` | `#58a6ff` |
-| `in_progress` | `#9a6700` | `#d29922` |
+| `in_progress` | `#956400` | `#d29922` |
 | `in_review` | `#8250df` | `#a371f7` |
 | `blocked` | `#cf222e` | `#f85149` |
 | `closed` | `#57606a` | `#8b949e` |
 
 `ink-faint` is deliberately darker in light mode and lighter in dark mode than
 the values used in the mockups; the mockup values fell below 4.5:1 against
-their backgrounds. Every text token must be verified at ≥4.5:1 against the
-surface it sits on, in both themes, before this work is considered done.
+their backgrounds. Every text token must be verified at ≥4.5:1 against every
+background it actually renders on, in both themes, before this work is
+considered done — including translucent backgrounds (`bg-warn/10`,
+`bg-danger/5`) composited over the surface behind them, not measured against
+the opaque token. That composited check is what caught `warn`: at `#9a6700`
+it cleared 4.5:1 against the opaque `warn` swatch but only reached 4.21:1
+once actually composited at 10% over `surface` in light mode, so light
+`warn` was darkened to `#916100` (hue unchanged, ≤0.1°) and light
+`ink-faint` to `#686f79` (hue +1.96°) to clear 4.5:1 on `surface-hover`, the
+tightest of the four backgrounds it sits on. Dark-mode values were already
+compliant everywhere and were left untouched.
 
 ### Theme mechanism
 
@@ -116,7 +149,11 @@ does. In `web/src/index.css`:
   --color-surface: var(--td-surface);
   --color-ink-muted: var(--td-ink-muted);
   /* … one mapping per token above … */
-  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+    Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+    "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+    monospace;
 }
 
 :root {
@@ -138,9 +175,15 @@ on load, no toggle UI.
 
 ### Density and focus
 
-- Row height 34px (currently ~44px): 8px vertical padding on an 18px line box,
-  16px horizontal.
-- Base size 12px for chrome, 13px for prose, 20px for the detail title.
+- Row height 36px total, driven by the shared `--spacing-row` token so
+  `IssueList` and `SkeletonRows` cannot drift apart: 7.75px top + 7.75px
+  bottom padding (`py-2`'s 8px shifted by half a pixel-equivalent so the
+  total lands on a whole pixel) around a 13px/1.5 line box (19.5px), plus the
+  row's 1px bottom border — 7.75+19.5+7.75+1 = 36. `px-4` (16px) horizontal.
+- Three-size type scale: 11px for small meta and labels (IDs, statuses, log
+  types, timestamps, field labels, chips, buttons), 13px as the base for
+  everything else (inherited from the body, no explicit class), 20px for the
+  detail-page title only.
 - Section rhythm 24px.
 - A global `:focus-visible` ring on `accent`, 2px, 2px offset. The app
   currently has no focus styling whatsoever, so tab navigation is invisible.
@@ -190,10 +233,10 @@ The error panel frames td's message. It never rewrites it. This is the
 
 ### Issue detail
 
-- Header: ID small and muted **above** the title; title as the only sans
-  heading; below it `type` · `priority` · `status` as three bordered tags
-  replacing today's `·`-joined string. Only priority and status carry colour —
-  three coloured items in one line compete.
+- Header: ID small, muted and monospace **above** the title; title as the
+  sans heading it is; below it `type` · `priority` · `status` as three
+  bordered tags replacing today's `·`-joined string. Only priority and
+  status carry colour — three coloured items in one line compete.
 - **Transitions** remain exactly what td reports in `available_transitions`,
   and the bar still renders nothing when the field is absent. The only change
   is that `approve` gets a `success` border and `reject`/`block` a `danger`
@@ -210,7 +253,7 @@ The error panel frames td's message. It never rewrites it. This is the
 
 ### Forms
 
-Labels as small monospace uppercase. Inputs on `surface-inset` with the accent
+Labels as small sans uppercase. Inputs on `surface-inset` with the accent
 focus ring. Field errors in `danger` directly under the field, carrying td's
 wording unchanged — no client-side length validation is introduced, since
 title bounds are per-project td config.
@@ -281,6 +324,6 @@ proves less than it appears to.
   covered by automated tests; it is verified by looking at the running app.
 - **Contrast is verified by hand.** The table above is the reference; if a
   value changes during implementation, it must be re-checked.
-- **Density is a preference.** 34px rows may read as cramped once there are
+- **Density is a preference.** 36px rows may read as cramped once there are
   real issue counts. The row height is a single token, so it is cheap to
   revisit.

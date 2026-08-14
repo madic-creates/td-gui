@@ -1,1 +1,121 @@
 @import "tailwindcss";
+
+/* `inline` is required: the values are references to other custom properties,
+   which plain `@theme` would freeze at their light-mode value. */
+@theme inline {
+  --color-surface: var(--td-surface);
+  --color-surface-raised: var(--td-surface-raised);
+  --color-surface-inset: var(--td-surface-inset);
+  --color-surface-hover: var(--td-surface-hover);
+
+  --color-line: var(--td-line);
+  --color-line-subtle: var(--td-line-subtle);
+
+  --color-ink: var(--td-ink);
+  --color-ink-muted: var(--td-ink-muted);
+  --color-ink-faint: var(--td-ink-faint);
+
+  --color-accent: var(--td-accent);
+  --color-accent-bg: var(--td-accent-bg);
+  --color-danger: var(--td-danger);
+  --color-success: var(--td-success);
+  --color-warn: var(--td-warn);
+
+  --color-st-open: var(--td-st-open);
+  --color-st-progress: var(--td-st-progress);
+  --color-st-review: var(--td-st-review);
+  --color-st-blocked: var(--td-st-blocked);
+  --color-st-closed: var(--td-st-closed);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+    Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+    "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+    monospace;
+
+  /* List row height, derived (not guessed) from the body text box: 8px
+     top/bottom padding (py-2) + a 19.5px line box (13px/1.5) + the row's 1px
+     bottom border = 36.5px naturally, pinned to the nearest whole pixel.
+     Applied as an explicit height via `h-row`, on the SAME element that also
+     carries the border and padding, in both the real row (IssueList.tsx)
+     and the skeleton (SkeletonRows.tsx) — with box-sizing: border-box, an
+     explicit height on that element fixes the *rendered* total at exactly
+     this value regardless of the padding figure, which is what actually
+     keeps the two from drifting apart. (An earlier version of this token
+     put the border on a different, outer element than the padding/height —
+     that split the 1px border across two boxes instead of composing it into
+     one, so the real row rendered 1px taller than the skeleton despite
+     using the same token.) */
+  --spacing-row: 36px;
+}
+
+:root {
+  --td-surface: #fdfdfc;
+  --td-surface-raised: #f6f8fa;
+  --td-surface-inset: #f6f7f8;
+  --td-surface-hover: #f2f4f6;
+
+  --td-line: #e3e5e8;
+  --td-line-subtle: #eff1f2;
+
+  --td-ink: #1f2328;
+  --td-ink-muted: #57606a;
+  --td-ink-faint: #686f79;
+
+  --td-accent: #956400;
+  --td-accent-bg: #fff8e6;
+  --td-danger: #cf222e;
+  --td-success: #1a7f37;
+  --td-warn: #916100;
+
+  --td-st-open: #0969da;
+  --td-st-progress: #956400;
+  --td-st-review: #8250df;
+  --td-st-blocked: #cf222e;
+  --td-st-closed: #57606a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --td-surface: #0d1117;
+    --td-surface-raised: #0f141b;
+    --td-surface-inset: #010409;
+    --td-surface-hover: #161b22;
+
+    --td-line: #21262d;
+    --td-line-subtle: #161b22;
+
+    --td-ink: #e6edf3;
+    --td-ink-muted: #8b949e;
+    --td-ink-faint: #7d8590;
+
+    --td-accent: #d29922;
+    --td-accent-bg: #1c1710;
+    --td-danger: #f85149;
+    --td-success: #3fb950;
+    --td-warn: #e3b341;
+
+    --td-st-open: #58a6ff;
+    --td-st-progress: #d29922;
+    --td-st-review: #a371f7;
+    --td-st-blocked: #f85149;
+    --td-st-closed: #8b949e;
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;   /* 13px */
+    line-height: 1.5;
+  }
+
+  /* The app previously had no focus styling at all — tab navigation was
+     invisible. This is the single global fix. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

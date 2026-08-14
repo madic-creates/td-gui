@@ -29,7 +29,11 @@ const detail = {
     work_session_id: '', message: 'Started work', type: 'progress',
     timestamp: '2026-08-14T15:04:10+02:00',
   }],
-  comments: [],
+  comments: [{
+    id: 'cm-1f0a2b3c', issue_id: 'td-6a0883', session_id: 'ses_d87edf',
+    text: 'The handoff panel should collapse past ten items per group.',
+    created_at: '2026-08-14T15:04:10+02:00',
+  }],
   dependencies: [],
   blocked_by: [],
   latest_handoff: {
@@ -100,5 +104,16 @@ describe('IssueDetail', () => {
     renderDetail()
     await userEvent.click(await screen.findByRole('button', { name: 'Close' }))
     expect(await screen.findByText(rejection)).toBeInTheDocument()
+  })
+
+  // session_id and created_at already arrive from td but were previously
+  // dropped. The id is shortened by stripping td's constant `ses_` prefix.
+  it('shows a shortened session id on each comment', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    expect(await screen.findByText('session d87e')).toBeInTheDocument()
+    expect(screen.getByText(/handoff panel should collapse/)).toBeInTheDocument()
   })
 })

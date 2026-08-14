@@ -65,4 +65,18 @@ describe('IssueList', () => {
     renderList()
     expect(await screen.findByText(/database is locked/)).toBeInTheDocument()
   })
+
+  it('keeps prev reachable when a stale offset lands on an empty page', async () => {
+    server.use(http.get('/v1/issues', () =>
+      HttpResponse.json({
+        ok: true,
+        data: { issues: [], limit: 50, offset: 50, total: 12, has_more: false },
+      })))
+
+    renderList()
+    expect(await screen.findByText(/no issues/i)).toBeInTheDocument()
+    const prev = screen.getByRole('button', { name: 'prev' })
+    expect(prev).toBeInTheDocument()
+    expect(prev).toBeEnabled()
+  })
 })
