@@ -1,5 +1,5 @@
 import { COL, ROW_LAYOUT } from './columns'
-import type { Sort, SortKey } from './ordering'
+import type { Sort, SortDirection, SortKey } from './ordering'
 
 const LABEL: Record<SortKey, string> = {
   id: 'ID',
@@ -16,7 +16,7 @@ interface SortButtonProps {
 
 function SortButton({ column, sort, onChange }: SortButtonProps) {
   const active = sort.key === column
-  const flipped: Sort['direction'] = sort.direction === 'asc' ? 'desc' : 'asc'
+  const flipped: SortDirection = sort.direction === 'asc' ? 'desc' : 'asc'
   const next: Sort = active
     ? { key: column, direction: flipped }
     : { key: column, direction: 'asc' }

@@ -1,7 +1,10 @@
 import { COL, ROW } from '../features/issues/columns'
 
 /**
- * Placeholder rows at the real row height, so nothing jumps when data lands.
+ * Placeholder rows at the real row height, so the rows themselves do not jump
+ * when data lands. The surrounding chrome — the column-header row, a group
+ * header per status, and sometimes the cap notice — has no placeholder here
+ * and does appear on load; only the row geometry is pinned in advance.
  *
  * Geometry comes from the shared columns module, so this cannot drift from the
  * real row. The bars carry no text, so a bare flex row would size to its

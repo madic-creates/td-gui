@@ -15,9 +15,10 @@ import { relativeTime } from '../../lib/format'
 import { COL, ROW } from './columns'
 
 /* td serve cannot sort, so sorting has to happen here — which is only honest
-   if we hold the whole result set. One request against a local database is
-   cheaper than the round trips it replaces. */
-const FETCH_LIMIT = 500
+   if we hold the whole result set. 1000 is td's own maximum for `limit`; it
+   rejects anything larger outright, so this is the most one request can carry,
+   not a number we picked. */
+const FETCH_LIMIT = 1000
 
 export default function IssueList() {
   const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
@@ -44,9 +45,10 @@ export default function IssueList() {
     )
   } else {
     const groups = groupByStatus(data.issues, sort)
+    const truncated = data.total > data.issues.length
     body = (
       <>
-        {data.total > data.issues.length && (
+        {truncated && (
           <p className="border-b border-line bg-surface-inset px-4 py-1.5 text-[11px] text-ink-muted">
             Showing {data.issues.length} of {data.total} — refine the filters to
             narrow this down.
@@ -55,7 +57,11 @@ export default function IssueList() {
         <IssueListHeader sort={sort} onChange={setSort} />
         {groups.map(group => (
           <section key={group.status} aria-label={group.status}>
-            <IssueGroupHeader status={group.status} count={group.issues.length} />
+            <IssueGroupHeader
+              status={group.status}
+              count={group.issues.length}
+              truncated={truncated}
+            />
             <ul>
               {group.issues.map(issue => (
                 <li key={issue.id}>
@@ -66,9 +72,13 @@ export default function IssueList() {
                     <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>
                     <span className={`${COL.title} text-ink`}>{issue.title}</span>
                     <span className={COL.priority}><PriorityTag priority={issue.priority} /></span>
-                    <span className={`${COL.updated} text-ink-faint`}>
+                    <time
+                      dateTime={issue.updated_at}
+                      title={issue.updated_at}
+                      className={`${COL.updated} text-ink-faint`}
+                    >
                       {relativeTime(issue.updated_at)}
-                    </span>
+                    </time>
                     <span className={COL.status}><StatusTag status={issue.status} /></span>
                   </Link>
                 </li>

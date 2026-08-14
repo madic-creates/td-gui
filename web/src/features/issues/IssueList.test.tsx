@@ -49,6 +49,18 @@ describe('IssueList', () => {
     expect(await screen.findByText(/no issues/i)).toBeInTheDocument()
   })
 
+  it('renders no sort control when the list is empty — there is nothing to sort', async () => {
+    server.use(http.get('/v1/issues', () =>
+      HttpResponse.json({
+        ok: true,
+        data: { issues: [], limit: 50, offset: 0, total: 0, has_more: false },
+      })))
+
+    renderList()
+    await screen.findByText(/no issues/i)
+    expect(screen.queryByRole('button', { name: /^Sort by/ })).not.toBeInTheDocument()
+  })
+
   it('surfaces the server error message on failure', async () => {
     server.use(http.get('/v1/issues', () =>
       HttpResponse.json({
@@ -66,13 +78,13 @@ describe('IssueList', () => {
       seen = new URL(request.url)
       return HttpResponse.json({
         ok: true,
-        data: { issues: [], limit: 500, offset: 0, total: 0, has_more: false },
+        data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
       })
     }))
 
     renderList()
     await screen.findByText(/no issues/i)
-    expect(seen?.searchParams.get('limit')).toBe('500')
+    expect(seen?.searchParams.get('limit')).toBe('1000')
     expect(seen?.searchParams.has('offset')).toBe(false)
   })
 
@@ -82,12 +94,19 @@ describe('IssueList', () => {
         ok: true,
         data: {
           issues: [makeIssue({ id: 'td-1' })],
-          limit: 500, offset: 0, total: 812, has_more: true,
+          limit: 1000, offset: 0, total: 812, has_more: true,
         },
       })))
 
     renderList()
     expect(await screen.findByText(/Showing 1 of 812/)).toBeInTheDocument()
+
+    // The group beneath the notice still renders, and its count carries the
+    // same caveat: it is a lower bound, not the true size of that status.
+    const open = screen.getByRole('region', { name: 'open' })
+    expect(within(open).getByText('td-1')).toBeInTheDocument()
+    expect(within(open).getByText('1+')).toBeInTheDocument()
+    expect(within(open).getByLabelText('1 or more issues')).toBeInTheDocument()
   })
 
   it('stays quiet when the whole list fits', async () => {
@@ -96,13 +115,20 @@ describe('IssueList', () => {
         ok: true,
         data: {
           issues: [makeIssue({ id: 'td-1' })],
-          limit: 500, offset: 0, total: 1, has_more: false,
+          limit: 1000, offset: 0, total: 1, has_more: false,
         },
       })))
 
     renderList()
     await screen.findByText('td-1')
     expect(screen.queryByText(/Showing/)).not.toBeInTheDocument()
+
+    // No caveat on the group count either: the whole result set is present,
+    // so the bare number is exact.
+    const open = screen.getByRole('region', { name: 'open' })
+    expect(within(open).getByText('1')).toBeInTheDocument()
+    expect(within(open).queryByText('1+')).not.toBeInTheDocument()
+    expect(within(open).getByLabelText('1 issues')).toBeInTheDocument()
   })
 
   // Three open issues whose priority order is NOT the reverse of their title
@@ -119,7 +145,7 @@ describe('IssueList', () => {
     server.use(http.get('/v1/issues', () =>
       HttpResponse.json({
         ok: true,
-        data: { issues: mixed, limit: 500, offset: 0, total: 4, has_more: false },
+        data: { issues: mixed, limit: 1000, offset: 0, total: 4, has_more: false },
       })))
   }
 
@@ -165,7 +191,7 @@ describe('IssueList', () => {
         ok: true,
         data: {
           issues: [makeIssue({ id: 'td-1', updated_at: new Date().toISOString() })],
-          limit: 500, offset: 0, total: 1, has_more: false,
+          limit: 1000, offset: 0, total: 1, has_more: false,
         },
       })))
 

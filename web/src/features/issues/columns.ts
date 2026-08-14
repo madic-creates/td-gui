@@ -1,10 +1,11 @@
 /**
  * The issue list's column geometry, in one place.
  *
- * Two components lay out these columns today — the data row (IssueList) and
- * the loading skeleton (SkeletonRows) — and a sortable header row joins them
- * shortly. When the widths were duplicated the row and the skeleton drifted
- * apart by a pixel (fixed in 4ce3b18); a third copy would make that certain.
+ * Three components lay out these columns today — the data row (IssueList),
+ * the loading skeleton (SkeletonRows), and the sortable header row
+ * (IssueListHeader), which import COL and ROW_LAYOUT. When the widths were
+ * duplicated the row and the skeleton drifted apart by a pixel (fixed in
+ * 4ce3b18); a third copy would make that certain.
  *
  * Sharing the classes also gives the skeleton bars the `shrink-0` the real
  * row's cells already had, so the two stay aligned when the viewport is too

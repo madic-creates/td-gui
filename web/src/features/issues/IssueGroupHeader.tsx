@@ -18,9 +18,15 @@ const statusBar: Record<string, string> = {
 export default function IssueGroupHeader({
   status,
   count,
+  truncated,
 }: {
   status: string
   count: number
+  /** True when the fetch that produced this group was capped, so `count` is
+      only this group's share of what actually loaded, not of what td has.
+      The bare number would otherwise read as exact everywhere the "Showing N
+      of M" notice has already scrolled out of view. */
+  truncated?: boolean
 }) {
   return (
     <div className="flex items-center gap-3 border-y border-line bg-surface-inset px-4 py-1.5">
@@ -30,7 +36,12 @@ export default function IssueGroupHeader({
       />
       <StatusTag status={status} />
       <span className="flex-1" />
-      <span className="font-mono text-[11px] text-ink-faint">{count}</span>
+      <span
+        aria-label={truncated ? `${count} or more issues` : `${count} issues`}
+        className="font-mono text-[11px] text-ink-faint"
+      >
+        {truncated ? `${count}+` : count}
+      </span>
     </div>
   )
 }
