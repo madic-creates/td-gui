@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SORT, sortIssues } from './ordering'
+import { DEFAULT_SORT, groupByStatus, sortIssues, STATUS_ORDER } from './ordering'
 import { makeIssue } from './issue.fixture'
 
 const ids = (issues: { id: string }[]) => issues.map(i => i.id)
@@ -91,5 +91,56 @@ describe('sortIssues', () => {
     ]
     sortIssues(issues, { key: 'priority', direction: 'asc' })
     expect(ids(issues)).toEqual(['td-b', 'td-a'])
+  })
+})
+
+describe('groupByStatus', () => {
+  it('returns groups in attention order, not input order', () => {
+    const groups = groupByStatus([
+      makeIssue({ id: 'td-closed', status: 'closed' }),
+      makeIssue({ id: 'td-open', status: 'open' }),
+      makeIssue({ id: 'td-prog', status: 'in_progress' }),
+    ], DEFAULT_SORT)
+    expect(groups.map(g => g.status)).toEqual(['in_progress', 'open', 'closed'])
+  })
+
+  it('omits statuses with no issues', () => {
+    const groups = groupByStatus([makeIssue({ status: 'open' })], DEFAULT_SORT)
+    expect(groups.map(g => g.status)).toEqual(['open'])
+    expect(STATUS_ORDER).toContain('blocked')
+  })
+
+  it('keeps an unknown status as its own trailing group instead of dropping it', () => {
+    const groups = groupByStatus([
+      makeIssue({ id: 'td-new', status: 'archived' as never }),
+      makeIssue({ id: 'td-open', status: 'open' }),
+    ], DEFAULT_SORT)
+    expect(groups.map(g => g.status)).toEqual(['open', 'archived'])
+    expect(groups[1].issues.map(i => i.id)).toEqual(['td-new'])
+  })
+
+  it('orders several unknown statuses by first appearance', () => {
+    const groups = groupByStatus([
+      makeIssue({ id: 'td-2', status: 'zeta' as never }),
+      makeIssue({ id: 'td-1', status: 'alpha' as never }),
+    ], DEFAULT_SORT)
+    expect(groups.map(g => g.status)).toEqual(['zeta', 'alpha'])
+  })
+
+  it('sorts within each group and never moves an issue between groups', () => {
+    const groups = groupByStatus([
+      makeIssue({ id: 'td-o2', status: 'open', priority: 'P3' }),
+      makeIssue({ id: 'td-p1', status: 'in_progress', priority: 'P2' }),
+      makeIssue({ id: 'td-o1', status: 'open', priority: 'P0' }),
+    ], { key: 'priority', direction: 'asc' })
+
+    expect(groups.map(g => g.status)).toEqual(['in_progress', 'open'])
+    expect(groups[0].issues.map(i => i.id)).toEqual(['td-p1'])
+    // td-o1 is P0 — a flat sort would hoist it above the in_progress row.
+    expect(groups[1].issues.map(i => i.id)).toEqual(['td-o1', 'td-o2'])
+  })
+
+  it('returns no groups for no issues', () => {
+    expect(groupByStatus([], DEFAULT_SORT)).toEqual([])
   })
 })

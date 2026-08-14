@@ -1,4 +1,4 @@
-import type { Issue, Priority } from '../../api/types'
+import type { Issue, IssueStatus, Priority } from '../../api/types'
 
 export type SortKey = 'id' | 'title' | 'priority' | 'updated'
 export type SortDirection = 'asc' | 'desc'
@@ -58,4 +58,41 @@ export function sortIssues(issues: Issue[], sort: Sort): Issue[] {
   sortable.sort((a, b) => compare(a, b, sort.key) * factor || byId(a, b))
   unsortable.sort(byId)
   return [...sortable, ...unsortable]
+}
+
+/** Attention order, not alphabetical: what is moving comes before what is not. */
+export const STATUS_ORDER: IssueStatus[] = [
+  'in_progress', 'open', 'in_review', 'blocked', 'closed',
+]
+
+export interface IssueGroup {
+  /** A plain string, not IssueStatus: a status td adds later must still render. */
+  status: string
+  issues: Issue[]
+}
+
+/**
+ * Buckets issues by status and sorts within each bucket. Empty statuses are
+ * omitted — an empty `blocked` section is noise. A status we do not recognise
+ * gets its own group after the known ones, in first-seen order: an issue must
+ * never disappear from the list because td grew a status we have not heard of.
+ */
+export function groupByStatus(issues: Issue[], sort: Sort): IssueGroup[] {
+  const buckets = new Map<string, Issue[]>()
+  for (const issue of issues) {
+    const bucket = buckets.get(issue.status)
+    if (bucket) bucket.push(issue)
+    else buckets.set(issue.status, [issue])
+  }
+
+  const known = STATUS_ORDER.filter(status => buckets.has(status))
+  // Map iteration is insertion-ordered, which is what gives "first seen".
+  const unknown = [...buckets.keys()].filter(
+    status => !STATUS_ORDER.includes(status as IssueStatus),
+  )
+
+  return [...known, ...unknown].map(status => ({
+    status,
+    issues: sortIssues(buckets.get(status)!, sort),
+  }))
 }
