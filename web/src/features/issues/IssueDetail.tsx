@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client'
 import TransitionBar from './TransitionBar'
 import CommentForm from './CommentForm'
 import type { Handoff } from '../../api/types'
+import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
 import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -66,21 +67,42 @@ export default function IssueDetail() {
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
       <section className="mt-6">
-        <h2 className="font-semibold">Activity</h2>
-        <ul className="mt-1 space-y-1 text-sm">
+        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Activity</h2>
+        <ul>
           {logs.map(log => (
-            <li key={log.id}>
-              <span className="text-neutral-500">{log.type}</span> — <span>{log.message}</span>
+            <li
+              key={log.id}
+              className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
+            >
+              <span className="w-[66px] shrink-0 text-[10px] tracking-wide text-ink-muted">
+                {log.type}
+              </span>
+              <span className="flex-1 font-sans text-[12.5px]">{log.message}</span>
+              <span className="shrink-0 text-[10px] text-ink-faint">
+                {relativeTime(log.timestamp)}
+              </span>
             </li>
           ))}
         </ul>
       </section>
 
       <section className="mt-6">
-        <h2 className="font-semibold">Comments</h2>
-        <ul className="mt-1 space-y-2 text-sm">
+        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Comments</h2>
+        <ul>
           {comments.map(comment => (
-            <li key={comment.id} className="whitespace-pre-wrap">{comment.text}</li>
+            <li
+              key={comment.id}
+              className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
+            >
+              <div className="mb-1.5 flex gap-2 text-[10px] text-ink-faint">
+                <span>session {shortSession(comment.session_id)}</span>
+                <span>·</span>
+                <span>{relativeTime(comment.created_at)}</span>
+              </div>
+              <p className="whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed">
+                {comment.text}
+              </p>
+            </li>
           ))}
         </ul>
         <CommentForm issueId={issue.id} />
