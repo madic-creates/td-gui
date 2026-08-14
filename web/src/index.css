@@ -33,12 +33,19 @@
     "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
     monospace;
 
-  /* List row height, derived (not guessed) from the body text box: 13px/1.5
-     line box = 19.5px, plus 7.75px top/bottom padding (py-2's 8px shifted by
-     half a pixel-equivalent so the total lands on a whole pixel) plus the
-     row's 1px bottom border: 7.75 + 19.5 + 7.75 + 1 = 36px. Shared by the
-     real row (IssueList.tsx) and its skeleton (SkeletonRows.tsx) so the two
-     cannot drift apart again. */
+  /* List row height, derived (not guessed) from the body text box: 8px
+     top/bottom padding (py-2) + a 19.5px line box (13px/1.5) + the row's 1px
+     bottom border = 36.5px naturally, pinned to the nearest whole pixel.
+     Applied as an explicit height via `h-row`, on the SAME element that also
+     carries the border and padding, in both the real row (IssueList.tsx)
+     and the skeleton (SkeletonRows.tsx) — with box-sizing: border-box, an
+     explicit height on that element fixes the *rendered* total at exactly
+     this value regardless of the padding figure, which is what actually
+     keeps the two from drifting apart. (An earlier version of this token
+     put the border on a different, outer element than the padding/height —
+     that split the 1px border across two boxes instead of composing it into
+     one, so the real row rendered 1px taller than the skeleton despite
+     using the same token.) */
   --spacing-row: 36px;
 }
 

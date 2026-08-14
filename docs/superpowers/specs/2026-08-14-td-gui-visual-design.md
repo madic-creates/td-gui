@@ -22,10 +22,12 @@ needs, without adding features, endpoints or new screens.
 
 ## Chosen direction: terminal-adjacent
 
-Monospace-forward, dense, dark-first, colour used only for signal. td-gui is a
-window onto td state that sits next to a running Claude Code session; its data
-is overwhelmingly identifiers, status enums and log lines. Density and
-scannability matter more than whitespace.
+Dense, dark-first, colour used only for signal, monospace reserved for the
+data whose columns must align rather than leading the whole design. td-gui is
+a window onto td state that sits next to a running Claude Code session; its
+data is overwhelmingly identifiers, status enums and log lines, so those stay
+monospace even though prose — titles, descriptions, comments — reads in
+sans-serif. Density and scannability matter more than whitespace.
 
 Two directions were rejected: a Linear/GitHub-style product look (familiar but
 generic) and an editorial serif treatment (attractive but degrades badly past
@@ -322,6 +324,6 @@ proves less than it appears to.
   covered by automated tests; it is verified by looking at the running app.
 - **Contrast is verified by hand.** The table above is the reference; if a
   value changes during implementation, it must be re-checked.
-- **Density is a preference.** 34px rows may read as cramped once there are
+- **Density is a preference.** 36px rows may read as cramped once there are
   real issue counts. The row height is a single token, so it is cheap to
   revisit.

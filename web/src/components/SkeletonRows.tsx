@@ -2,11 +2,13 @@
  * Placeholder rows at the real row height, so nothing jumps when data lands.
  *
  * Row height comes from the shared `--spacing-row` token (index.css), used
- * here via `h-row` and on the real row in IssueList.tsx, so the two cannot
- * drift apart again. This skeleton's children carry no text, so a bare flex
- * row would size to its tallest child (~11px) instead — hence the explicit
- * height. The id and status bars are also sized to match the real row's
- * `w-[74px]` columns exactly.
+ * here via `h-row` — on the same element that also carries the border and
+ * padding, exactly as IssueList.tsx's real row does, so the two compose to
+ * the same rendered height instead of one silently absorbing its border
+ * differently from the other. This skeleton's children carry no text, so a
+ * bare flex row would size to its tallest child (~11px) instead — hence the
+ * explicit height. The id and status bars are also sized to match the real
+ * row's `w-[74px]` columns exactly.
  */
 export default function SkeletonRows({ rows = 5 }: { rows?: number }) {
   return (

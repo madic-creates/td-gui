@@ -88,10 +88,15 @@ export default function IssueList() {
       <>
         <ul>
           {data.issues.map(issue => (
-            <li key={issue.id} className="border-b border-line-subtle">
+            <li key={issue.id}>
+              {/* h-row, border and padding all live on this element — the
+                  same box SkeletonRows.tsx sets them on — so the two rows
+                  compose to the same rendered height under box-sizing:
+                  border-box instead of one absorbing the border and the
+                  other adding it on top. */}
               <Link
                 to={`/issues/${issue.id}`}
-                className="flex h-row items-center gap-3 px-4 py-[7.75px] hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]"
+                className="flex h-row items-center gap-3 border-b border-line-subtle px-4 py-2 hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]"
               >
                 <span className="w-[74px] shrink-0 font-mono text-ink-faint">{issue.id}</span>
                 <span className="flex-1 truncate text-ink">{issue.title}</span>
