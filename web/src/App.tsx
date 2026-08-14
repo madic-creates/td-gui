@@ -1,3 +1,10 @@
+import { Route, Routes } from 'react-router'
+import IssueList from './features/issues/IssueList'
+
 export default function App() {
-  return <h1 className="p-6 text-2xl font-semibold">td</h1>
+  return (
+    <Routes>
+      <Route path="/" element={<IssueList />} />
+    </Routes>
+  )
 }
