@@ -34,15 +34,16 @@ describe('sortIssues', () => {
   })
 
   it('orders by parsed timestamp, so a daylight-saving offset change cannot fool it', () => {
+    // Same wall-clock date, different offsets — the hour either side of a DST
+    // change. As strings, "02:00:00+01:00" sorts BEFORE "02:30:00+02:00"; as
+    // instants it is the other way round, 01:00Z after 00:30Z. A string
+    // comparison therefore fails this test, which is the whole point of it.
     const issues = [
-      // Later instant, but the smaller string: "2026-01-10T01:30+01:00" is
-      // 00:30 UTC, while "2025-07-09T02:00+02:00" is 00:00 UTC on an earlier
-      // date. A string comparison would order these the other way round.
-      makeIssue({ id: 'td-jan', updated_at: '2026-01-10T01:30:00+01:00' }),
-      makeIssue({ id: 'td-jul', updated_at: '2025-07-09T02:00:00+02:00' }),
+      makeIssue({ id: 'td-later', updated_at: '2026-03-29T02:00:00+01:00' }),
+      makeIssue({ id: 'td-earlier', updated_at: '2026-03-29T02:30:00+02:00' }),
     ]
     expect(ids(sortIssues(issues, { key: 'updated', direction: 'asc' })))
-      .toEqual(['td-jul', 'td-jan'])
+      .toEqual(['td-earlier', 'td-later'])
   })
 
   it('puts an unparseable timestamp last in both directions', () => {
