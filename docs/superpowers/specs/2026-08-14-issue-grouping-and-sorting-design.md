@@ -47,11 +47,15 @@ holds the whole result set: sorting 50 of 203 issues by priority would put the
 page's own P2 rows above P0 rows sitting on page 2.
 
 **Decision: the list fetches everything and pagination is removed.** `limit` is
-pinned to `FETCH_LIMIT = 500` and `offset` is gone. If `total` exceeds the rows
+pinned to `FETCH_LIMIT = 1000` and `offset` is gone. If `total` exceeds the rows
 returned, the list says so above the header row rather than silently showing a
 partial picture:
 
-    Showing 500 of 812 — refine the filters to narrow this down.
+    Showing 1000 of 1812 — refine the filters to narrow this down.
+
+Each group header also marks its count as `112+` when the set is truncated, so
+the qualification travels with every count instead of sitting only at the top,
+where a user scrolled down to `closed` would never see it.
 
 The database is local and single-user, so one larger request is cheaper than
 the round trips it replaces.
@@ -192,9 +196,12 @@ The existing pagination test goes away with the pagination.
 
 ## Risks
 
-- **`FETCH_LIMIT` is a guess.** 500 is chosen to be comfortably above any
-  plausible td project without being unbounded. It is a single constant, and
-  the cap notice makes the case where it binds visible rather than silent.
+- **`FETCH_LIMIT` is no longer a guess.** This document originally picked 500
+  as a round number. `td serve` validates `limit` as 1–1000 and rejects
+  anything larger outright, so 1000 is the most a single request can carry —
+  the constant is now td's bound rather than our estimate. The coupling is
+  real: if td ever lowered its maximum, every list request would fail with a
+  validation error rather than degrade.
 - **The row is getting crowded.** Five columns at 13px on a narrow window
   leaves little for the title, which truncates. Worth looking at in the running
   app rather than reasoning about.
