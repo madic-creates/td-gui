@@ -10,7 +10,6 @@ export interface IssueListParams {
   priority?: Priority[]
   search?: string
   limit: number
-  offset: number
 }
 
 export const issueKeys = {
@@ -26,7 +25,6 @@ function toQueryString(params: IssueListParams): string {
   params.priority?.forEach(v => q.append('priority', v))
   if (params.search) q.set('search', params.search)
   q.set('limit', String(params.limit))
-  q.set('offset', String(params.offset))
   return q.toString()
 }
 
