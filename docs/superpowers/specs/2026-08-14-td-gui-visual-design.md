@@ -82,8 +82,8 @@ free.
 | `line-subtle` | `#eff1f2` | `#161b22` | row dividers |
 | `ink` | `#1f2328` | `#e6edf3` | primary text |
 | `ink-muted` | `#57606a` | `#8b949e` | IDs, meta, labels |
-| `ink-faint` | `#6e7781` | `#7d8590` | placeholders, disabled |
-| `accent` | `#9a6700` | `#d29922` | brand, active filters, focus ring |
+| `ink-faint` | `#69717b` | `#7d8590` | placeholders, disabled |
+| `accent` | `#956400` | `#d29922` | brand, active filters, focus ring |
 | `accent-bg` | `#fff8e6` | `#1c1710` | active filter chip background |
 | `danger` | `#cf222e` | `#f85149` | errors, destructive transitions |
 | `success` | `#1a7f37` | `#3fb950` | connected dot, approve, handoff "Done" |
@@ -94,7 +94,7 @@ Status tokens, one per td status:
 | Status | Light | Dark |
 |---|---|---|
 | `open` | `#0969da` | `#58a6ff` |
-| `in_progress` | `#9a6700` | `#d29922` |
+| `in_progress` | `#956400` | `#d29922` |
 | `in_review` | `#8250df` | `#a371f7` |
 | `blocked` | `#cf222e` | `#f85149` |
 | `closed` | `#57606a` | `#8b949e` |
