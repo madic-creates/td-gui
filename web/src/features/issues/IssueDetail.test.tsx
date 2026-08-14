@@ -102,7 +102,9 @@ describe('IssueDetail', () => {
     )
 
     renderDetail()
+    // Close takes an optional reason, so it confirms through the form.
     await userEvent.click(await screen.findByRole('button', { name: 'Close' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm close' }))
     expect(await screen.findByText(rejection)).toBeInTheDocument()
   })
 
