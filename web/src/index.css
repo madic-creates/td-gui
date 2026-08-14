@@ -49,7 +49,15 @@
   --spacing-row: 36px;
 }
 
+/* There is no `prefers-color-scheme` media query here on purpose. The theme
+   preference is `auto`, `light` or `dark`, and `auto` is resolved to a concrete
+   theme in JS (lib/theme.ts) before first paint, so the stylesheet only ever
+   deals with two palettes. A media query would mean maintaining the dark block
+   twice — once for the OS default, once for the explicit choice — and the two
+   copies would drift. */
 :root {
+  color-scheme: light;
+
   --td-surface: #fdfdfc;
   --td-surface-raised: #f6f8fa;
   --td-surface-inset: #f6f7f8;
@@ -75,32 +83,32 @@
   --td-st-closed: #57606a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --td-surface: #0d1117;
-    --td-surface-raised: #0f141b;
-    --td-surface-inset: #010409;
-    --td-surface-hover: #161b22;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --td-line: #21262d;
-    --td-line-subtle: #161b22;
+  --td-surface: #0d1117;
+  --td-surface-raised: #0f141b;
+  --td-surface-inset: #010409;
+  --td-surface-hover: #161b22;
 
-    --td-ink: #e6edf3;
-    --td-ink-muted: #8b949e;
-    --td-ink-faint: #7d8590;
+  --td-line: #21262d;
+  --td-line-subtle: #161b22;
 
-    --td-accent: #d29922;
-    --td-accent-bg: #1c1710;
-    --td-danger: #f85149;
-    --td-success: #3fb950;
-    --td-warn: #e3b341;
+  --td-ink: #e6edf3;
+  --td-ink-muted: #8b949e;
+  --td-ink-faint: #7d8590;
 
-    --td-st-open: #58a6ff;
-    --td-st-progress: #d29922;
-    --td-st-review: #a371f7;
-    --td-st-blocked: #f85149;
-    --td-st-closed: #8b949e;
-  }
+  --td-accent: #d29922;
+  --td-accent-bg: #1c1710;
+  --td-danger: #f85149;
+  --td-success: #3fb950;
+  --td-warn: #e3b341;
+
+  --td-st-open: #58a6ff;
+  --td-st-progress: #d29922;
+  --td-st-review: #a371f7;
+  --td-st-blocked: #f85149;
+  --td-st-closed: #8b949e;
 }
 
 @layer base {

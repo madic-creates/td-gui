@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import ConnectionBanner from './ConnectionBanner'
+import ThemeToggle from './ThemeToggle'
 
 /**
  * Connection state is shown twice on purpose: the header dot is the ambient
@@ -25,6 +26,7 @@ export default function AppShell({
           />
           {connected ? 'connected' : 'disconnected'}
         </span>
+        <ThemeToggle />
         <Link
           to="/new"
           className="rounded-sm border border-accent px-2.5 py-1 text-[11px] text-accent"
