@@ -82,12 +82,12 @@ free.
 | `line-subtle` | `#eff1f2` | `#161b22` | row dividers |
 | `ink` | `#1f2328` | `#e6edf3` | primary text |
 | `ink-muted` | `#57606a` | `#8b949e` | IDs, meta, labels |
-| `ink-faint` | `#69717b` | `#7d8590` | placeholders, disabled |
+| `ink-faint` | `#686f79` | `#7d8590` | placeholders, disabled |
 | `accent` | `#956400` | `#d29922` | brand, active filters, focus ring |
 | `accent-bg` | `#fff8e6` | `#1c1710` | active filter chip background |
 | `danger` | `#cf222e` | `#f85149` | errors, destructive transitions |
 | `success` | `#1a7f37` | `#3fb950` | connected dot, approve, handoff "Done" |
-| `warn` | `#9a6700` | `#e3b341` | disconnected banner |
+| `warn` | `#916100` | `#e3b341` | disconnected banner |
 
 Status tokens, one per td status:
 
@@ -101,8 +101,17 @@ Status tokens, one per td status:
 
 `ink-faint` is deliberately darker in light mode and lighter in dark mode than
 the values used in the mockups; the mockup values fell below 4.5:1 against
-their backgrounds. Every text token must be verified at ≥4.5:1 against the
-surface it sits on, in both themes, before this work is considered done.
+their backgrounds. Every text token must be verified at ≥4.5:1 against every
+background it actually renders on, in both themes, before this work is
+considered done — including translucent backgrounds (`bg-warn/10`,
+`bg-danger/5`) composited over the surface behind them, not measured against
+the opaque token. That composited check is what caught `warn`: at `#9a6700`
+it cleared 4.5:1 against the opaque `warn` swatch but only reached 4.21:1
+once actually composited at 10% over `surface` in light mode, so light
+`warn` was darkened to `#916100` (hue unchanged, ≤0.1°) and light
+`ink-faint` to `#686f79` (hue +1.96°) to clear 4.5:1 on `surface-hover`, the
+tightest of the four backgrounds it sits on. Dark-mode values were already
+compliant everywhere and were left untouched.
 
 ### Theme mechanism
 
@@ -138,8 +147,10 @@ on load, no toggle UI.
 
 ### Density and focus
 
-- Row height 34px (currently ~44px): 8px vertical padding on an 18px line box,
-  16px horizontal.
+- Row height 35px total (currently ~44px): `py-2` (8px top + 8px bottom) around
+  a 12px/1.5 line box (18px), plus the row's 1px bottom border — 8+18+8+1.
+  `px-4` (16px) horizontal. `SkeletonRows` sets this height explicitly so it
+  cannot drift from the real row again.
 - Base size 12px for chrome, 13px for prose, 20px for the detail title.
 - Section rhythm 24px.
 - A global `:focus-visible` ring on `accent`, 2px, 2px offset. The app
