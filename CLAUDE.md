@@ -43,12 +43,14 @@ These are load-bearing; changing them changes what td-gui is.
 ## Build and test
 
 ```bash
-make test     # go test ./... plus the frontend suite
+make test     # lint, then go test ./... and the frontend suite
 make build    # web bundle into internal/web/dist, then the Go binary
+make lint     # golangci-lint plus oxlint, without the suites
 ```
 
-`make test` does **not** lint. Run it separately: `cd web && npm run lint`
-(oxlint). No Go linter is configured; `go vet ./...` is the floor.
+`make test` lints first, so it needs `golangci-lint` (v2) installed — a
+lint failure stops the run before any test executes. `pre-commit install`
+wires the same checks plus whitespace/EOL fixers into the commit hook.
 
 **A green `make test` can be misleading.** `test/contract` drives a real `td`
 binary and skips itself when `td` is not on PATH — `go test ./...` still

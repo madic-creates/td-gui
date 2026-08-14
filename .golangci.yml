@@ -1,0 +1,44 @@
+---
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    # Beyond the house baseline, because td-gui is almost entirely HTTP
+    # plumbing and sentinel-error matching:
+    # a leaked response body in the probe or proxy path exhausts connections
+    # silently.
+    - bodyclose
+    # ErrNotFound, ErrNoPortFile and ErrNoBuild are matched with errors.Is;
+    # this catches %v-instead-of-%w and == comparisons that break that.
+    - errorlint
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        # resp.Body's static type is io.ReadCloser, so the method must be
+        # named on that interface. `(*net/http.Response).Body.Close` looks
+        # right but matches nothing — Body is a field, not a method.
+        - (io.ReadCloser).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - io.Copy
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt

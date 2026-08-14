@@ -1,0 +1,186 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"  # Weekly, Mondays 05:00 UTC — contract-drift only
+
+permissions:
+  contents: read
+
+env:
+  # The oldest td td-gui supports, and the version the API contract in
+  # test/contract was probed against. Keep in sync with minTdVersion in
+  # cmd/td-gui/main.go.
+  TD_VERSION: v0.57.0
+
+jobs:
+  test-go:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-test-go
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # The race build's instrumented objects differ from the lint job's, so
+      # give this job its own rolling go-build cache: the sha suffix forces a
+      # fresh save each run, restore-keys pull the newest prior race build so
+      # only changed packages recompile.
+      - name: Cache go-build (race)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-build-test-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-test-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-build-test-${{ runner.os }}-
+
+      # test/contract drives a real td binary and SKIPS ITSELF when td is
+      # absent — `go test ./...` would still print ok. Installing td is what
+      # makes the contract suite actually run; the version check below fails
+      # the job if it did not land on PATH, so the skip can never go unnoticed.
+      - name: Install td ${{ env.TD_VERSION }}
+        run: |
+          set -euo pipefail
+          go install "github.com/marcus/td@${TD_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Verify td is on PATH
+        run: td --version
+
+      # go:embed needs a non-empty dist to compile. The committed .gitkeep
+      # satisfies that, so the Go suite needs no web build — internal/web's
+      # tests skip themselves without one, which is expected here and covered
+      # by the build job.
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+
+  lint-go:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-lint-go
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # golangci-lint keeps its own analysis cache but leans on go-build for
+      # type-checking. Separate key so it doesn't evict the race build.
+      - name: Cache go-build (lint)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-build-lint-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-lint-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-build-lint-${{ runner.os }}-
+      - uses: golangci/golangci-lint-action@v9
+
+  tidy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-tidy
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      # Guard against go.mod/go.sum drift: bumps accumulate stale module
+      # hashes without ever pruning. Fail on any diff so contributors must
+      # commit the tidied result.
+      - name: Verify go.mod/go.sum are tidy
+        run: |
+          set -euo pipefail
+          go mod tidy
+          if ! git diff --exit-code -- go.mod go.sum; then
+            echo "::error::go.mod/go.sum are not tidy. Run 'go mod tidy' and commit the result."
+            exit 1
+          fi
+
+  web:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-web
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      # tsc -b runs as part of the build, so this type-checks too.
+      - run: npm run build
+        working-directory: web
+      - run: npm test -- --run
+        working-directory: web
+
+  build:
+    needs: [test-go, web]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-build
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Cache go-build (binary)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: go-build-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-build-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-
+            go-build-build-${{ runner.os }}-
+      # Full pipeline: web bundle into internal/web/dist, then the Go binary.
+      - run: make build
+      # With a real bundle embedded, internal/web's three tests stop skipping
+      # and assert for real. This is the only job where that happens.
+      - name: Re-run embed tests against the real bundle
+        run: go test -count=1 ./internal/web/ -v
+      - uses: actions/upload-artifact@v7
+        with:
+          name: td-gui
+          path: td-gui
+          retention-days: 1
+          if-no-files-found: error
+
+  # The contract suite exists to catch renames in td's API. Pinning the test
+  # job to TD_VERSION makes CI reproducible but blind to exactly that drift,
+  # so re-run it against the newest td on a schedule instead of failing
+  # unrelated pull requests when td ships a release.
+  contract-drift:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Install latest td
+        run: |
+          set -euo pipefail
+          go install github.com/marcus/td@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Report td version under test
+        run: td --version
+      - run: go test -count=1 -v ./test/contract/

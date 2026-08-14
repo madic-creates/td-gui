@@ -23,7 +23,7 @@ var versionRe = regexp.MustCompile(`\bv?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)`)
 func Locate(override string) (string, error) {
 	if override != "" {
 		if _, err := os.Stat(override); err != nil {
-			return "", fmt.Errorf("%w: %s: %v", ErrNotFound, override, err)
+			return "", fmt.Errorf("%w: %s: %w", ErrNotFound, override, err)
 		}
 		return override, nil
 	}
