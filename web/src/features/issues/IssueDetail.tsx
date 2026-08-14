@@ -36,12 +36,12 @@ export default function IssueDetail() {
       <Link to="/" className="text-[11px] text-ink-muted">← back to list</Link>
 
       <header className="mt-3">
-        <span className="block text-[11px] text-ink-faint">{issue.id}</span>
-        <h1 className="mb-2 mt-0.5 font-sans text-xl font-semibold leading-snug tracking-tight text-ink">
+        <span className="block font-mono text-[11px] text-ink-faint">{issue.id}</span>
+        <h1 className="mb-2 mt-0.5 text-xl font-semibold leading-snug tracking-tight text-ink">
           {issue.title}
         </h1>
-        <div className="flex items-center gap-2 text-[10.5px]">
-          <span className="rounded-sm border border-line px-1.5 py-0.5 text-ink-muted">
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
             {issue.type}
           </span>
           <span className="rounded-sm border border-line px-1.5 py-0.5">
@@ -57,8 +57,8 @@ export default function IssueDetail() {
 
       {issue.description && (
         <section className="mt-6">
-          <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Description</h2>
-          <p className="max-w-[68ch] whitespace-pre-wrap font-sans text-[13px] leading-relaxed">
+          <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
+          <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
             {issue.description}
           </p>
         </section>
@@ -67,18 +67,18 @@ export default function IssueDetail() {
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
       <section className="mt-6">
-        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Activity</h2>
+        <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
         <ul>
           {logs.map(log => (
             <li
               key={log.id}
               className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
             >
-              <span className="w-[66px] shrink-0 text-[10px] tracking-wide text-ink-muted">
+              <span className="w-[66px] shrink-0 font-mono text-[11px] tracking-wide text-ink-muted">
                 {log.type}
               </span>
-              <span className="flex-1 font-sans text-[12.5px]">{log.message}</span>
-              <span className="shrink-0 text-[10px] text-ink-faint">
+              <span className="flex-1">{log.message}</span>
+              <span className="shrink-0 font-mono text-[11px] text-ink-faint">
                 {relativeTime(log.timestamp)}
               </span>
             </li>
@@ -87,19 +87,19 @@ export default function IssueDetail() {
       </section>
 
       <section className="mt-6">
-        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Comments</h2>
+        <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
         <ul>
           {comments.map(comment => (
             <li
               key={comment.id}
               className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
             >
-              <div className="mb-1.5 flex gap-2 text-[10px] text-ink-faint">
+              <div className="mb-1.5 flex gap-2 font-mono text-[11px] text-ink-faint">
                 <span>session {shortSession(comment.session_id)}</span>
                 <span>·</span>
                 <span>{relativeTime(comment.created_at)}</span>
               </div>
-              <p className="whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed">
+              <p className="whitespace-pre-wrap leading-relaxed">
                 {comment.text}
               </p>
             </li>
@@ -127,15 +127,15 @@ function HandoffPanel({ handoff }: { handoff: Handoff }) {
   ]
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-[10px] uppercase tracking-widest text-ink-muted">Latest handoff</h2>
+      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Latest handoff</h2>
       <div className="rounded-md border border-line bg-surface-raised px-4 py-3.5">
         <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
           {sections.filter(([, items]) => items.length > 0).map(([title, items]) => (
             <div key={title}>
-              <h3 className={`mb-1.5 text-[10px] uppercase tracking-widest ${handoffTone[title]}`}>
+              <h3 className={`mb-1.5 text-[11px] uppercase tracking-widest ${handoffTone[title]}`}>
                 {title}
               </h3>
-              <ul className="list-disc pl-4 font-sans text-[12.5px] leading-relaxed">
+              <ul className="list-disc pl-4 leading-relaxed">
                 {items.map((item, i) => <li key={i}>{item}</li>)}
               </ul>
             </div>

@@ -37,7 +37,7 @@ function Pagination({ data, onPrev, onNext }: PaginationProps) {
       >
         prev
       </button>
-      <span>{range}</span>
+      <span className="font-mono">{range}</span>
       <button
         className="rounded-sm border border-line px-2.5 py-1 disabled:opacity-40"
         disabled={!data.has_more}
@@ -91,9 +91,9 @@ export default function IssueList() {
             <li key={issue.id} className="border-b border-line-subtle">
               <Link
                 to={`/issues/${issue.id}`}
-                className="flex items-center gap-3 px-4 py-2 hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]"
+                className="flex h-row items-center gap-3 px-4 py-[7.75px] hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]"
               >
-                <span className="w-[74px] shrink-0 text-ink-faint">{issue.id}</span>
+                <span className="w-[74px] shrink-0 font-mono text-ink-faint">{issue.id}</span>
                 <span className="flex-1 truncate text-ink">{issue.title}</span>
                 <PriorityTag priority={issue.priority} />
                 <span className="w-[74px] shrink-0 text-right">

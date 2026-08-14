@@ -27,8 +27,19 @@
   --color-st-blocked: var(--td-st-blocked);
   --color-st-closed: var(--td-st-closed);
 
-  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+    Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+    "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+    monospace;
+
+  /* List row height, derived (not guessed) from the body text box: 13px/1.5
+     line box = 19.5px, plus 7.75px top/bottom padding (py-2's 8px shifted by
+     half a pixel-equivalent so the total lands on a whole pixel) plus the
+     row's 1px bottom border: 7.75 + 19.5 + 7.75 + 1 = 36px. Shared by the
+     real row (IssueList.tsx) and its skeleton (SkeletonRows.tsx) so the two
+     cannot drift apart again. */
+  --spacing-row: 36px;
 }
 
 :root {
@@ -89,8 +100,8 @@
   body {
     background-color: var(--color-surface);
     color: var(--color-ink);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;   /* 13px */
     line-height: 1.5;
   }
 

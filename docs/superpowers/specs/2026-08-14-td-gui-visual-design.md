@@ -45,24 +45,46 @@ These are explicitly out of scope. Each would be its own change:
 
 ### Typography rule
 
-Monospace for data, sans-serif for prose. Applied consistently:
+Sans-serif is the body default; monospace is reserved for data whose columns
+must align. This was revised after the initial pass shipped monospace as the
+body default at 12px: on Linux the stack resolved past every named face to
+generic `monospace` (Noto Sans Mono, never a face the design chose), and
+monospace had been applied to running text — issue titles, buttons, chips,
+labels — not just aligned data. The project owner reviewed three rendered
+variants and chose sans as the base.
 
-| Monospace | Sans-serif |
+Monospace stays only on these ten elements; everything else, including issue
+titles, is sans:
+
+| File | Element |
 |---|---|
-| Issue IDs, status, priority | Issue title in the detail header |
-| Field labels, section labels | Description body |
-| Log types, timestamps | Comment text |
-| Issue titles **in the list** | Handoff bullet items |
-| Pagination, filter chips | Empty-state hint text |
+| `components/StatusTag.tsx` | the status span |
+| `components/PriorityTag.tsx` | the priority span |
+| `components/AppShell.tsx` | the `td-gui` brand link |
+| `features/issues/IssueList.tsx` | the issue-id column span |
+| `features/issues/IssueList.tsx` | the pagination counter (`1–1 of 1`) |
+| `features/issues/IssueDetail.tsx` | the issue-id span in the header |
+| `features/issues/IssueDetail.tsx` | the `type` tag in the header |
+| `features/issues/IssueDetail.tsx` | the activity log-type column |
+| `features/issues/IssueDetail.tsx` | the activity relative-timestamp |
+| `features/issues/IssueDetail.tsx` | the comment header (session id + time) |
 
-List titles stay monospace because they are scanned in an aligned column.
-The detail title becomes sans because there it is a heading, not a cell.
+Issue titles — in the list and in the detail header — are sans. In the list
+they are still scanned in an aligned column, but that column's alignment
+comes from the fixed-width ID and status cells either side of it, not from
+the title glyphs themselves, so sans reads better there without giving up
+scannability.
 
-Stacks:
+Stacks — the macOS/Windows names are kept ahead of the Linux-installed ones
+so those platforms are unaffected, with the Linux faces added because the
+original stack had zero coverage there:
 
 ```
---font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace
---font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+  Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif
+--font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+  "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+  monospace
 ```
 
 ### Colour tokens
@@ -125,7 +147,11 @@ does. In `web/src/index.css`:
   --color-surface: var(--td-surface);
   --color-ink-muted: var(--td-ink-muted);
   /* … one mapping per token above … */
-  --font-mono: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+    Roboto, "Noto Sans", "DejaVu Sans", "Liberation Sans", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Hack,
+    "Cascadia Code", "DejaVu Sans Mono", "Liberation Mono", "Noto Sans Mono",
+    monospace;
 }
 
 :root {
@@ -147,11 +173,15 @@ on load, no toggle UI.
 
 ### Density and focus
 
-- Row height 35px total (currently ~44px): `py-2` (8px top + 8px bottom) around
-  a 12px/1.5 line box (18px), plus the row's 1px bottom border — 8+18+8+1.
-  `px-4` (16px) horizontal. `SkeletonRows` sets this height explicitly so it
-  cannot drift from the real row again.
-- Base size 12px for chrome, 13px for prose, 20px for the detail title.
+- Row height 36px total, driven by the shared `--spacing-row` token so
+  `IssueList` and `SkeletonRows` cannot drift apart: 7.75px top + 7.75px
+  bottom padding (`py-2`'s 8px shifted by half a pixel-equivalent so the
+  total lands on a whole pixel) around a 13px/1.5 line box (19.5px), plus the
+  row's 1px bottom border — 7.75+19.5+7.75+1 = 36. `px-4` (16px) horizontal.
+- Three-size type scale: 11px for small meta and labels (IDs, statuses, log
+  types, timestamps, field labels, chips, buttons), 13px as the base for
+  everything else (inherited from the body, no explicit class), 20px for the
+  detail-page title only.
 - Section rhythm 24px.
 - A global `:focus-visible` ring on `accent`, 2px, 2px offset. The app
   currently has no focus styling whatsoever, so tab navigation is invisible.
@@ -201,10 +231,10 @@ The error panel frames td's message. It never rewrites it. This is the
 
 ### Issue detail
 
-- Header: ID small and muted **above** the title; title as the only sans
-  heading; below it `type` · `priority` · `status` as three bordered tags
-  replacing today's `·`-joined string. Only priority and status carry colour —
-  three coloured items in one line compete.
+- Header: ID small, muted and monospace **above** the title; title as the
+  sans heading it is; below it `type` · `priority` · `status` as three
+  bordered tags replacing today's `·`-joined string. Only priority and
+  status carry colour — three coloured items in one line compete.
 - **Transitions** remain exactly what td reports in `available_transitions`,
   and the bar still renders nothing when the field is absent. The only change
   is that `approve` gets a `success` border and `reject`/`block` a `danger`
@@ -221,7 +251,7 @@ The error panel frames td's message. It never rewrites it. This is the
 
 ### Forms
 
-Labels as small monospace uppercase. Inputs on `surface-inset` with the accent
+Labels as small sans uppercase. Inputs on `surface-inset` with the accent
 focus ring. Field errors in `danger` directly under the field, carrying td's
 wording unchanged — no client-side length validation is introduced, since
 title bounds are per-project td config.

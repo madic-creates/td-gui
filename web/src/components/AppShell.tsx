@@ -16,7 +16,7 @@ export default function AppShell({
   return (
     <div className="min-h-screen bg-surface text-ink">
       <header className="flex items-center gap-2.5 border-b border-line bg-surface-inset px-4 py-2.5">
-        <Link to="/" className="font-semibold tracking-widest text-accent">td-gui</Link>
+        <Link to="/" className="font-mono font-semibold tracking-widest text-accent">td-gui</Link>
         <span className="flex-1" />
         <span className="flex items-center gap-1.5 text-[11px] text-ink-muted">
           <span

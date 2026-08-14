@@ -25,7 +25,7 @@ export default function IssueForm() {
       }}
     >
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-[10px] uppercase tracking-widest text-ink-muted">Title</label>
+        <label htmlFor="title" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Title</label>
         <input
           id="title" value={title} onChange={e => setTitle(e.target.value)}
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
@@ -34,18 +34,18 @@ export default function IssueForm() {
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-[10px] uppercase tracking-widest text-ink-muted">Description</label>
+        <label htmlFor="description" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Description</label>
         <textarea
           id="description" rows={5} value={description}
           onChange={e => setDescription(e.target.value)}
-          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-sans text-[12.5px] text-ink"
+          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
         />
         <FieldError error={create.error} field="description" />
       </div>
 
       <div className="flex gap-4">
         <div>
-          <label htmlFor="type" className="mb-1.5 block text-[10px] uppercase tracking-widest text-ink-muted">Type</label>
+          <label htmlFor="type" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Type</label>
           <select
             id="type" value={type} onChange={e => setType(e.target.value as IssueType)}
             className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
@@ -54,7 +54,7 @@ export default function IssueForm() {
           </select>
         </div>
         <div>
-          <label htmlFor="priority" className="mb-1.5 block text-[10px] uppercase tracking-widest text-ink-muted">Priority</label>
+          <label htmlFor="priority" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Priority</label>
           <select
             id="priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}
             className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"

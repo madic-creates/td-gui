@@ -12,7 +12,7 @@ const statusColor: Record<string, string> = {
  */
 export default function StatusTag({ status }: { status: string }) {
   return (
-    <span className={`text-[10px] tracking-wider ${statusColor[status] ?? 'text-ink-muted'}`}>
+    <span className={`font-mono text-[11px] tracking-wider ${statusColor[status] ?? 'text-ink-muted'}`}>
       {status}
     </span>
   )
