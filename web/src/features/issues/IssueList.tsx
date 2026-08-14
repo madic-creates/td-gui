@@ -2,59 +2,28 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useIssues, type IssueListParams } from '../../api/queries'
 import { ApiError } from '../../api/client'
-import type { IssueListResponse } from '../../api/types'
 import IssueFilters from './IssueFilters'
 import StatusTag from '../../components/StatusTag'
 import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
 import EmptyState from '../../components/EmptyState'
 import SkeletonRows from '../../components/SkeletonRows'
+import IssueGroupHeader from './IssueGroupHeader'
+import IssueListHeader from './IssueListHeader'
+import { DEFAULT_SORT, groupByStatus, type Sort } from './ordering'
+import { relativeTime } from '../../lib/format'
+import { COL, ROW } from './columns'
 
-const PAGE_SIZE = 50
-
-interface PaginationProps {
-  data: IssueListResponse
-  onPrev: () => void
-  onNext: () => void
-}
-
-// Shared by the populated and (offset > 0) empty states so "prev" stays
-// reachable if a live update shrinks the list out from under the current
-// page — see the range-text guard for the "no rows on this page" case.
-// Driven by the server-confirmed `data.offset`, not local UI state, so it
-// always reflects the page the current response actually represents.
-function Pagination({ data, onPrev, onNext }: PaginationProps) {
-  const range = data.issues.length === 0
-    ? `0 of ${data.total}`
-    : `${data.offset + 1}–${data.offset + data.issues.length} of ${data.total}`
-
-  return (
-    <div className="flex items-center gap-3.5 px-4 py-2.5 text-[11px] text-ink-muted">
-      <button
-        className="rounded-sm border border-line px-2.5 py-1 disabled:opacity-40"
-        disabled={data.offset === 0}
-        onClick={onPrev}
-      >
-        prev
-      </button>
-      <span className="font-mono">{range}</span>
-      <button
-        className="rounded-sm border border-line px-2.5 py-1 disabled:opacity-40"
-        disabled={!data.has_more}
-        onClick={onNext}
-      >
-        next
-      </button>
-    </div>
-  )
-}
+/* td serve cannot sort, so sorting has to happen here — which is only honest
+   if we hold the whole result set. 1000 is td's own maximum for `limit`; it
+   rejects anything larger outright, so this is the most one request can carry,
+   not a number we picked. */
+const FETCH_LIMIT = 1000
 
 export default function IssueList() {
-  const [params, setParams] = useState<IssueListParams>({ limit: PAGE_SIZE, offset: 0 })
+  const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const { data, error, isPending } = useIssues(params)
-
-  const goPrev = () => setParams(p => ({ ...p, offset: Math.max(0, p.offset - PAGE_SIZE) }))
-  const goNext = () => setParams(p => ({ ...p, offset: p.offset + PAGE_SIZE }))
 
   // Assigned rather than early-returned so the filters stay mounted in every
   // state — the empty-state hint tells the user to clear them.
@@ -68,55 +37,62 @@ export default function IssueList() {
       </div>
     )
   } else if (data.issues.length === 0) {
-    // A stale offset (e.g. another session closed issues while this tab held
-    // a later page) can leave the list empty on a page that isn't page one.
-    // Keep pagination mounted then so "prev" stays reachable — a genuinely
-    // empty project at offset 0 stays quiet instead of showing "0 of 0".
     body = (
-      <>
-        <EmptyState
-          message="No issues found."
-          hint="Try clearing the status filters, or create the first issue."
-        />
-        {data.offset > 0 && (
-          <Pagination data={data} onPrev={goPrev} onNext={goNext} />
-        )}
-      </>
+      <EmptyState
+        message="No issues found."
+        hint="Try clearing the status filters, or create the first issue."
+      />
     )
   } else {
+    const groups = groupByStatus(data.issues, sort)
+    const truncated = data.total > data.issues.length
     body = (
       <>
-        <ul>
-          {data.issues.map(issue => (
-            <li key={issue.id}>
-              {/* h-row, border and padding all live on this element — the
-                  same box SkeletonRows.tsx sets them on — so the two rows
-                  compose to the same rendered height under box-sizing:
-                  border-box instead of one absorbing the border and the
-                  other adding it on top. */}
-              <Link
-                to={`/issues/${issue.id}`}
-                className="flex h-row items-center gap-3 border-b border-line-subtle px-4 py-2 hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]"
-              >
-                <span className="w-[74px] shrink-0 font-mono text-ink-faint">{issue.id}</span>
-                <span className="flex-1 truncate text-ink">{issue.title}</span>
-                <PriorityTag priority={issue.priority} />
-                <span className="w-[74px] shrink-0 text-right">
-                  <StatusTag status={issue.status} />
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        <Pagination data={data} onPrev={goPrev} onNext={goNext} />
+        {truncated && (
+          <p className="border-b border-line bg-surface-inset px-4 py-1.5 text-[11px] text-ink-muted">
+            Showing {data.issues.length} of {data.total} — refine the filters to
+            narrow this down.
+          </p>
+        )}
+        <IssueListHeader sort={sort} onChange={setSort} />
+        {groups.map(group => (
+          <section key={group.status} aria-label={group.status}>
+            <IssueGroupHeader
+              status={group.status}
+              count={group.issues.length}
+              truncated={truncated}
+            />
+            <ul>
+              {group.issues.map(issue => (
+                <li key={issue.id}>
+                  <Link
+                    to={`/issues/${issue.id}`}
+                    className={`${ROW} hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]`}
+                  >
+                    <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>
+                    <span className={`${COL.title} text-ink`}>{issue.title}</span>
+                    <span className={COL.priority}><PriorityTag priority={issue.priority} /></span>
+                    <time
+                      dateTime={issue.updated_at}
+                      title={issue.updated_at}
+                      className={`${COL.updated} text-ink-faint`}
+                    >
+                      {relativeTime(issue.updated_at)}
+                    </time>
+                    <span className={COL.status}><StatusTag status={issue.status} /></span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
       </>
     )
   }
 
   return (
     <div>
-      <IssueFilters params={params} onChange={next => setParams({ ...next, offset: 0 })} />
+      <IssueFilters params={params} onChange={setParams} />
       {body}
     </div>
   )
