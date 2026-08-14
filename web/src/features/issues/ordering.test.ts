@@ -128,16 +128,37 @@ describe('groupByStatus', () => {
   })
 
   it('sorts within each group and never moves an issue between groups', () => {
-    const groups = groupByStatus([
-      makeIssue({ id: 'td-o2', status: 'open', priority: 'P3' }),
-      makeIssue({ id: 'td-p1', status: 'in_progress', priority: 'P2' }),
-      makeIssue({ id: 'td-o1', status: 'open', priority: 'P0' }),
-    ], { key: 'priority', direction: 'asc' })
+    // The ids deliberately disagree with the priority order: by id the open
+    // group reads td-aaa, td-zzz; by priority it reads td-zzz, td-aaa. With
+    // ids that agreed, an implementation ignoring the sort key entirely would
+    // pass this test.
+    const issues = [
+      makeIssue({ id: 'td-aaa', status: 'open', priority: 'P3' }),
+      makeIssue({ id: 'td-mmm', status: 'in_progress', priority: 'P2' }),
+      makeIssue({ id: 'td-zzz', status: 'open', priority: 'P0' }),
+    ]
 
-    expect(groups.map(g => g.status)).toEqual(['in_progress', 'open'])
-    expect(groups[0].issues.map(i => i.id)).toEqual(['td-p1'])
-    // td-o1 is P0 — a flat sort would hoist it above the in_progress row.
-    expect(groups[1].issues.map(i => i.id)).toEqual(['td-o1', 'td-o2'])
+    const asc = groupByStatus(issues, { key: 'priority', direction: 'asc' })
+    expect(asc.map(g => g.status)).toEqual(['in_progress', 'open'])
+    // td-zzz is P0, the highest priority in the whole list, and still sits
+    // below the in_progress group: the grouping outranks the sort.
+    expect(asc[0].issues.map(i => i.id)).toEqual(['td-mmm'])
+    expect(asc[1].issues.map(i => i.id)).toEqual(['td-zzz', 'td-aaa'])
+
+    // Reversing the direction reorders inside the group but must not reorder
+    // the groups themselves.
+    const desc = groupByStatus(issues, { key: 'priority', direction: 'desc' })
+    expect(desc.map(g => g.status)).toEqual(['in_progress', 'open'])
+    expect(desc[1].issues.map(i => i.id)).toEqual(['td-aaa', 'td-zzz'])
+  })
+
+  it('does not mutate the array it was given', () => {
+    const issues = [
+      makeIssue({ id: 'td-b', status: 'closed' }),
+      makeIssue({ id: 'td-a', status: 'open' }),
+    ]
+    groupByStatus(issues, DEFAULT_SORT)
+    expect(issues.map(i => i.id)).toEqual(['td-b', 'td-a'])
   })
 
   it('returns no groups for no issues', () => {
