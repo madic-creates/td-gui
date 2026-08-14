@@ -24,7 +24,7 @@ export default function IssueForm() {
       }}
     >
       <div>
-        <label htmlFor="title" className="block text-sm font-medium">Titel</label>
+        <label htmlFor="title" className="block text-sm font-medium">Title</label>
         <input
           id="title" value={title} onChange={e => setTitle(e.target.value)}
           className="mt-1 w-full rounded border px-3 py-1"
@@ -33,7 +33,7 @@ export default function IssueForm() {
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium">Beschreibung</label>
+        <label htmlFor="description" className="block text-sm font-medium">Description</label>
         <textarea
           id="description" rows={5} value={description}
           onChange={e => setDescription(e.target.value)}
@@ -44,7 +44,7 @@ export default function IssueForm() {
 
       <div className="flex gap-4">
         <div>
-          <label htmlFor="type" className="block text-sm font-medium">Typ</label>
+          <label htmlFor="type" className="block text-sm font-medium">Type</label>
           <select
             id="type" value={type} onChange={e => setType(e.target.value as IssueType)}
             className="mt-1 rounded border px-3 py-1"
@@ -53,7 +53,7 @@ export default function IssueForm() {
           </select>
         </div>
         <div>
-          <label htmlFor="priority" className="block text-sm font-medium">Priorität</label>
+          <label htmlFor="priority" className="block text-sm font-medium">Priority</label>
           <select
             id="priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}
             className="mt-1 rounded border px-3 py-1"
@@ -65,10 +65,10 @@ export default function IssueForm() {
 
       <button type="submit" disabled={create.isPending}
         className="rounded border px-4 py-1 disabled:opacity-40">
-        Anlegen
+        Create
       </button>
 
-      {create.isSuccess && <p className="text-green-700">Issue angelegt.</p>}
+      {create.isSuccess && <p className="text-green-700">Issue created.</p>}
 
       {create.error instanceof ApiError && create.error.code !== 'validation_error' && (
         <p className="text-red-600" role="alert">{create.error.message}</p>

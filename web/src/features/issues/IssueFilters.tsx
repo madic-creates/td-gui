@@ -2,11 +2,11 @@ import type { IssueListParams } from '../../api/queries'
 import type { IssueStatus } from '../../api/types'
 
 const statuses: { value: IssueStatus; label: string }[] = [
-  { value: 'open', label: 'Offen' },
-  { value: 'in_progress', label: 'In Arbeit' },
-  { value: 'in_review', label: 'Im Review' },
-  { value: 'blocked', label: 'Blockiert' },
-  { value: 'closed', label: 'Geschlossen' },
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'in_review', label: 'In review' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 interface Props {
@@ -19,8 +19,8 @@ export default function IssueFilters({ params, onChange }: Props) {
     <div className="flex flex-wrap items-center gap-3">
       <input
         type="search"
-        aria-label="Suche"
-        placeholder="Suchen …"
+        aria-label="Search"
+        placeholder="Search …"
         className="rounded border px-3 py-1"
         defaultValue={params.search ?? ''}
         onChange={e => onChange({ ...params, search: e.target.value || undefined })}

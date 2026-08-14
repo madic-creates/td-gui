@@ -44,8 +44,8 @@ describe('IssueForm', () => {
     }))
 
     renderForm()
-    await userEvent.type(screen.getByLabelText('Titel'), 'ab')
-    await userEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    await userEvent.type(screen.getByLabelText('Title'), 'ab')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(await screen.findByText('title too short (2 chars, min 15)')).toBeInTheDocument()
     expect(received).toEqual(expect.objectContaining({ title: 'ab' }))
@@ -59,12 +59,12 @@ describe('IssueForm', () => {
     }))
 
     renderForm()
-    await userEvent.type(screen.getByLabelText('Titel'), 'Ein hinreichend langer Titel')
-    await userEvent.selectOptions(screen.getByLabelText('Priorität'), 'P1')
-    await userEvent.click(screen.getByRole('button', { name: 'Anlegen' }))
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.selectOptions(screen.getByLabelText('Priority'), 'P1')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
-    await screen.findByText(/angelegt/i)
-    expect(received!.title).toBe('Ein hinreichend langer Titel')
+    await screen.findByText(/created/i)
+    expect(received!.title).toBe('A sufficiently long issue title')
     expect(received!.priority).toBe('P1')
   })
 })

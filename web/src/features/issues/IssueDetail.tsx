@@ -9,7 +9,7 @@ export default function IssueDetail() {
   const { id = '' } = useParams()
   const { data, error, isPending } = useIssue(id)
 
-  if (isPending) return <p className="p-6 text-neutral-500">Wird geladen …</p>
+  if (isPending) return <p className="p-6 text-neutral-500">Loading …</p>
 
   if (error) {
     const apiError = error instanceof ApiError ? error : null
@@ -19,7 +19,7 @@ export default function IssueDetail() {
           {apiError?.message ?? String(error)}
         </p>
         {apiError?.code === 'not_found' && (
-          <Link to="/" className="mt-3 inline-block underline">Zurück zur Liste</Link>
+          <Link to="/" className="mt-3 inline-block underline">Back to list</Link>
         )}
       </div>
     )
@@ -29,7 +29,7 @@ export default function IssueDetail() {
 
   return (
     <div className="p-6">
-      <Link to="/" className="text-sm underline">Zurück zur Liste</Link>
+      <Link to="/" className="text-sm underline">Back to list</Link>
 
       <header className="mt-3">
         <span className="font-mono text-sm text-neutral-500">{issue.id}</span>
@@ -43,7 +43,7 @@ export default function IssueDetail() {
 
       {issue.description && (
         <section className="mt-6">
-          <h2 className="font-semibold">Beschreibung</h2>
+          <h2 className="font-semibold">Description</h2>
           <p className="mt-1 whitespace-pre-wrap">{issue.description}</p>
         </section>
       )}
@@ -51,7 +51,7 @@ export default function IssueDetail() {
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
       <section className="mt-6">
-        <h2 className="font-semibold">Verlauf</h2>
+        <h2 className="font-semibold">Activity</h2>
         <ul className="mt-1 space-y-1 text-sm">
           {logs.map(log => (
             <li key={log.id}>
@@ -62,7 +62,7 @@ export default function IssueDetail() {
       </section>
 
       <section className="mt-6">
-        <h2 className="font-semibold">Kommentare</h2>
+        <h2 className="font-semibold">Comments</h2>
         <ul className="mt-1 space-y-2 text-sm">
           {comments.map(comment => (
             <li key={comment.id} className="whitespace-pre-wrap">{comment.text}</li>
@@ -76,14 +76,14 @@ export default function IssueDetail() {
 
 function HandoffPanel({ handoff }: { handoff: Handoff }) {
   const sections: [string, string[]][] = [
-    ['Erledigt', handoff.done],
-    ['Offen', handoff.remaining],
-    ['Entscheidungen', handoff.decisions],
-    ['Unklar', handoff.uncertain],
+    ['Done', handoff.done],
+    ['Remaining', handoff.remaining],
+    ['Decisions', handoff.decisions],
+    ['Uncertain', handoff.uncertain],
   ]
   return (
     <section className="mt-6 rounded border border-neutral-200 p-4">
-      <h2 className="font-semibold">Letzter Handoff</h2>
+      <h2 className="font-semibold">Latest handoff</h2>
       {sections.filter(([, items]) => items.length > 0).map(([title, items]) => (
         <div key={title} className="mt-2">
           <h3 className="text-sm font-medium text-neutral-600">{title}</h3>

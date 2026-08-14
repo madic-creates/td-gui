@@ -7,18 +7,18 @@ import IssueFilters from './IssueFilters'
 const PAGE_SIZE = 50
 
 const statusLabels: Record<string, string> = {
-  open: 'Offen',
-  in_progress: 'In Arbeit',
-  in_review: 'Im Review',
-  blocked: 'Blockiert',
-  closed: 'Geschlossen',
+  open: 'Open',
+  in_progress: 'In progress',
+  in_review: 'In review',
+  blocked: 'Blocked',
+  closed: 'Closed',
 }
 
 export default function IssueList() {
   const [params, setParams] = useState<IssueListParams>({ limit: PAGE_SIZE, offset: 0 })
   const { data, error, isPending } = useIssues(params)
 
-  if (isPending) return <p className="p-6 text-neutral-500">Wird geladen …</p>
+  if (isPending) return <p className="p-6 text-neutral-500">Loading …</p>
 
   if (error) {
     const message = error instanceof ApiError ? error.message : String(error)
@@ -28,7 +28,7 @@ export default function IssueList() {
   return (
     <div className="p-6">
       <Link to="/new" className="mb-4 inline-block rounded border px-3 py-1 text-sm">
-        Neues Issue
+        New issue
       </Link>
 
       <IssueFilters
@@ -37,7 +37,7 @@ export default function IssueList() {
       />
 
       {data.issues.length === 0 ? (
-        <p className="mt-8 text-neutral-500">Keine Issues gefunden.</p>
+        <p className="mt-8 text-neutral-500">No issues found.</p>
       ) : (
         <ul className="mt-4 divide-y divide-neutral-200">
           {data.issues.map(issue => (
@@ -61,17 +61,17 @@ export default function IssueList() {
           disabled={params.offset === 0}
           onClick={() => setParams(p => ({ ...p, offset: Math.max(0, p.offset - PAGE_SIZE) }))}
         >
-          Zurück
+          Previous
         </button>
         <span className="text-neutral-500">
-          {data.offset + 1}–{data.offset + data.issues.length} von {data.total}
+          {data.offset + 1}–{data.offset + data.issues.length} of {data.total}
         </span>
         <button
           className="rounded border px-3 py-1 disabled:opacity-40"
           disabled={!data.has_more}
           onClick={() => setParams(p => ({ ...p, offset: p.offset + PAGE_SIZE }))}
         >
-          Weiter
+          Next
         </button>
       </div>
     </div>

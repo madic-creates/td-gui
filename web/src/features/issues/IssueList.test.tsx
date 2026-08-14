@@ -52,7 +52,7 @@ describe('IssueList', () => {
       })))
 
     renderList()
-    expect(await screen.findByText(/keine issues/i)).toBeInTheDocument()
+    expect(await screen.findByText(/no issues/i)).toBeInTheDocument()
   })
 
   it('surfaces the server error message on failure', async () => {

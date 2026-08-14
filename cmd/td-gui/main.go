@@ -34,20 +34,20 @@ func main() {
 }
 
 func run() error {
-	port := flag.Int("port", 0, "Port für die Oberfläche (0 = frei wählen)")
-	noOpen := flag.Bool("no-open", false, "Browser nicht automatisch öffnen")
-	tdPath := flag.String("td", "", "Pfad zum td-Binary (Standard: aus PATH)")
-	workDir := flag.String("work-dir", ".", "Projektverzeichnis")
+	port := flag.Int("port", 0, "port for the web UI (0 = pick a free one)")
+	noOpen := flag.Bool("no-open", false, "do not open a browser automatically")
+	tdPath := flag.String("td", "", "path to the td binary (default: from PATH)")
+	workDir := flag.String("work-dir", ".", "project directory")
 	flag.Parse()
 
 	baseDir, err := filepath.Abs(*workDir)
 	if err != nil {
-		return fmt.Errorf("Projektverzeichnis auflösen: %w", err)
+		return fmt.Errorf("resolve project directory: %w", err)
 	}
 
 	td, err := tdbin.Locate(*tdPath)
 	if err != nil {
-		return fmt.Errorf("%w — td installieren oder --td setzen", err)
+		return fmt.Errorf("%w — install td or set --td", err)
 	}
 	version, err := tdbin.Version(td)
 	if err != nil {
@@ -58,13 +58,13 @@ func run() error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("td %s ist zu alt, mindestens %s wird benötigt", version, minTdVersion)
+		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
 	}
 
 	assets, err := web.Handler()
 	if err != nil {
 		if errors.Is(err, web.ErrNoBuild) {
-			return fmt.Errorf("%w — dieses Binary enthält kein Web-Build", err)
+			return fmt.Errorf("%w — this binary contains no web build", err)
 		}
 		return err
 	}
@@ -85,9 +85,9 @@ func run() error {
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
 		if *port != 0 {
-			return fmt.Errorf("Port %d ist belegt: %w", *port, err)
+			return fmt.Errorf("port %d is already in use: %w", *port, err)
 		}
-		return fmt.Errorf("Listener öffnen: %w", err)
+		return fmt.Errorf("open listener: %w", err)
 	}
 	origin := fmt.Sprintf("http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port)
 
@@ -100,11 +100,11 @@ func run() error {
 	mgr.Supervise(ctx, func(baseURL, token string) {
 		next, err := proxy.New(baseURL, token)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "td-gui: Neustart des Backends fehlgeschlagen:", err)
+			fmt.Fprintln(os.Stderr, "td-gui: restarting the backend failed:", err)
 			return
 		}
 		apiSwitch.Set(next)
-		fmt.Fprintf(os.Stderr, "td-gui: Backend neu gestartet auf %s\n", baseURL)
+		fmt.Fprintf(os.Stderr, "td-gui: backend restarted on %s\n", baseURL)
 	})
 
 	mux := http.NewServeMux()
@@ -119,13 +119,13 @@ func run() error {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	fmt.Fprintf(os.Stderr, "td-gui läuft auf %s\n", origin)
-	fmt.Fprintf(os.Stderr, "  Projekt:  %s\n", baseDir)
+	fmt.Fprintf(os.Stderr, "td-gui is running on %s\n", origin)
+	fmt.Fprintf(os.Stderr, "  project:  %s\n", baseDir)
 	fmt.Fprintf(os.Stderr, "  td:       %s (%s)\n", td, version)
 	if mgr.Owned() {
-		fmt.Fprintf(os.Stderr, "  Backend:  %s (selbst gestartet)\n", mgr.BaseURL())
+		fmt.Fprintf(os.Stderr, "  backend:  %s (started by us)\n", mgr.BaseURL())
 	} else {
-		fmt.Fprintf(os.Stderr, "  Backend:  %s (vorhandene Instanz)\n", mgr.BaseURL())
+		fmt.Fprintf(os.Stderr, "  backend:  %s (existing instance)\n", mgr.BaseURL())
 	}
 
 	if !*noOpen {
@@ -151,7 +151,7 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
-	fmt.Fprintln(os.Stderr, "td-gui beendet")
+	fmt.Fprintln(os.Stderr, "td-gui stopped")
 	return nil
 }
 

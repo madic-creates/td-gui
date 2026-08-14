@@ -3,14 +3,14 @@ import { useTransition } from '../../api/mutations'
 import type { Transition } from '../../api/types'
 
 const labels: Record<Transition, string> = {
-  start: 'Starten',
-  review: 'Zum Review',
-  approve: 'Freigeben',
-  reject: 'Ablehnen',
-  block: 'Blockieren',
-  unblock: 'Entblockieren',
-  close: 'Schließen',
-  reopen: 'Wieder öffnen',
+  start: 'Start',
+  review: 'Request review',
+  approve: 'Approve',
+  reject: 'Reject',
+  block: 'Block',
+  unblock: 'Unblock',
+  close: 'Close',
+  reopen: 'Reopen',
 }
 
 interface Props {
@@ -41,7 +41,7 @@ export default function TransitionBar({ issueId, available }: Props) {
 
       {transition.error && (
         // td phrases policy rejections precisely. Show its message unchanged;
-        // a generic "nicht erlaubt" would lose the reason.
+        // a generic "not allowed" would lose the reason.
         <p className="mt-2 text-sm text-red-600" role="alert">
           {transition.error instanceof ApiError
             ? transition.error.message

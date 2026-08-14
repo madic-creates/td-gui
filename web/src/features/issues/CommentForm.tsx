@@ -14,7 +14,7 @@ export default function CommentForm({ issueId }: { issueId: string }) {
         add.mutate({ text }, { onSuccess: () => setText('') })
       }}
     >
-      <label htmlFor="comment" className="block text-sm font-medium">Kommentar</label>
+      <label htmlFor="comment" className="block text-sm font-medium">Comment</label>
       <textarea
         id="comment" rows={3} value={text} onChange={e => setText(e.target.value)}
         className="mt-1 w-full rounded border px-3 py-1"
@@ -27,7 +27,7 @@ export default function CommentForm({ issueId }: { issueId: string }) {
       )}
       <button type="submit" disabled={add.isPending}
         className="mt-2 rounded border px-3 py-1 text-sm disabled:opacity-40">
-        Kommentieren
+        Add comment
       </button>
     </form>
   )

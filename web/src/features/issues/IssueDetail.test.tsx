@@ -14,7 +14,7 @@ afterAll(() => server.close())
 
 const detail = {
   issue: {
-    id: 'td-6a0883', title: 'Probe issue for API shape', description: 'Eine Beschreibung',
+    id: 'td-6a0883', title: 'Probe issue for API shape', description: 'A description',
     status: 'in_progress', type: 'feature', priority: 'P1', points: 0, labels: [],
     parent_id: null, acceptance: '', sprint: '', implementer_session: 'ses_d87edf',
     creator_session: 'ses_d87edf', reviewer_session: null,
@@ -58,7 +58,7 @@ describe('IssueDetail', () => {
 
     renderDetail()
     expect(await screen.findByText('Probe issue for API shape')).toBeInTheDocument()
-    expect(screen.getByText('Eine Beschreibung')).toBeInTheDocument()
+    expect(screen.getByText('A description')).toBeInTheDocument()
     expect(screen.getByText('Started work')).toBeInTheDocument()
     expect(screen.getByText('done bits')).toBeInTheDocument()
   })
@@ -69,11 +69,11 @@ describe('IssueDetail', () => {
       HttpResponse.json({ ok: true, data: detail })))
 
     renderDetail()
-    expect(await screen.findByRole('button', { name: 'Zum Review' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Blockieren' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Schließen' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Starten' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Freigeben' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Request review' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Block' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
   })
 
   it('shows no transition buttons when the field is absent', async () => {
@@ -84,7 +84,7 @@ describe('IssueDetail', () => {
 
     renderDetail()
     await screen.findByText('Probe issue for API shape')
-    expect(screen.queryByRole('button', { name: 'Schließen' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 
   // The load-bearing error case: td's policy wording must reach the user.
@@ -98,7 +98,7 @@ describe('IssueDetail', () => {
     )
 
     renderDetail()
-    await userEvent.click(await screen.findByRole('button', { name: 'Schließen' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Close' }))
     expect(await screen.findByText(rejection)).toBeInTheDocument()
   })
 })
