@@ -175,11 +175,19 @@ on load, no toggle UI.
 
 ### Density and focus
 
-- Row height 36px total, driven by the shared `--spacing-row` token so
-  `IssueList` and `SkeletonRows` cannot drift apart: 7.75px top + 7.75px
-  bottom padding (`py-2`'s 8px shifted by half a pixel-equivalent so the
-  total lands on a whole pixel) around a 13px/1.5 line box (19.5px), plus the
-  row's 1px bottom border — 7.75+19.5+7.75+1 = 36. `px-4` (16px) horizontal.
+- Row height 36px, set explicitly by the shared `--spacing-row` token
+  (`h-row`) rather than emerging from padding. Both `IssueList`'s row link and
+  `SkeletonRows` carry `h-row`, the 1px bottom border and `py-2` on the *same*
+  element, which is what stops the two from drifting apart: an earlier
+  revision put the height on the link and the border on the wrapping `<li>`,
+  so `border-box` absorbed the border on one row and added it on the other,
+  and the real row rendered 37px against the skeleton's 36px. With the height
+  explicit, `py-2` only centres the 13px/1.5 line box (19.5px) within it.
+  `px-4` (16px) horizontal.
+
+  Nothing enforces the co-location beyond comments in both files: moving the
+  border onto a wrapper again, or putting `h-row` on a different element than
+  the border, silently reintroduces the divergence.
 - Three-size type scale: 11px for small meta and labels (IDs, statuses, log
   types, timestamps, field labels, chips, buttons), 13px as the base for
   everything else (inherited from the body, no explicit class), 20px for the
