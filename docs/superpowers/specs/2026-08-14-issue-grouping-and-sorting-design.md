@@ -1,7 +1,24 @@
 # Issue list: status grouping and group-aware sorting
 
-Status: approved, not yet implemented.
+Status: implemented.
 Issue: td-43e9ce.
+Plan: `docs/superpowers/plans/2026-08-14-issue-grouping-and-sorting.md`.
+
+Three things came out differently from this document, all recorded here rather
+than quietly absorbed:
+
+- **The grouping and sorting module is `ordering.ts`, not `grouping.ts`.** It
+  holds both, because sorting is only ever defined *within* a group; two files
+  would have put one half of a single rule in each.
+- **The priority column is `w-12` and right-aligned, not sized to its data.**
+  It was first sized for the cell's `P0` and then wrapped its own `PRIO ▴`
+  header onto a second line, inflating the header row to 46px. A column is
+  sized for the longer of its header and its values. jsdom performs no layout,
+  so no unit test can catch that class of defect — the guards are
+  `whitespace-nowrap` on the header buttons and looking at the running app.
+- **Group presence is asserted through the section landmark, not its text.**
+  The status filter chips render the same words as the group headers, so a
+  text query matches the filter bar while the skeleton is still on screen.
 
 ## Problem
 
