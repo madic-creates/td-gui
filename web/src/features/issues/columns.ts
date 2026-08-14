@@ -1,10 +1,15 @@
 /**
  * The issue list's column geometry, in one place.
  *
- * Three components lay out the same columns: the data row (IssueList), the
- * loading skeleton (SkeletonRows) and the sortable header (IssueListHeader).
- * When the widths were duplicated the row and the skeleton drifted apart by a
- * pixel (fixed in 4ce3b18) — with a third copy that is a matter of time.
+ * Two components lay out these columns today — the data row (IssueList) and
+ * the loading skeleton (SkeletonRows) — and a sortable header row joins them
+ * shortly. When the widths were duplicated the row and the skeleton drifted
+ * apart by a pixel (fixed in 4ce3b18); a third copy would make that certain.
+ *
+ * Sharing the classes also gives the skeleton bars the `shrink-0` the real
+ * row's cells already had, so the two stay aligned when the viewport is too
+ * narrow for the full row, not only when it is wide enough. `truncate` and
+ * `text-right` come along the same way and are inert on an empty bar.
  *
  * ROW keeps h-row, the border and the padding on ONE element, because under
  * box-sizing: border-box an explicit height on that element fixes the rendered
