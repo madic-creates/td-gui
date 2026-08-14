@@ -2,18 +2,13 @@
 
 ## Language: English only
 
-**English is the primary and only language of this project.** This applies to:
+**English is the only language of this project** — UI strings, CLI output,
+code, comments, commit messages, docs, and td issue text.
 
-- User-facing UI strings in the web frontend
-- CLI output: flag help, startup banner, error messages
-- Code, identifiers, comments and doc comments
-- Commit messages, README and documentation
-- Issue titles and descriptions in td
-
-This project is **not** multilingual and no i18n layer should be introduced.
-An earlier revision hardcoded the UI in German; that decision was reversed.
-If a string is user-visible, it is English — do not add a translation
-mechanism, a locale switcher, or German fallbacks.
+This project is **not** multilingual: do not introduce an i18n layer, a
+locale switcher, or translated fallbacks. An earlier revision hardcoded the
+UI in German and that decision was deliberately reversed, so German in the
+git history is not precedent.
 
 ### The one exception: messages that come from td
 
@@ -52,9 +47,27 @@ make test     # go test ./... plus the frontend suite
 make build    # web bundle into internal/web/dist, then the Go binary
 ```
 
+`make test` does **not** lint. Run it separately: `cd web && npm run lint`
+(oxlint). No Go linter is configured; `go vet ./...` is the floor.
+
+**A green `make test` can be misleading.** `test/contract` drives a real `td`
+binary and skips itself when `td` is not on PATH — `go test ./...` still
+prints `ok` for the package. The contract is only actually verified with `td`
+v0.57.0+ installed; check for `--- SKIP` before trusting a green run.
+
+Frontend commands run from `web/`. Bare `npm test` watches in an interactive
+terminal (it runs once and exits without a TTY), so prefer the explicit
+`npm test -- --run`, optionally with a filename filter. Single Go test:
+`go test ./internal/backend/ -run TestSuperviseRestartsOnce`.
+
 `make web` must keep `internal/web/dist/.gitkeep` — Vite's `emptyOutDir`
 deletes it, and `go:embed` needs it to compile on a fresh checkout with no
 web build. The Makefile restores it; do not remove that step.
 
 The Go server uses the standard library only — no web framework, no router
 library, no CLI framework.
+
+## Commits
+
+Conventional Commits with a scope matching the package:
+`feat(backend):`, `feat(web):`, `test:`, `docs:`, `refactor:`.
