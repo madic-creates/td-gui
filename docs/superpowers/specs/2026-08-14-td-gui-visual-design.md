@@ -161,17 +161,25 @@ does. In `web/src/index.css`:
   /* … light values … */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --td-surface: #0d1117;
-    /* … dark values … */
-  }
+:root[data-theme='dark'] {
+  --td-surface: #0d1117;
+  /* … dark values … */
 }
 ```
 
 `@theme inline` is required (not plain `@theme`) because the values are
-references to other custom properties. No React state, no flash of wrong theme
-on load, no toggle UI.
+references to other custom properties.
+
+**Superseded in part.** This spec originally selected the dark palette with
+`@media (prefers-color-scheme: dark)` and stated "no toggle UI". A header
+control to switch between `auto`, `light` and `dark` was added later, so the
+palette is now selected by `<html data-theme>` instead. `auto` is resolved to a
+concrete theme in JS (`lib/theme.ts`) and the choice is persisted in
+`localStorage`; an inline script in `index.html` applies it before first paint,
+so there is still no flash of the wrong theme. The media query is gone rather
+than kept alongside the attribute selector — two copies of the dark block would
+drift apart. The palettes themselves are unchanged, so the contrast table below
+still holds.
 
 ### Density and focus
 
@@ -328,8 +336,10 @@ proves less than it appears to.
 
 ## Risks
 
-- **jsdom cannot evaluate `prefers-color-scheme`.** The dark theme is not
-  covered by automated tests; it is verified by looking at the running app.
+- **jsdom cannot evaluate `prefers-color-scheme`.** The *rendered* dark theme
+  is still verified by looking at the running app. The logic that chooses it —
+  preference cycling, storage, and resolving `auto` against a stubbed
+  `matchMedia` — is covered by `lib/theme.test.ts` and `ThemeToggle.test.tsx`.
 - **Contrast is verified by hand.** The table above is the reference; if a
   value changes during implementation, it must be re-checked.
 - **Density is a preference.** 36px rows may read as cramped once there are

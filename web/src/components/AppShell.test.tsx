@@ -19,6 +19,11 @@ describe('AppShell', () => {
     expect(screen.getByText('route content')).toBeInTheDocument()
   })
 
+  it('offers the theme toggle in the header', () => {
+    renderShell(true)
+    expect(screen.getByRole('button', { name: /^Theme: / })).toBeInTheDocument()
+  })
+
   it('reports the connected state in the header', () => {
     renderShell(true)
     expect(screen.getByText('connected')).toBeInTheDocument()
