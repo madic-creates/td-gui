@@ -456,6 +456,20 @@ describe('IssueDetail', () => {
     expect(await screen.findByText('issue list stand-in')).toBeInTheDocument()
   })
 
+  // History is always loaded, so expanding it needs no second request and no
+  // second cache entry for the same issue.
+  it('requests the review history with the issue', async () => {
+    let seen: URL | undefined
+    server.use(http.get('/v1/issues/td-6a0883', ({ request }) => {
+      seen = new URL(request.url)
+      return HttpResponse.json({ ok: true, data: detail })
+    }))
+
+    renderDetail()
+    await screen.findByText('Probe issue for API shape')
+    expect(seen?.searchParams.get('with')).toBe('reviews')
+  })
+
   it('deletes a comment after confirming', async () => {
     let deleted = ''
     server.use(

@@ -82,6 +82,33 @@ export interface Dependency {
   relation_type: string
 }
 
+/**
+ * The review currently standing on an issue. Absent until one is recorded —
+ * td does not send the key at all before that, so this is optional on the
+ * detail response and a missing value means "never reviewed", not "unknown".
+ */
+export interface ActiveReview {
+  id: string
+  decision: string
+  reviewer_session: string
+  requested_by_session: string
+  summary: string
+  created_at: string
+  self_review: boolean
+}
+
+/** One entry of the review history, returned only under `?with=reviews`. */
+export interface Review {
+  id: string
+  issue_id: string
+  reviewer_session: string
+  decision: string
+  summary: string
+  requested_by_session: string
+  created_at: string
+  self_review: boolean
+}
+
 /** GET /v1/issues/{id} — the issue fields are nested under `issue`. */
 export interface IssueDetail {
   issue: Issue
@@ -90,6 +117,10 @@ export interface IssueDetail {
   dependencies: Dependency[]
   blocked_by: Dependency[]
   latest_handoff: Handoff | null
+  /** Absent until a review is recorded. */
+  active_review?: ActiveReview
+  /** Present only under `?with=reviews`. */
+  reviews?: Review[]
 }
 
 /**
