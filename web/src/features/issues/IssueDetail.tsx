@@ -127,7 +127,8 @@ function IssueDetailView({ id }: { id: string }) {
 
           {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
-          <DependencyPanel issueId={issue.id} dependencies={dependencies} />
+          <DependencyPanel
+            issueId={issue.id} dependencies={dependencies} blockedBy={blocked_by} />
 
           <RelatedIssues title="Blocks" items={blocks} />
           <RelatedIssues title="Tasks" items={tasks} />

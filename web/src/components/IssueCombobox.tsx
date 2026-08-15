@@ -23,6 +23,20 @@ function matches(issue: Issue, query: string): boolean {
 }
 
 /**
+ * A fully typed id names one issue, so it takes the first row. Matching is a
+ * substring test over id *and* title, and without this a candidate whose title
+ * merely quotes the id — "Follow-up to td-a1b2c3" — can sit above the issue
+ * the reader actually named. Ordering before the MAX_OPTIONS slice also keeps
+ * an exact match from being cut off by the cap.
+ */
+function rank(matched: Issue[], query: string): Issue[] {
+  const needle = query.trim().toLowerCase()
+  const exact = matched.findIndex(issue => issue.id.toLowerCase() === needle)
+  if (exact <= 0) return matched          // absent, or already first
+  return [matched[exact], ...matched.slice(0, exact), ...matched.slice(exact + 1)]
+}
+
+/**
  * An issue picker over a list the caller already holds. Presentational on
  * purpose: it neither queries nor mutates, and reports the bare id through
  * `onChange`, so a caller's submit path cannot tell a typed id from a picked
@@ -37,16 +51,23 @@ export default function IssueCombobox({
   id, value, onChange, candidates, placeholder, className,
 }: Props) {
   const [open, setOpen] = useState(false)
-  // Index into `shown`. Reset to 0 whenever the query changes, so Enter
-  // always takes the row the reader is looking at rather than a leftover
-  // position from a longer list.
-  const [active, setActive] = useState(0)
+  // The active row is held by issue id, never by position. `candidates` is
+  // rebuilt and re-partitioned whenever the issues query refetches — and
+  // useLiveUpdates invalidates every query on each SSE event — so an index
+  // would keep pointing at a slot while a different issue slid into it.
+  // `null` means no row is active: the state an opening list starts in, so
+  // Enter stays the surrounding form's until the reader picks a row.
+  const [activeId, setActiveId] = useState<string | null>(null)
   const activeRef = useRef<HTMLLIElement>(null)
 
-  const found = candidates.filter(issue => matches(issue, value))
+  const found = rank(candidates.filter(issue => matches(issue, value)), value)
   const shown = found.slice(0, MAX_OPTIONS)
   const expanded = open && shown.length > 0
-  const activeIndex = Math.min(active, shown.length - 1)
+  // -1 whenever nothing is active, including when the active issue has left
+  // the list: unknown is not "the row that took its place".
+  const activeIndex = activeId === null
+    ? -1
+    : shown.findIndex(issue => issue.id === activeId)
   const listId = `${id}-listbox`
   const optionId = (index: number) => `${listId}-option-${index}`
   const capNoticeId = `${id}-cap-notice`
@@ -62,7 +83,16 @@ export default function IssueCombobox({
   const select = (issue: Issue) => {
     onChange(issue.id)
     setOpen(false)
-    setActive(0)
+    setActiveId(null)
+  }
+
+  /** From no active row, Down takes the first and Up the last — ARIA's pattern. */
+  const move = (delta: number) => {
+    if (activeIndex < 0) {
+      setActiveId(delta > 0 ? shown[0].id : shown[shown.length - 1].id)
+      return
+    }
+    setActiveId(shown[Math.min(Math.max(activeIndex + delta, 0), shown.length - 1)].id)
   }
 
   const keyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -70,7 +100,7 @@ export default function IssueCombobox({
       event.preventDefault()
       // A closed list opens where it left off rather than jumping a row.
       if (!expanded) setOpen(true)
-      else setActive(Math.min(activeIndex + 1, shown.length - 1))
+      else move(1)
       return
     }
     if (event.key === 'ArrowUp') {
@@ -78,13 +108,14 @@ export default function IssueCombobox({
       // moving to position 0 in a single-line input.
       if (!expanded) return
       event.preventDefault()
-      setActive(Math.max(activeIndex - 1, 0))
+      move(-1)
       return
     }
     if (event.key === 'Enter') {
       // The field sits inside a form at both call sites: taking a suggestion
-      // must not also submit it. With the list closed, Enter is the form's.
-      if (!expanded) return
+      // must not also submit it. With the list closed — or open but with no
+      // row chosen — Enter is the form's, and the typed text stands as the id.
+      if (!expanded || activeIndex < 0) return
       event.preventDefault()
       select(shown[activeIndex])
       return
@@ -108,9 +139,9 @@ export default function IssueCombobox({
         autoComplete="off"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        onChange={event => { onChange(event.target.value); setOpen(true); setActive(0) }}
+        onChange={event => { onChange(event.target.value); setOpen(true); setActiveId(null) }}
         onKeyDown={keyDown}
-        aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
+        aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
         aria-describedby={expanded && capped ? capNoticeId : undefined}
         className={className}
       />

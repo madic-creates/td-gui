@@ -12,9 +12,11 @@ import { GroupHeading, RelatedRow } from './RelatedIssues'
 interface Props {
   issueId: string
   dependencies: Dependency[]
+  /** The rows where this issue is the one being waited for — see IssueDetail. */
+  blockedBy: Dependency[]
 }
 
-export default function DependencyPanel({ issueId, dependencies }: Props) {
+export default function DependencyPanel({ issueId, dependencies, blockedBy }: Props) {
   const [entry, setEntry] = useState('')
   const add = useAddDependency(issueId)
   const remove = useRemoveDependency(issueId)
@@ -36,8 +38,14 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   const resolved = related.filter(isResolved)
 
   // Offering the issue itself, or a blocker it already has, would only earn a
-  // rejection from td.
-  const candidates = candidatesFor(issues, [issueId, ...dependencies.map(d => d.depends_on_id)])
+  // rejection from td — and so would offering an issue that already waits on
+  // this one, since that edge closes a loop. Longer cycles stay td's to catch:
+  // the index holds titles, not a graph to walk.
+  const candidates = candidatesFor(issues, [
+    issueId,
+    ...dependencies.map(d => d.depends_on_id),
+    ...blockedBy.map(d => d.issue_id),
+  ])
 
   const depIdFor = (id: string) =>
     dependencies.find(d => d.depends_on_id === id)?.dep_id ?? ''

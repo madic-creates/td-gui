@@ -25,14 +25,15 @@ const dependency: Dependency = {
   depends_on_id: 'td-ffe762', relation_type: 'depends_on',
 }
 
-function renderPanel(dependencies: Dependency[]) {
+function renderPanel(dependencies: Dependency[], blockedBy: Dependency[] = []) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <DependencyPanel issueId="td-6a0883" dependencies={dependencies} />
+        <DependencyPanel
+          issueId="td-6a0883" dependencies={dependencies} blockedBy={blockedBy} />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -244,6 +245,30 @@ describe('DependencyPanel', () => {
       },
     })))
     renderPanel([dependency])
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+
+    expect(await screen.findByRole('option')).toHaveTextContent('Still linkable')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+  })
+
+  // The other direction of the same rejection: td refuses the edge that would
+  // close the loop, so an issue already waiting on this one is not on offer.
+  it('offers no issue that already depends on this one', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [
+          makeIssue({ id: 'td-waiter', title: 'Already waiting on this one' }),
+          makeIssue({ id: 'td-free', title: 'Still linkable' }),
+        ],
+        limit: 1000, offset: 0, total: 2, has_more: false,
+      },
+    })))
+    renderPanel([], [{
+      dep_id: 'dep_rev', issue_id: 'td-waiter',
+      depends_on_id: 'td-6a0883', relation_type: 'depends_on',
+    }])
 
     await userEvent.click(screen.getByLabelText('Depends on'))
 

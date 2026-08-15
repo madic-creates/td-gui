@@ -135,9 +135,8 @@ describe('IssueCombobox', () => {
     expect(screen.queryByText(/keep typing/)).not.toBeInTheDocument()
   })
 
-  // The list opens on the first row (see the "reopens" case below for the
-  // one exception), so two ArrowDown presses from a fresh open land on the
-  // third candidate.
+  // Opening activates nothing, so the first ArrowDown takes row one and the
+  // second takes row two.
   it('moves the active row with the arrow keys and takes it with Enter', async () => {
     const { onChange, input } = renderBox()
 
@@ -145,7 +144,7 @@ describe('IssueCombobox', () => {
     await userEvent.keyboard('{ArrowDown}{ArrowDown}')
     await userEvent.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('td-999999')
+    expect(onChange).toHaveBeenCalledWith('td-d4e5f6')
   })
 
   it('points aria-activedescendant at the active row', async () => {
@@ -154,16 +153,15 @@ describe('IssueCombobox', () => {
     await userEvent.click(input)
     await userEvent.keyboard('{ArrowDown}')
 
-    const active = screen.getAllByRole('option')[1]
+    const active = screen.getAllByRole('option')[0]
     expect(active).toHaveAttribute('aria-selected', 'true')
     expect(input).toHaveAttribute('aria-activedescendant', active.id)
   })
 
-  // {ArrowDown}{ArrowDown} lands on the third row, so the ArrowUp that
-  // follows must move it back to the second, not just stay put — two
-  // ArrowUps from row one (the old version of this test) would pass even if
-  // ArrowUp did nothing at all. The bottom clamp is separately defended by
-  // activeIndex's own Math.min, so it needs no case of its own.
+  // {ArrowDown}{ArrowDown} lands on row two, so the ArrowUp that follows must
+  // move it back to row one, not just stay put — two ArrowUps from row one
+  // would pass even if ArrowUp did nothing at all. The bottom clamp is
+  // separately defended by `move`'s own clamp, so it needs no case of its own.
   it('moves the active row up with the arrow key', async () => {
     const { onChange, input } = renderBox()
 
@@ -171,7 +169,19 @@ describe('IssueCombobox', () => {
     await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}')
     await userEvent.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('td-d4e5f6')
+    expect(onChange).toHaveBeenCalledWith('td-a1b2c3')
+  })
+
+  // The ARIA list-autocomplete pattern: from no active row, Down takes the
+  // first and Up takes the last.
+  it('takes the last row when ArrowUp opens the walk', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowUp}')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('td-999999')
   })
 
   // Both call sites sit inside a <form>. Picking a suggestion must not also
@@ -246,14 +256,130 @@ describe('IssueCombobox', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('starts over at the first row when the query changes', async () => {
+  it('drops the active row when the query changes', async () => {
     const { onChange, input } = renderBox()
 
     await userEvent.click(input)
-    await userEvent.keyboard('{ArrowDown}')
-    await userEvent.type(input, 'e')          // re-filters; the active row resets
+    await userEvent.keyboard('{ArrowDown}')   // row one is active
+    await userEvent.type(input, 'e')          // re-filters; nothing is active again
     await userEvent.keyboard('{Enter}')
 
+    // Only the typing reached onChange — Enter picked nothing.
+    expect(onChange).toHaveBeenLastCalledWith('e')
+
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
     expect(onChange).toHaveBeenLastCalledWith('td-a1b2c3')
+  })
+
+  // Focus alone used to arm row 0: `active` started at 0, so the widget
+  // claimed an option nobody had chosen and Enter wrote its id.
+  it('activates no row until the reader moves to one', async () => {
+    const { input } = renderBox()
+
+    await userEvent.click(input)
+
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+    expect(screen.queryByRole('option', { selected: true })).not.toBeInTheDocument()
+  })
+
+  // Enter belongs to the surrounding form until a row is actually chosen.
+  it('leaves Enter to the surrounding form while no row is active', async () => {
+    const onSubmit = vi.fn(event => event.preventDefault())
+    const onChange = vi.fn()
+    render(
+      <form onSubmit={onSubmit}>
+        <label htmlFor="pick">Depends on</label>
+        <IssueCombobox id="pick" value="" onChange={onChange} candidates={candidates} />
+      </form>,
+    )
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  // The typed text is the id the reader means. A suggestion must not overwrite
+  // it just because the list happens to be open behind it.
+  it('submits what was typed rather than a suggestion', async () => {
+    const onSubmit = vi.fn(event => event.preventDefault())
+    const onChange = vi.fn()
+    function Harness() {
+      const [value, setValue] = useState('')
+      return (
+        <form onSubmit={onSubmit}>
+          <label htmlFor="typed">Depends on</label>
+          <IssueCombobox id="typed" value={value} candidates={candidates}
+            onChange={next => { setValue(next); onChange(next) }} />
+        </form>
+      )
+    }
+    render(<Harness />)
+
+    await userEvent.type(screen.getByLabelText('Depends on'), 'td-')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenLastCalledWith('td-')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  // An exactly typed id names one issue. A candidate whose *title* merely
+  // quotes that id must not sit above it.
+  it('puts an exactly typed id first, above a title that quotes it', async () => {
+    render(
+      <>
+        <label htmlFor="rank">Depends on</label>
+        <IssueCombobox id="rank" value="td-d4e5f6" onChange={vi.fn()}
+          candidates={[
+            makeIssue({ id: 'td-quote', title: 'Follow-up to td-d4e5f6' }),
+            makeIssue({ id: 'td-d4e5f6', title: 'The one named' }),
+          ]} />
+      </>,
+    )
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+
+    expect(screen.getAllByRole('option')[0]).toHaveTextContent('The one named')
+  })
+
+  // `useLiveUpdates` invalidates every query on each SSE event, so the
+  // candidate array is rebuilt under an open list. A positional highlight
+  // would stay put while a different issue slid beneath it.
+  it('keeps the highlight on its issue when the candidate list is rebuilt', async () => {
+    const onChange = vi.fn()
+    const tree = (list: typeof candidates) => (
+      <>
+        <label htmlFor="live">Depends on</label>
+        <IssueCombobox id="live" value="" onChange={onChange} candidates={list} />
+      </>
+    )
+    const { rerender } = render(tree(candidates))
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')       // row two: td-d4e5f6
+    rerender(tree([candidates[1], candidates[0], candidates[2]]))
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('td-d4e5f6')
+  })
+
+  it('activates nothing when the active issue drops out of the list', async () => {
+    const onChange = vi.fn()
+    const tree = (list: typeof candidates) => (
+      <>
+        <label htmlFor="gone">Depends on</label>
+        <IssueCombobox id="gone" value="" onChange={onChange} candidates={list} />
+      </>
+    )
+    const { rerender } = render(tree(candidates))
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+    await userEvent.keyboard('{ArrowDown}')                  // row one: td-a1b2c3
+    rerender(tree([candidates[1], candidates[2]]))           // and it is gone
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).not.toHaveBeenCalled()
   })
 })

@@ -309,6 +309,33 @@ describe('IssueEditForm', () => {
 
     await waitFor(() => expect(body).toEqual({ parent_id: '' }))
   })
+
+  // Enter is how a form is saved. The combobox has to leave it alone while no
+  // suggestion is active, or clearing the parent and pressing Enter refills
+  // the field with whichever issue happens to be first in the index.
+  it('clears the parent on Enter rather than picking a suggestion', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [{ ...issue, id: 'td-epic01', title: 'The containing epic', type: 'epic' }],
+        limit: 1000, offset: 0, total: 1, has_more: false,
+      },
+    })))
+    let body: unknown
+    server.use(http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    const parented = { ...issue, parent_id: 'td-epic01' }
+    const { setEditing } = renderForm()
+    setEditing(false)
+    setEditing(true, parented)
+
+    await userEvent.clear(screen.getByLabelText('Parent'))
+    await userEvent.keyboard('{Enter}')
+
+    await waitFor(() => expect(body).toEqual({ parent_id: '' }))
+  })
 })
 
 /**
