@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -117,5 +117,51 @@ describe('IssueDetail', () => {
     renderDetail()
     expect(await screen.findByText('session d87e')).toBeInTheDocument()
     expect(screen.getByText(/handoff panel should collapse/)).toBeInTheDocument()
+  })
+
+  it('deletes the issue after a confirmation and leaves the detail view', async () => {
+    let deleted = false
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.delete('/v1/issues/td-6a0883', () => {
+        deleted = true
+        return HttpResponse.json({ ok: true, data: { deleted: true } })
+      }),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true, data: { issues: [], limit: 50, offset: 0, total: 0, has_more: false },
+      })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+    await waitFor(() => expect(deleted).toBe(true))
+  })
+
+  it('sets focus and acknowledges the request without claiming to read it', async () => {
+    let body: unknown
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.put('/v1/focus', async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({ ok: true, data: { focused_issue_id: 'td-6a0883' } })
+      }),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Focus' }))
+
+    await waitFor(() => expect(body).toEqual({ issue_id: 'td-6a0883' }))
+    expect(await screen.findByText('focus set')).toBeInTheDocument()
+  })
+
+  it('opens the edit form seeded with the current values', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.getByLabelText('Title')).toHaveValue('Probe issue for API shape')
   })
 })

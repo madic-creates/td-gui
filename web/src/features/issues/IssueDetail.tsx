@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useIssue } from '../../api/queries'
 import { ApiError } from '../../api/client'
 import TransitionBar from './TransitionBar'
 import CommentForm from './CommentForm'
+import IssueActions from './IssueActions'
+import IssueEditForm from './IssueEditForm'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
@@ -10,6 +13,7 @@ import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
 
 export default function IssueDetail() {
+  const [editing, setEditing] = useState(false)
   const { id = '' } = useParams()
   const { data, error, isPending } = useIssue(id)
 
@@ -53,9 +57,13 @@ export default function IssueDetail() {
         </div>
       </header>
 
+      <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+
+      {editing && <IssueEditForm issue={issue} onDone={() => setEditing(false)} />}
+
       <TransitionBar issueId={issue.id} available={issue.available_transitions} />
 
-      {issue.description && (
+      {!editing && issue.description && (
         <section className="mt-6">
           <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
           <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
