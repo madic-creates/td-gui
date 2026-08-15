@@ -277,6 +277,178 @@ func TestRecordReviewContract(t *testing.T) {
 	}
 }
 
+// post sends a JSON body and returns the status code, for the calls whose
+// response shape does not matter to the assertion.
+func post(t *testing.T, url, body string) int {
+	t.Helper()
+	resp, err := http.Post(url, "application/json", jsonBody(body))
+	if err != nil {
+		t.Fatalf("POST %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
+}
+
+// otherIssue returns the id of an issue in the project that is not notID. It
+// reads the list rather than the create response, so it does not depend on the
+// shape POST /v1/issues answers with.
+func otherIssue(t *testing.T, front, notID string) string {
+	t.Helper()
+	var body struct {
+		Data struct {
+			Issues []struct {
+				ID string `json:"id"`
+			} `json:"issues"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues?limit=50", &body)
+	for _, i := range body.Data.Issues {
+		if i.ID != notID {
+			return i.ID
+		}
+	}
+	t.Fatal("no second issue in the project")
+	return ""
+}
+
+// TestDependencyDirectionContract pins which end of a dependency row each
+// field holds. One row appears on both issues: under `dependencies` on the
+// issue that waits, and under `blocked_by` on the issue being waited for. The
+// field named blocked_by therefore holds what this issue BLOCKS, not what
+// blocks it — resolving the wrong end renders a panel that looks right and is
+// backwards, which no type checker can catch.
+func TestDependencyDirectionContract(t *testing.T) {
+	front, subject := newProject(t)
+
+	if code := post(t, front+"/v1/issues",
+		`{"title":"A blocking issue with a sufficiently long title","type":"bug"}`); code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create second issue: status = %d", code)
+	}
+	blocker := otherIssue(t, front, subject)
+
+	if code := post(t, front+"/v1/issues/"+subject+"/dependencies",
+		`{"depends_on":"`+blocker+`"}`); code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("add dependency: status = %d", code)
+	}
+
+	type dep struct {
+		IssueID     string `json:"issue_id"`
+		DependsOnID string `json:"depends_on_id"`
+	}
+	var subjectBody struct {
+		Data struct {
+			Dependencies []dep `json:"dependencies"`
+			BlockedBy    []dep `json:"blocked_by"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+subject, &subjectBody)
+
+	if len(subjectBody.Data.Dependencies) != 1 {
+		t.Fatalf("subject dependencies = %d, want 1", len(subjectBody.Data.Dependencies))
+	}
+	if got := subjectBody.Data.Dependencies[0].DependsOnID; got != blocker {
+		t.Errorf("subject dependencies[0].depends_on_id = %q, want the blocker %q", got, blocker)
+	}
+	if len(subjectBody.Data.BlockedBy) != 0 {
+		t.Errorf("subject blocked_by = %+v, want empty — nothing waits on the subject",
+			subjectBody.Data.BlockedBy)
+	}
+
+	var blockerBody struct {
+		Data struct {
+			Dependencies []dep `json:"dependencies"`
+			BlockedBy    []dep `json:"blocked_by"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+blocker, &blockerBody)
+
+	if len(blockerBody.Data.Dependencies) != 0 {
+		t.Errorf("blocker dependencies = %+v, want empty — it waits for nothing",
+			blockerBody.Data.Dependencies)
+	}
+	if len(blockerBody.Data.BlockedBy) != 1 {
+		t.Fatalf("blocker blocked_by = %d, want 1", len(blockerBody.Data.BlockedBy))
+	}
+	if got := blockerBody.Data.BlockedBy[0].IssueID; got != subject {
+		t.Errorf("blocker blocked_by[0].issue_id = %q, want the subject %q — this field holds what the issue blocks", got, subject)
+	}
+}
+
+// TestActiveReviewContract pins that active_review is absent until a review
+// exists. The issue description called it always present; it is not, and a
+// review panel written against that claim renders an empty heading forever.
+func TestActiveReviewContract(t *testing.T) {
+	front, id := newProject(t)
+
+	// Keyed at data.issue, not data: active_review hangs off the issue, one
+	// level deeper than dependencies and blocked_by. Probing the envelope
+	// instead would report "absent" forever, whatever the review state.
+	var before struct {
+		Data struct {
+			Issue map[string]json.RawMessage `json:"issue"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+id, &before)
+	if len(before.Data.Issue) == 0 {
+		t.Fatal("data.issue is empty — the assertion below would pass vacuously")
+	}
+	if _, present := before.Data.Issue["active_review"]; present {
+		t.Errorf("active_review is present before any review: %s", before.Data.Issue["active_review"])
+	}
+
+	if code := post(t, front+"/v1/issues/"+id+"/start", `{}`); code != http.StatusOK {
+		t.Fatalf("start: status = %d", code)
+	}
+	if code := post(t, front+"/v1/issues/"+id+"/review", `{}`); code != http.StatusOK {
+		t.Fatalf("review: status = %d", code)
+	}
+	// self_review is required, not decoration: /reviews runs the same review
+	// policy as /approve, and every call here shares one td session, so a bare
+	// {decision, summary} is refused with "you implemented this issue".
+	if code := post(t, front+"/v1/issues/"+id+"/reviews",
+		`{"decision":"approved","summary":"pinning the review shape","self_review":true}`); code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("record review: status = %d", code)
+	}
+
+	var after struct {
+		Data struct {
+			Issue struct {
+				ActiveReview *struct {
+					ID              string `json:"id"`
+					Decision        string `json:"decision"`
+					ReviewerSession string `json:"reviewer_session"`
+					Summary         string `json:"summary"`
+					CreatedAt       string `json:"created_at"`
+				} `json:"active_review"`
+				Reviews []map[string]any `json:"reviews"`
+			} `json:"issue"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+id, &after)
+	if after.Data.Issue.ActiveReview == nil {
+		t.Fatal("active_review is absent after a review was recorded")
+	}
+	if after.Data.Issue.ActiveReview.Decision != "approved" {
+		t.Errorf("decision = %q, want approved", after.Data.Issue.ActiveReview.Decision)
+	}
+	for _, field := range []string{
+		after.Data.Issue.ActiveReview.ID,
+		after.Data.Issue.ActiveReview.ReviewerSession,
+		after.Data.Issue.ActiveReview.Summary,
+		after.Data.Issue.ActiveReview.CreatedAt,
+	} {
+		if field == "" {
+			t.Errorf("active_review has an empty field: %+v", after.Data.Issue.ActiveReview)
+		}
+	}
+
+	// History arrives only when asked for.
+	getJSON(t, front+"/v1/issues/"+id+"?with=reviews", &after)
+	if len(after.Data.Issue.Reviews) == 0 {
+		t.Error("reviews is empty under ?with=reviews, want the recorded review")
+	}
+}
+
 func jsonBody(s string) *strings.Reader { return strings.NewReader(s) }
 
 // patchIssue sends a PATCH and returns the updated issue plus the status code.
