@@ -326,12 +326,20 @@ func TestClearingContract(t *testing.T) {
 		t.Fatalf("seeding dates: status = %d, want 200", status)
 	}
 
-	issue, _ := patchIssue(t, front, id, `{"due_date":null,"defer_until":null}`)
+	issue, status := patchIssue(t, front, id, `{"due_date":null,"defer_until":null}`)
+	if status != http.StatusOK {
+		t.Fatalf("null on a date: status = %d, want 200 — a rejection here is a "+
+			"different regression than the no-op this test guards", status)
+	}
 	if issue["due_date"] == nil || issue["defer_until"] == nil {
 		t.Error("null cleared a date; the GUI sends \"\" to clear because null is a no-op")
 	}
 
-	issue, _ = patchIssue(t, front, id, `{"due_date":"","defer_until":""}`)
+	issue, status = patchIssue(t, front, id, `{"due_date":"","defer_until":""}`)
+	if status != http.StatusOK {
+		t.Fatalf("clearing with an empty string: status = %d, want 200 — if td now "+
+			"rejects \"\" on a date the GUI's clear path is broken", status)
+	}
 	if issue["due_date"] != nil {
 		t.Errorf("due_date = %v after an empty string, want null", issue["due_date"])
 	}
@@ -425,8 +433,9 @@ func TestFocusContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer read.Body.Close()
-	if read.StatusCode == http.StatusOK {
-		t.Error("GET /v1/focus now succeeds — the detail view can show focus state " +
-			"instead of only acknowledging the write")
+	if read.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("GET /v1/focus status = %d, want 405 — if it now succeeds the detail "+
+			"view can show real focus state instead of only acknowledging the write; "+
+			"any other status is an unrelated routing regression", read.StatusCode)
 	}
 }
