@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
@@ -21,6 +21,9 @@ const issue: Issue = {
 const server = setupServer(
   http.get('/v1/labels', () =>
     HttpResponse.json({ ok: true, data: { default_workflow: 'standard', labels: ['alpha'] } })),
+  http.get('/v1/issues', () => HttpResponse.json({
+    ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+  })),
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -243,6 +246,68 @@ describe('IssueEditForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(onDone).toHaveBeenCalledOnce()
+  })
+
+  it('patches parent_id with the id of a parent picked by title', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [{ ...issue, id: 'td-epic01', title: 'The containing epic', type: 'epic' }],
+        limit: 1000, offset: 0, total: 1, has_more: false,
+      },
+    })))
+    let body: unknown
+    server.use(http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    renderForm()
+
+    await userEvent.click(screen.getByLabelText('Parent'))
+    await userEvent.click(await screen.findByText('The containing epic'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(body).toEqual({ parent_id: 'td-epic01' }))
+  })
+
+  // An issue cannot be its own parent, so it is not on offer.
+  it('does not offer the issue itself as its own parent', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [issue, { ...issue, id: 'td-other', title: 'Some other issue' }],
+        limit: 1000, offset: 0, total: 2, has_more: false,
+      },
+    })))
+    renderForm()
+
+    await userEvent.click(screen.getByLabelText('Parent'))
+
+    // Scoped to the listbox: unlike DependencyPanel, this form also has Type
+    // and Priority <select> elements, whose <option> children carry the same
+    // implicit "option" role and would otherwise collide with the query.
+    const listbox = await screen.findByRole('listbox')
+    expect(within(listbox).getByRole('option')).toHaveTextContent('Some other issue')
+    expect(within(listbox).getAllByRole('option')).toHaveLength(1)
+  })
+
+  it('still clears the parent when the field is emptied', async () => {
+    let body: unknown
+    server.use(http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    const parented = { ...issue, parent_id: 'td-epic01' }
+    const { setEditing } = renderForm()
+    // The draft is seeded when the editor opens, not on every re-render, so
+    // the issue has to arrive through a close and a re-open to reach the form.
+    setEditing(false)
+    setEditing(true, parented)
+
+    await userEvent.clear(screen.getByLabelText('Parent'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(body).toEqual({ parent_id: '' }))
   })
 })
 
