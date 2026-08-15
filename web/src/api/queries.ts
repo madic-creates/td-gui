@@ -12,6 +12,12 @@ export interface IssueListParams {
   limit: number
 }
 
+/* td validates `limit` as 1-1000 and rejects anything larger, so this is the
+   most one request can carry rather than a number we picked. Sorting and
+   dependency resolution both need the whole result set, so both callers ask
+   for it. */
+export const FETCH_LIMIT = 1000
+
 export const issueKeys = {
   all: ['issues'] as const,
   list: (params: IssueListParams) => ['issues', 'list', params] as const,
@@ -38,7 +44,9 @@ export function useIssues(params: IssueListParams) {
 export function useIssue(id: string) {
   return useQuery({
     queryKey: issueKeys.detail(id),
-    queryFn: () => apiGet<IssueDetail>(`/v1/issues/${id}`),
+    // Review history always rides along: expanding it then needs no second
+    // request, no extra loading state, and no second cache entry per issue.
+    queryFn: () => apiGet<IssueDetail>(`/v1/issues/${id}?with=reviews`),
     enabled: id !== '',
   })
 }

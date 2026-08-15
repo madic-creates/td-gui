@@ -6,6 +6,33 @@ export type Transition =
   | 'start' | 'review' | 'approve' | 'reject'
   | 'block' | 'unblock' | 'close' | 'reopen'
 
+/**
+ * The review currently standing on an issue. Absent until one is recorded —
+ * td does not send the key at all before that, so this is optional on the
+ * detail response and a missing value means "never reviewed", not "unknown".
+ */
+export interface ActiveReview {
+  id: string
+  decision: string
+  reviewer_session: string
+  requested_by_session: string
+  summary: string
+  created_at: string
+  self_review: boolean
+}
+
+/** One entry of the review history, returned only under `?with=reviews`. */
+export interface Review {
+  id: string
+  issue_id: string
+  reviewer_session: string
+  decision: string
+  summary: string
+  requested_by_session: string
+  created_at: string
+  self_review: boolean
+}
+
 export interface Issue {
   id: string
   title: string
@@ -35,6 +62,14 @@ export interface Issue {
   defer_count: number
   /** Present on GET /v1/issues/{id} only. Absent means "unknown". */
   available_transitions?: Transition[]
+  /**
+   * Present on GET /v1/issues/{id} only, and only once a review exists. td
+   * nests these under `issue`, unlike `dependencies` and `blocked_by`, which
+   * are siblings of it.
+   */
+  active_review?: ActiveReview
+  /** Present only under `?with=reviews`. */
+  reviews?: Review[]
 }
 
 /** GET /v1/issues — note this is NOT the generic {items, pagination} shape. */

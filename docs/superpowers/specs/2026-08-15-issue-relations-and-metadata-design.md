@@ -33,10 +33,16 @@ So `dependencies` on an issue is what it waits for — td's **BLOCKED BY** — a
 opposite of its content. Resolving the wrong end of the triple produces a
 panel that looks right and is backwards, which no type checker can catch.
 
-**`active_review` is absent until a review exists.** The issue description
-calls it "always present on the single-issue read". It is not: before the first
-review the key is missing from the payload entirely, and it appears once a
-review is recorded. Its shape:
+**`active_review` is absent until a review exists, and it hangs off `issue`.**
+The issue description calls it "always present on the single-issue read". It is
+not: before the first review the key is missing entirely, and it appears once a
+review is recorded.
+
+It also sits at `data.issue.active_review`, not `data.active_review` — one
+level deeper than `dependencies`, `blocked_by`, `logs` and `comments`, which
+are siblings of `issue`. `reviews` nests the same way under `?with=reviews`.
+Typing either as a field of the detail envelope produces a panel that compiles,
+renders nothing, and never explains why. Its shape:
 
 ```json
 { "id": "rv-3aee1321", "decision": "approved", "reviewer_session": "ses_26a332",
@@ -45,7 +51,14 @@ review is recorded. Its shape:
 ```
 
 `?with=reviews` adds a `reviews` array alongside it. Both keys are optional and
-must be typed as such.
+must be typed as such, on `Issue` rather than on `IssueDetail`.
+
+**Recording a review needs attribution.** `POST /v1/issues/{id}/reviews` runs
+the same review policy as `/approve`: a bare `{decision, summary}` from the
+session that implemented the issue is refused with td's "you implemented this
+issue" 403. td-gui already sends `reviewed_by` or `self_review` there — see
+TransitionBar's record-only path — so nothing changes in the app, but anything
+that drives that endpoint, contract tests included, has to carry it.
 
 **The API returns no epic children.** Neither `GET /v1/issues/{epic}` nor
 `?with=tasks` carries a children or tasks field, and `?parent_id=` is not a
@@ -138,7 +151,8 @@ at all rather than an empty heading.
 `useIssue` requests `?with=reviews` permanently, so history needs no second
 query, no extra loading state and no second cache entry per issue.
 
-`types.ts` gains `ActiveReview` and `Review`, both optional on `IssueDetail`.
+`types.ts` gains `ActiveReview` and `Review`, both optional on `Issue` — that
+is where td nests them.
 
 ### Layout
 

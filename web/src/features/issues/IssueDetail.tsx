@@ -8,6 +8,11 @@ import CommentForm from './CommentForm'
 import IssueActions from './IssueActions'
 import IssueEditForm from './IssueEditForm'
 import DependencyPanel from './DependencyPanel'
+import RelatedIssues from './RelatedIssues'
+import MetaPanel from './MetaPanel'
+import ReviewPanel from './ReviewPanel'
+import { useIssueIndex } from './useIssueIndex'
+import { childrenOf, resolve } from './issueIndex'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
@@ -35,6 +40,10 @@ function IssueDetailView({ id }: { id: string }) {
   const [editing, setEditing] = useState(false)
   const { data, error, isPending } = useIssue(id)
   const deleteComment = useDeleteComment(id)
+  // Called unconditionally, alongside the other hooks above: the isPending
+  // and error early returns below would otherwise make this a conditional
+  // hook call the moment the issue itself finishes loading.
+  const { index, issues } = useIssueIndex()
 
   if (isPending) return <p className="p-4 text-ink-muted">Loading …</p>
 
@@ -52,129 +61,147 @@ function IssueDetailView({ id }: { id: string }) {
     )
   }
 
-  const { issue, logs, comments, dependencies, latest_handoff } = data
+  const { issue, logs, comments, dependencies, blocked_by, latest_handoff } = data
+
+  // `blocked_by` holds the rows where this issue is the one being waited for,
+  // so it answers "what does this block" — the opposite of what its name says.
+  const blocks = resolve(blocked_by, index, 'issue_id')
+  const tasks = issue.type === 'epic'
+    ? childrenOf(issues, issue.id).map(child => ({ id: child.id, issue: child }))
+    : []
 
   return (
     <div className="px-5 py-4 pb-6">
-      <Link to="/" className="text-[11px] text-ink-muted">← back to list</Link>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div>
+          <Link to="/" className="text-[11px] text-ink-muted">← back to list</Link>
 
-      {/* The title is the edit form's first field, so the form owns it in both
-          states and everything below it down to the action bar is nested
-          inside — the one arrangement that edits the title where it is read
-          without moving IssueActions, whose place in the tree is load-bearing
-          (see IssueEditForm). */}
-      <header className="mt-3">
-        <span className="block font-mono text-[11px] text-ink-faint">{issue.id}</span>
-        <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}>
-          <div className="flex items-center gap-2 text-[11px]">
-            <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
-              {issue.type}
-            </span>
-            <span className="rounded-sm border border-line px-1.5 py-0.5">
-              <PriorityTag priority={issue.priority} />
-            </span>
-            <span className="rounded-sm border border-line px-1.5 py-0.5">
-              <StatusTag status={issue.status} />
-            </span>
-          </div>
-
-          <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
-        </IssueEditForm>
-      </header>
-
-      <TransitionBar issueId={issue.id} available={issue.available_transitions} />
-
-      {!editing && issue.description && (
-        <section className="mt-6">
-          <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
-          <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
-            {issue.description}
-          </p>
-        </section>
-      )}
-
-      {/* Verbatim, like the description: td stores one text field, and the
-          leading dashes the CLI writes are the author's, not a list this view
-          gets to re-render as markup. */}
-      {!editing && issue.acceptance && (
-        <section className="mt-6">
-          <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
-            Acceptance criteria
-          </h2>
-          <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
-            {issue.acceptance}
-          </p>
-        </section>
-      )}
-
-      {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
-
-      <DependencyPanel issueId={issue.id} dependencies={dependencies} />
-
-      <section className="mt-6">
-        <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
-        <ul>
-          {logs.map(log => (
-            <li
-              key={log.id}
-              className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
-            >
-              <span className="w-[66px] shrink-0 font-mono text-[11px] tracking-wide text-ink-muted">
-                {log.type}
-              </span>
-              <span className="flex-1">{log.message}</span>
-              <span className="shrink-0 font-mono text-[11px] text-ink-faint">
-                {relativeTime(log.timestamp)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="mt-6">
-        <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
-        <ul>
-          {comments.map(comment => (
-            <li
-              key={comment.id}
-              className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
-            >
-              <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
-                <span>session {shortSession(comment.session_id)}</span>
-                <span>·</span>
-                <span>{relativeTime(comment.created_at)}</span>
-                <span className="ml-auto">
-                  <ConfirmButton
-                    label="Delete comment"
-                    question="Delete this comment?"
-                    disabled={deleteComment.isPending}
-                    onConfirm={() => deleteComment.mutate(comment.id)}
-                  />
+          {/* The title is the edit form's first field, so the form owns it in both
+              states and everything below it down to the action bar is nested
+              inside — the one arrangement that edits the title where it is read
+              without moving IssueActions, whose place in the tree is load-bearing
+              (see IssueEditForm). */}
+          <header className="mt-3">
+            <span className="block font-mono text-[11px] text-ink-faint">{issue.id}</span>
+            <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
+                  {issue.type}
+                </span>
+                <span className="rounded-sm border border-line px-1.5 py-0.5">
+                  <PriorityTag priority={issue.priority} />
+                </span>
+                <span className="rounded-sm border border-line px-1.5 py-0.5">
+                  <StatusTag status={issue.status} />
                 </span>
               </div>
-              <p className="whitespace-pre-wrap leading-relaxed">
-                {comment.text}
+
+              <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+            </IssueEditForm>
+          </header>
+
+          <TransitionBar issueId={issue.id} available={issue.available_transitions} />
+
+          {!editing && issue.description && (
+            <section className="mt-6">
+              <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
+              <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
+                {issue.description}
               </p>
-            </li>
-          ))}
-        </ul>
-        {/* deleteComment is one shared mutation for every comment in the
-            list, so its error is not scoped to a single row — surfacing it
-            once here (rather than per-row, which would wrongly imply every
-            comment failed) still puts td's message where it can be read,
-            instead of dropping it. */}
-        {deleteComment.error && (
-          <div className="mb-3">
-            <ErrorPanel
-              label="Delete failed"
-              message={deleteComment.error instanceof ApiError
-                ? deleteComment.error.message
-                : String(deleteComment.error)}
-            />
-          </div>
-        )}
-        <CommentForm issueId={issue.id} />
-      </section>
+            </section>
+          )}
+
+          {/* Verbatim, like the description: td stores one text field, and the
+              leading dashes the CLI writes are the author's, not a list this view
+              gets to re-render as markup. */}
+          {!editing && issue.acceptance && (
+            <section className="mt-6">
+              <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
+                Acceptance criteria
+              </h2>
+              <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
+                {issue.acceptance}
+              </p>
+            </section>
+          )}
+
+          {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
+
+          <DependencyPanel issueId={issue.id} dependencies={dependencies} />
+
+          <RelatedIssues title="Blocks" items={blocks} />
+          <RelatedIssues title="Tasks" items={tasks} />
+
+          <section className="mt-6">
+            <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
+            <ul>
+              {logs.map(log => (
+                <li
+                  key={log.id}
+                  className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
+                >
+                  <span className="w-[66px] shrink-0 font-mono text-[11px] tracking-wide text-ink-muted">
+                    {log.type}
+                  </span>
+                  <span className="flex-1">{log.message}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-ink-faint">
+                    {relativeTime(log.timestamp)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="mt-6">
+            <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
+            <ul>
+              {comments.map(comment => (
+                <li
+                  key={comment.id}
+                  className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
+                >
+                  <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
+                    <span>session {shortSession(comment.session_id)}</span>
+                    <span>·</span>
+                    <span>{relativeTime(comment.created_at)}</span>
+                    <span className="ml-auto">
+                      <ConfirmButton
+                        label="Delete comment"
+                        question="Delete this comment?"
+                        disabled={deleteComment.isPending}
+                        onConfirm={() => deleteComment.mutate(comment.id)}
+                      />
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {comment.text}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            {/* deleteComment is one shared mutation for every comment in the
+                list, so its error is not scoped to a single row — surfacing it
+                once here (rather than per-row, which would wrongly imply every
+                comment failed) still puts td's message where it can be read,
+                instead of dropping it. */}
+            {deleteComment.error && (
+              <div className="mb-3">
+                <ErrorPanel
+                  label="Delete failed"
+                  message={deleteComment.error instanceof ApiError
+                    ? deleteComment.error.message
+                    : String(deleteComment.error)}
+                />
+              </div>
+            )}
+            <CommentForm issueId={issue.id} />
+          </section>
+        </div>
+        <aside>
+          <MetaPanel issue={issue} />
+          <ReviewPanel active={issue.active_review} history={issue.reviews} />
+        </aside>
+      </div>
     </div>
   )
 }

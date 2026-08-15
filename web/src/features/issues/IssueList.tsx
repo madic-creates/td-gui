@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useIssues, type IssueListParams } from '../../api/queries'
+import { useIssues, FETCH_LIMIT, type IssueListParams } from '../../api/queries'
 import { ApiError } from '../../api/client'
 import IssueFilters from './IssueFilters'
 import StatusTag from '../../components/StatusTag'
@@ -13,12 +13,6 @@ import IssueListHeader from './IssueListHeader'
 import { DEFAULT_SORT, groupByStatus, type Sort } from './ordering'
 import { relativeTime } from '../../lib/format'
 import { COL, ROW } from './columns'
-
-/* td serve cannot sort, so sorting has to happen here — which is only honest
-   if we hold the whole result set. 1000 is td's own maximum for `limit`; it
-   rejects anything larger outright, so this is the most one request can carry,
-   not a number we picked. */
-const FETCH_LIMIT = 1000
 
 export default function IssueList() {
   const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
