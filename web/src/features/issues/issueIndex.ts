@@ -41,3 +41,23 @@ export function childrenOf(issues: Issue[], parentId: string): Issue[] {
  */
 export const isResolved = (related: Related): boolean =>
   related.issue?.status === 'closed'
+
+/**
+ * The issues offerable as a link target: everything the index holds minus the
+ * ids the caller rules out — the issue itself, and whatever it already links.
+ *
+ * Closed issues stay in the list because linking one is legitimate, but they
+ * sort last: what a reader reaches for is nearly always still open. Within
+ * each group the caller's order survives untouched.
+ */
+export function candidatesFor(issues: Issue[], exclude: Iterable<string>): Issue[] {
+  const skip = new Set(exclude)
+  const open: Issue[] = []
+  const closed: Issue[] = []
+  for (const issue of issues) {
+    if (skip.has(issue.id)) continue
+    if (issue.status === 'closed') closed.push(issue)
+    else open.push(issue)
+  }
+  return [...open, ...closed]
+}
