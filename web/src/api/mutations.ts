@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiSend } from './client'
 import { issueKeys } from './queries'
-import type { IssueType, Priority, Transition } from './types'
+import type { IssueType, IssuePatch, Priority, Transition } from './types'
 
 /**
  * Review attribution, as td models it: `reviewed_by` names who actually
@@ -75,10 +75,66 @@ export function useCreateIssue() {
   })
 }
 
+/**
+ * A partial update. The body carries only edited fields — see issueDiff.ts for
+ * how clearing is encoded, which is not what the field types suggest.
+ */
 export function useUpdateIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: Partial<IssueInput>) => apiSend('PATCH', `/v1/issues/${id}`, input),
+    mutationFn: (patch: IssuePatch) => apiSend('PATCH', `/v1/issues/${id}`, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+  })
+}
+
+/** A soft delete: the issue leaves the list but a direct GET still returns it. */
+export function useDeleteIssue(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiSend('DELETE', `/v1/issues/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+  })
+}
+
+export function useDeleteComment(issueId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (commentId: string) =>
+      apiSend('DELETE', `/v1/issues/${issueId}/comments/${commentId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.detail(issueId) }),
+  })
+}
+
+/**
+ * Dependency errors carry a message and no details.fields — "cannot add
+ * dependency: would create circular dependency", "issue not found: td-zzzzzz".
+ * Callers must show the message, not bind it to a field.
+ */
+export function useAddDependency(issueId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (dependsOn: string) =>
+      apiSend('POST', `/v1/issues/${issueId}/dependencies`, { depends_on: dependsOn }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+  })
+}
+
+export function useRemoveDependency(issueId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (depId: string) =>
+      apiSend('DELETE', `/v1/issues/${issueId}/dependencies/${depId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+  })
+}
+
+/**
+ * td exposes no GET for focus — /v1/focus answers 405 — so this sets and never
+ * reads. The UI can acknowledge the request but must not claim to know which
+ * issue is currently focused.
+ */
+export function useSetFocus() {
+  return useMutation({
+    mutationFn: (issueId: string | null) => apiSend('PUT', '/v1/focus', { issue_id: issueId }),
   })
 }

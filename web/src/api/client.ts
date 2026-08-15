@@ -67,7 +67,7 @@ export function apiGet<T>(path: string): Promise<T> {
   return request<T>('GET', path)
 }
 
-export function apiSend<T>(method: 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+export function apiSend<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
   return request<T>(method, path, body)
 }
 
