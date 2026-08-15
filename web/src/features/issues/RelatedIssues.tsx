@@ -27,6 +27,20 @@ export function RelatedRow({ id, issue, children }: Related & { children?: React
 }
 
 /**
+ * Opens a group of references, with the number in it. Shared with
+ * DependencyPanel: the row below it already came from here, and the heading
+ * drifting apart from the row it belongs to is what a restyle in one file
+ * would otherwise cause.
+ */
+export function GroupHeading({ title, count }: { title: string; count: number }) {
+  return (
+    <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
+      {title} ({count})
+    </h2>
+  )
+}
+
+/**
  * One titled group of references — what this issue is blocked by, what it
  * blocks, or an epic's tasks.
  */
@@ -41,9 +55,7 @@ export default function RelatedIssues({
 
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
-        {title} ({items.length})
-      </h2>
+      <GroupHeading title={title} count={items.length} />
       <ul>
         {items.map(item => (
           <RelatedRow key={item.id} {...item} />

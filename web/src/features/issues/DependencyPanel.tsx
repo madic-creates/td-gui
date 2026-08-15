@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useAddDependency, useRemoveDependency } from '../../api/mutations'
 import type { Dependency } from '../../api/types'
 import ConfirmButton from '../../components/ConfirmButton'
 import ErrorPanel from '../../components/ErrorPanel'
 import { useIssueIndex } from './useIssueIndex'
 import { isResolved, resolve, type Related } from './issueIndex'
-import { RelatedRow } from './RelatedIssues'
+import { GroupHeading, RelatedRow } from './RelatedIssues'
 
 interface Props {
   issueId: string
@@ -26,6 +26,7 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   // See IssueActions for the same pattern.
   const [lastAction, setLastAction] = useState<'add' | 'remove' | null>(null)
   const error = lastAction === 'add' ? add.error : lastAction === 'remove' ? remove.error : null
+  const panelError = unboundMessage(error)
 
   // Dependencies carry only id triples; titles come from the shared index.
   const { index } = useIssueIndex()
@@ -80,14 +81,11 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
         </button>
       </form>
 
-      {error && (
+      {panelError && (
         // No details.fields on these — "would create circular dependency",
         // "issue not found: td-zzzzzz" — so the message is all there is.
         <div className="mt-2">
-          <ErrorPanel
-            label="Dependency rejected"
-            message={error instanceof ApiError ? error.message : String(error)}
-          />
+          <ErrorPanel label="Dependency rejected" message={panelError} />
         </div>
       )}
     </section>
@@ -95,9 +93,9 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
 }
 
 /**
- * One group of blockers. The row markup comes from RelatedRow so this panel
- * and the read-only relation sections cannot drift apart; only the remove
- * control is this panel's own.
+ * One group of blockers. Both the heading and the row markup come from
+ * RelatedIssues so this panel and the read-only relation sections cannot
+ * drift apart; only the remove control is this panel's own.
  *
  * That control stays on every row, resolved included: a dependency on a closed
  * issue is still a dependency, and taking it off is exactly what a reader is
@@ -119,9 +117,7 @@ function Group({
   if (items.length === 0) return null
   return (
     <>
-      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
-        {title} ({items.length})
-      </h2>
+      <GroupHeading title={title} count={items.length} />
       <ul className="mb-2">
         {items.map(item => (
           <RelatedRow key={item.id} {...item}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import type { Transition } from '../../api/types'
@@ -62,10 +62,21 @@ export default function TransitionBar({ issueId, available }: Props) {
   const [reviewedBy, setReviewedBy] = useState('')
   const [recordOnly, setRecordOnly] = useState(false)
 
+  // Which of the two mutations owns the panel. Selecting the outcome this way
+  // rather than reset()ing the sibling matters: MutationObserver.reset()
+  // detaches the observer from a *pending* mutation, so td's answer never
+  // arrives — and here that answer is a policy rejection the user has to read.
+  // See IssueActions and DependencyPanel for the same pattern.
+  const [lastAction, setLastAction] = useState<'transition' | 'record' | null>(null)
+
   if (!available?.length) return null
 
   const busy = transition.isPending || record.isPending
-  const error = transition.error ?? record.error
+  const error =
+    lastAction === 'transition' ? transition.error
+    : lastAction === 'record' ? record.error
+    : null
+  const panelError = unboundMessage(error)
 
   /**
    * Empties the shared form. Every field belongs to the action that opened it —
@@ -78,9 +89,10 @@ export default function TransitionBar({ issueId, available }: Props) {
     setMode('independent')
     setReviewedBy('')
     setRecordOnly(false)
-    // Both mutations feed one panel; a stale failure must not outlive its form.
-    transition.reset()
-    record.reset()
+    // Both mutations feed one panel, so a settled failure must not outlive its
+    // form. A request still in flight has no stale outcome yet — dismissing the
+    // form is not a way to un-ask td, and its reply keeps its claim on the panel.
+    if (!busy) setLastAction(null)
   }
 
   const open = (action: Transition) => {
@@ -105,9 +117,11 @@ export default function TransitionBar({ issueId, available }: Props) {
     const note = reason.trim()
     if (recordOnly) {
       // td requires the summary here and says so itself if it is missing.
+      setLastAction('record')
       record.mutate({ summary: note, ...attribution() }, { onSuccess: close })
       return
     }
+    setLastAction('transition')
     transition.mutate(
       { action: pending!, ...(note ? { reason: note } : {}), ...attribution() },
       { onSuccess: close },
@@ -130,8 +144,10 @@ export default function TransitionBar({ issueId, available }: Props) {
                 return
               }
               // Fires at once, so any form still open belongs to an action the
-              // user has just walked away from — it goes with it.
+              // user has just walked away from — it goes with it. The claim on
+              // the panel is staked after close(), which clears it.
               close()
+              setLastAction('transition')
               transition.mutate({ action })
             }}
           >
@@ -231,14 +247,11 @@ export default function TransitionBar({ issueId, available }: Props) {
         </form>
       )}
 
-      {error && (
+      {panelError && (
         // td phrases policy rejections and validation errors precisely. Show
         // its message unchanged; a generic "not allowed" would lose the reason.
         <div className="mt-2">
-          <ErrorPanel
-            label="Transition rejected"
-            message={error instanceof ApiError ? error.message : String(error)}
-          />
+          <ErrorPanel label="Transition rejected" message={panelError} />
         </div>
       )}
     </div>

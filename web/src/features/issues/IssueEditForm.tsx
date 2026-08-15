@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError, fieldErrorFor } from '../../api/client'
+import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue, IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -87,7 +87,7 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
     update.mutate(patch, { onSuccess: onDone })
   }
 
-  const panelError = panelMessage(update.error)
+  const panelError = unboundMessage(update.error, boundFields)
 
   return (
     <form onSubmit={submit}>
@@ -212,30 +212,18 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
  * absent — it is the one editable field without one — so an error naming it,
  * or naming anything td renames later, falls through to the panel instead of
  * rendering nowhere.
+ *
+ * Exported so the suite can prove each entry really renders at an input: an
+ * omission here only duplicates a message, but a stale entry silences one.
+ * That guard is worth one file's fast-refresh granularity, and the list has to
+ * stay in this file — it describes the FieldError placements above and would
+ * rot the moment it moved away from them.
  */
-const boundFields = [
+// oxlint-disable-next-line react/only-export-components
+export const boundFields = [
   'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
   'labels', 'parent_id', 'due_date', 'defer_until',
 ]
-
-/**
- * What the panel shows, if anything. The default is to show the error — the
- * panel stays silent only when every field error it carries is already
- * rendered against its own input, where repeating it would be noise.
- *
- * The three cases that would otherwise vanish: a non-ApiError (fetch rejects
- * with a TypeError on a dropped connection and nothing catches it), an
- * ApiError with no fields (td's JSON type errors), and field errors naming a
- * field this form does not bind. All are rendered verbatim.
- */
-function panelMessage(error: unknown): string | null {
-  if (!error) return null
-  if (!(error instanceof ApiError)) return String(error)
-  if (error.fields.length === 0) return error.message
-  const unbound = error.fields.filter(f => !boundFields.includes(f.field))
-  if (unbound.length === 0) return null
-  return unbound.map(f => f.message).join(' — ')
-}
 
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)

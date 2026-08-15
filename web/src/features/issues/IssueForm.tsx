@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError, fieldErrorFor } from '../../api/client'
+import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -13,6 +13,7 @@ export default function IssueForm() {
   const [type, setType] = useState<IssueType>('task')
   const [priority, setPriority] = useState<Priority>('P2')
   const create = useCreateIssue()
+  const panelError = unboundMessage(create.error, boundFields)
 
   // No client-side length checks: td's title bounds are per-project config,
   // so any hardcoded value here would eventually be wrong.
@@ -71,12 +72,14 @@ export default function IssueForm() {
 
       {create.isSuccess && <p className="text-success">Issue created.</p>}
 
-      {create.error instanceof ApiError && create.error.code !== 'validation_error' && (
-        <ErrorPanel message={create.error.message} />
-      )}
+      {/* This form binds title and description; anything else td names, and
+          any error carrying no field at all, belongs here. */}
+      {panelError && <ErrorPanel message={panelError} />}
     </form>
   )
 }
+
+const boundFields = ['title', 'description']
 
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)

@@ -279,6 +279,52 @@ describe('TransitionBar error reporting', () => {
     expect(screen.queryByText(message)).not.toBeInTheDocument()
   })
 
+  // Dismissing the form is not a way to un-ask td. The request is already on
+  // its way, so its answer — a policy rejection the user needs to read — must
+  // still reach the panel. Calling reset() here would detach the observer from
+  // the pending mutation and the message would never arrive.
+  it("shows td's answer to a transition the form was dismissed during", async () => {
+    const message = 'you implemented this issue, so you cannot approve it'
+    let release = () => {}
+    const answered = new Promise<void>(resolve => { release = resolve })
+    server.use(http.post('/v1/issues/td-6a0883/approve', async () => {
+      await answered
+      return HttpResponse.json({ ok: false, error: { code: 'forbidden', message } },
+        { status: 403 })
+    }))
+
+    renderBar(['approve'])
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm approve' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Reason')).not.toBeInTheDocument()
+
+    release()
+    expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
+  // Same for the record-only path, which rides the second of the two mutations.
+  it("shows td's answer to a recorded review the form was dismissed during", async () => {
+    const message = 'cannot record review: td-6a0883 is not in_review'
+    let release = () => {}
+    const answered = new Promise<void>(resolve => { release = resolve })
+    server.use(http.post('/v1/issues/td-6a0883/reviews', async () => {
+      await answered
+      return HttpResponse.json({ ok: false, error: { code: 'conflict', message } },
+        { status: 409 })
+    }))
+
+    renderBar(['approve'])
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Record only, do not close' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'attesting')
+    await userEvent.click(screen.getByRole('button', { name: 'Record review' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    release()
+    expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
   it("shows td's rejection from the record-only path verbatim", async () => {
     const message = 'cannot record review: td-6a0883 is not in_review'
     server.use(http.post('/v1/issues/td-6a0883/reviews', () =>

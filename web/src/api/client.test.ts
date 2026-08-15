@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
-import { ApiError, apiGet, apiSend } from './client'
+import { ApiError, apiGet, apiSend, unboundMessage } from './client'
 import type { IssueListResponse } from './types'
 
 const server = setupServer()
@@ -79,5 +79,68 @@ describe('apiGet', () => {
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('internal')
     expect(err.status).toBe(502)
+  })
+})
+
+/**
+ * The one predicate every form uses to decide what its panel still has to say.
+ * The default is to speak: silence is earned only by a message already
+ * rendered against its own input.
+ */
+describe('unboundMessage', () => {
+  const withFields = (...fields: string[]) =>
+    new ApiError(
+      'validation_error',
+      'Validation failed',
+      400,
+      fields.map(field => ({
+        field, rule: 'required', value: '', expected: '',
+        message: `${field} is required`,
+      })),
+    )
+
+  it('says nothing when there is no error', () => {
+    expect(unboundMessage(null, ['title'])).toBeNull()
+    expect(unboundMessage(undefined, ['title'])).toBeNull()
+  })
+
+  // fetch rejects with a TypeError when the connection drops, and nothing
+  // catches it. The old `error instanceof ApiError &&` guards rendered nothing
+  // at all for this — the user saw a dead form.
+  it('reports a non-ApiError through String()', () => {
+    expect(unboundMessage(new TypeError('Failed to fetch'), [])).toBe('TypeError: Failed to fetch')
+  })
+
+  // td's JSON type errors are validation_error with no details.fields. The old
+  // `code !== 'validation_error'` guard swallowed them completely.
+  it("reports a validation error that names no field", () => {
+    const error = new ApiError('validation_error', 'json: cannot unmarshal string into field points of type int', 400)
+    expect(unboundMessage(error, ['title'])).toBe(
+      'json: cannot unmarshal string into field points of type int')
+  })
+
+  it('stays silent when every field error is already shown at its input', () => {
+    expect(unboundMessage(withFields('title', 'description'), ['title', 'description'])).toBeNull()
+  })
+
+  // The dangerous direction: a field td names that this form does not bind
+  // would otherwise render nowhere.
+  it('reports the field errors no input claims', () => {
+    expect(unboundMessage(withFields('title', 'minor'), ['title'])).toBe('minor is required')
+  })
+
+  it('joins several unclaimed field errors', () => {
+    expect(unboundMessage(withFields('minor', 'sprint'), [])).toBe(
+      'minor is required — sprint is required')
+  })
+
+  // A form that binds nothing passes no list; every field error is unclaimed.
+  it('treats an omitted list as binding nothing', () => {
+    expect(unboundMessage(withFields('text'))).toBe('text is required')
+  })
+
+  it("keeps td's policy rejection verbatim", () => {
+    const rejection = 'you implemented this issue, so you cannot approve it'
+    expect(unboundMessage(new ApiError('forbidden', rejection, 403))).toBe(rejection)
   })
 })

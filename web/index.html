@@ -8,13 +8,20 @@
     <script>
       /* Resolves the theme before first paint, so a dark-mode user never sees
          a white flash while the bundle loads. Kept inline and duplicated from
-         lib/theme.ts on purpose: a module import would be too late. */
+         lib/theme.ts on purpose: a module import would be too late.
+
+         Only 'light' and 'dark' are choices; everything else — absent, 'auto',
+         or a value from a key that was renamed or corrupted — is the absence
+         of one and defers to the OS. That is readStoredPreference's rule
+         exactly, and it has to stay exactly: any value the two resolve
+         differently produces the very flash this script exists to prevent,
+         because the bundle would repaint the other way a moment later. The
+         agreement is pinned across the whole table in lib/theme.test.ts. */
       try {
         var stored = localStorage.getItem('td-gui.theme')
         var dark =
           stored === 'dark' ||
-          ((!stored || stored === 'auto') &&
-            matchMedia('(prefers-color-scheme: dark)').matches)
+          (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
         document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
       } catch (e) {
         document.documentElement.setAttribute('data-theme', 'light')
