@@ -167,12 +167,28 @@ describe('watchSystemTheme', () => {
    the duplicate is executed here rather than trusted. */
 const inlineScript = indexHtml.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? ''
 
-/** Runs the shipped script with everything it touches stubbed out. */
-function prePaintTheme(stored: string | null, systemDark: boolean): string {
+/**
+ * Runs the shipped script with everything it touches stubbed out. The two
+ * failure modes are stubbable as well, because they are the ones the script
+ * cannot resolve by reading a value: storage that throws on read, and a
+ * runtime with no media engine at all.
+ */
+function prePaintTheme(
+  stored: string | null,
+  systemDark: boolean,
+  { storageThrows = false, noMatchMedia = false } = {},
+): string {
   const attributes: Record<string, string> = {}
   new Function('localStorage', 'matchMedia', 'document', inlineScript)(
-    { getItem: () => stored },
-    (query: string) => ({ matches: systemDark && query.includes('dark') }),
+    {
+      getItem: () => {
+        if (storageThrows) throw new Error('storage disabled')
+        return stored
+      },
+    },
+    noMatchMedia
+      ? undefined
+      : (query: string) => ({ matches: systemDark && query.includes('dark') }),
     { documentElement: { setAttribute: (k: string, v: string) => { attributes[k] = v } } },
   )
   return attributes['data-theme']
@@ -202,4 +218,31 @@ describe('the pre-paint script in index.html', () => {
       expect(prePaintTheme(value, dark)).toBe(resolveTheme(readStoredPreference()))
     },
   )
+
+  /* Reading storage throws outright in a sandboxed iframe or where policy has
+     disabled it. readStoredPreference degrades that to `auto` and resolves
+     against the OS, so the script has to as well: painting light instead would
+     white-flash exactly the dark-mode user it exists for. */
+  it.each([true, false])(
+    'defers to the OS like lib/theme when the storage read throws, dark=%s',
+    dark => {
+      stubSystemPrefersDark(dark)
+      vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+        throw new Error('storage disabled')
+      })
+
+      expect(prePaintTheme(null, dark, { storageThrows: true })).toBe(
+        resolveTheme(readStoredPreference()),
+      )
+    },
+  )
+
+  /* The last resort both sides share: with no media engine to ask, light. */
+  it('paints light where matchMedia does not exist', () => {
+    vi.stubGlobal('matchMedia', undefined)
+
+    expect(prePaintTheme(null, true, { noMatchMedia: true })).toBe(
+      resolveTheme(readStoredPreference()),
+    )
+  })
 })

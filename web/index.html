@@ -18,7 +18,14 @@
          because the bundle would repaint the other way a moment later. The
          agreement is pinned across the whole table in lib/theme.test.ts. */
       try {
-        var stored = localStorage.getItem('td-gui.theme')
+        var stored = null
+        try {
+          stored = localStorage.getItem('td-gui.theme')
+        } catch (e) {
+          /* Sandboxed or disabled storage. No choice to read is the absence of
+             one, so this falls through to the OS rather than to light — the
+             outer catch is only for having nothing left to ask. */
+        }
         var dark =
           stored === 'dark' ||
           (stored !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
