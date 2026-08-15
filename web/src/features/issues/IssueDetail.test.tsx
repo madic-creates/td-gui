@@ -259,4 +259,34 @@ describe('IssueDetail', () => {
 
     await waitFor(() => expect(screen.queryByText('focus set')).not.toBeInTheDocument())
   })
+
+  // A previous fix keyed the whole IssueActions subtree on `updated_at` to
+  // clear the focus acknowledgement — but that also reset ConfirmButton's own
+  // armed state, silently cancelling an in-progress delete confirmation the
+  // moment the issue changed underneath it. The reset must be scoped to
+  // IssueActions's own state, not the whole subtree.
+  it('keeps an armed delete confirmation across an unrelated issue change', async () => {
+    let fetches = 0
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => {
+        fetches += 1
+        const issue = fetches === 1
+          ? detail.issue
+          : { ...detail.issue, updated_at: '2026-08-14T16:00:00+02:00' }
+        return HttpResponse.json({ ok: true, data: { ...detail, issue } })
+      }),
+      http.post('/v1/issues/td-6a0883/review', () => HttpResponse.json({ ok: true, data: detail.issue })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('button', { name: 'Confirm delete' })).toBeInTheDocument()
+
+    // "Request review" takes no reason, so it fires immediately and bumps
+    // updated_at on refetch — an issue change unrelated to the armed delete.
+    await userEvent.click(screen.getByRole('button', { name: 'Request review' }))
+
+    await waitFor(() => expect(fetches).toBeGreaterThan(1))
+    expect(screen.getByRole('button', { name: 'Confirm delete' })).toBeInTheDocument()
+  })
 })

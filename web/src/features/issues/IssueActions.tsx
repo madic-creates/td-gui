@@ -12,14 +12,6 @@ interface Props {
   onEdit: () => void
 }
 
-/**
- * IssueDetail keys this component on `issue.updated_at`, so any td-reported
- * change to the issue — a transition, an edit, anything else that bumps
- * `updated_at` — remounts it fresh. That clears a stale focus acknowledgement
- * or action error when the issue changes underneath the component (e.g. via
- * TransitionBar, which this component never talks to), without a timer and
- * without touching TransitionBar itself.
- */
 export default function IssueActions({ issue, editing, onEdit }: Props) {
   const navigate = useNavigate()
   const remove = useDeleteIssue(issue.id)
@@ -34,6 +26,27 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
   // already unmounted and must not touch state.
   const mounted = useRef(true)
   useEffect(() => () => { mounted.current = false }, [])
+
+  // A transition, an edit, or any other td-reported change bumps
+  // `updated_at` — TransitionBar drives that through its own mutations and
+  // never calls into this component, so a stale acknowledgement or error
+  // needs its own hook to notice the issue changed underneath it. This
+  // deliberately resets only what belongs to IssueActions (focusAck and both
+  // mutations' error state), not the whole subtree: an earlier version keyed
+  // the whole component on `updated_at`, which also reset ConfirmButton's
+  // own armed state and silently cancelled an in-progress delete
+  // confirmation if the issue changed while it was armed.
+  const lastSeenUpdatedAt = useRef(issue.updated_at)
+  useEffect(() => {
+    if (lastSeenUpdatedAt.current === issue.updated_at) return
+    lastSeenUpdatedAt.current = issue.updated_at
+    setFocusAck(false)
+    remove.reset()
+    focus.reset()
+    // remove/focus are new objects every render; only the update itself
+    // should trigger this, not a change in mutation identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issue.updated_at])
 
   // Each mutation's error is only ever current for the action that produced
   // it — reset the sibling before starting a new one so a stale delete
