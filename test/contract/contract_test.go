@@ -410,7 +410,7 @@ func TestActiveReviewContract(t *testing.T) {
 		t.Fatalf("record review: status = %d", code)
 	}
 
-	var after struct {
+	type issueEnvelope struct {
 		Data struct {
 			Issue struct {
 				ActiveReview *struct {
@@ -424,6 +424,8 @@ func TestActiveReviewContract(t *testing.T) {
 			} `json:"issue"`
 		} `json:"data"`
 	}
+
+	var after issueEnvelope
 	getJSON(t, front+"/v1/issues/"+id, &after)
 	if after.Data.Issue.ActiveReview == nil {
 		t.Fatal("active_review is absent after a review was recorded")
@@ -441,10 +443,18 @@ func TestActiveReviewContract(t *testing.T) {
 			t.Errorf("active_review has an empty field: %+v", after.Data.Issue.ActiveReview)
 		}
 	}
+	// History arrives only when asked for: unadorned, td sends no reviews at
+	// all, so the field decodes to nil rather than an empty slice.
+	if after.Data.Issue.Reviews != nil {
+		t.Errorf("reviews is present without ?with=reviews: %v", after.Data.Issue.Reviews)
+	}
 
-	// History arrives only when asked for.
-	getJSON(t, front+"/v1/issues/"+id+"?with=reviews", &after)
-	if len(after.Data.Issue.Reviews) == 0 {
+	// Decoded into a fresh variable: json.Unmarshal leaves absent fields
+	// untouched, so reusing `after` here would let a stale non-empty
+	// `Reviews` from a previous decode pass this assertion vacuously.
+	var withReviews issueEnvelope
+	getJSON(t, front+"/v1/issues/"+id+"?with=reviews", &withReviews)
+	if len(withReviews.Data.Issue.Reviews) == 0 {
 		t.Error("reviews is empty under ?with=reviews, want the recorded review")
 	}
 }
