@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useIssue } from '../../api/queries'
+import { useDeleteComment } from '../../api/mutations'
 import { ApiError } from '../../api/client'
 import TransitionBar from './TransitionBar'
 import CommentForm from './CommentForm'
@@ -12,11 +13,13 @@ import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
 import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
+import ConfirmButton from '../../components/ConfirmButton'
 
 export default function IssueDetail() {
   const [editing, setEditing] = useState(false)
   const { id = '' } = useParams()
   const { data, error, isPending } = useIssue(id)
+  const deleteComment = useDeleteComment(id)
 
   if (isPending) return <p className="p-4 text-ink-muted">Loading …</p>
 
@@ -105,10 +108,18 @@ export default function IssueDetail() {
               key={comment.id}
               className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
             >
-              <div className="mb-1.5 flex gap-2 font-mono text-[11px] text-ink-faint">
+              <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
                 <span>session {shortSession(comment.session_id)}</span>
                 <span>·</span>
                 <span>{relativeTime(comment.created_at)}</span>
+                <span className="ml-auto">
+                  <ConfirmButton
+                    label="Delete comment"
+                    question="Delete this comment?"
+                    disabled={deleteComment.isPending}
+                    onConfirm={() => deleteComment.mutate(comment.id)}
+                  />
+                </span>
               </div>
               <p className="whitespace-pre-wrap leading-relaxed">
                 {comment.text}
@@ -116,6 +127,21 @@ export default function IssueDetail() {
             </li>
           ))}
         </ul>
+        {/* deleteComment is one shared mutation for every comment in the
+            list, so its error is not scoped to a single row — surfacing it
+            once here (rather than per-row, which would wrongly imply every
+            comment failed) still puts td's message where it can be read,
+            instead of dropping it. */}
+        {deleteComment.error && (
+          <div className="mb-3">
+            <ErrorPanel
+              label="Delete failed"
+              message={deleteComment.error instanceof ApiError
+                ? deleteComment.error.message
+                : String(deleteComment.error)}
+            />
+          </div>
+        )}
         <CommentForm issueId={issue.id} />
       </section>
     </div>

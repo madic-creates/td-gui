@@ -289,4 +289,21 @@ describe('IssueDetail', () => {
     await waitFor(() => expect(fetches).toBeGreaterThan(1))
     expect(screen.getByRole('button', { name: 'Confirm delete' })).toBeInTheDocument()
   })
+
+  it('deletes a comment after confirming', async () => {
+    let deleted = ''
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.delete('/v1/issues/td-6a0883/comments/:commentId', ({ params }) => {
+        deleted = String(params.commentId)
+        return HttpResponse.json({ ok: true, data: { deleted: true } })
+      }),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete comment' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment' }))
+
+    await waitFor(() => expect(deleted).toBe('cm-1f0a2b3c'))
+  })
 })
