@@ -41,10 +41,15 @@ describe('useIssueIndex', () => {
   })
 
   // The index is enrichment. Callers render bare ids until it lands, so it
-  // must report an empty index rather than throw or suspend.
+  // must report an empty index rather than throw or suspend. The handler
+  // below returns real issues so the synchronous first-render assertion
+  // (before the response resolves) actually distinguishes "still loading"
+  // from "loaded and empty" — a handler returning zero issues would pass
+  // either way.
   it('reports an empty index while the list is still loading', () => {
+    const issues = [makeIssue({ id: 'td-aaa' }), makeIssue({ id: 'td-bbb' })]
     server.use(http.get('/v1/issues', () => HttpResponse.json({
-      ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+      ok: true, data: { issues, limit: 1000, offset: 0, total: 2, has_more: false },
     })))
 
     const { result } = renderHook(() => useIssueIndex(), { wrapper })

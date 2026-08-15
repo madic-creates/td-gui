@@ -36,8 +36,17 @@ describe('ReviewPanel', () => {
   it('marks earlier reviews as superseded behind a disclosure', async () => {
     render(<ReviewPanel active={active} history={[older({ id: 'rv-1' }), older({ id: 'rv-2' })]} />)
 
+    // jsdom renders <details> children regardless of the `open` attribute,
+    // so asserting on content alone would pass even without the click below.
+    // Asserting on `open` proves the disclosure itself, not just its content.
+    const details = screen.getByText('2 earlier reviews').closest('details')
+    expect(details).not.toBeNull()
+    expect(details).not.toHaveAttribute('open')
+
     // The history is loaded with the issue, so opening it fetches nothing.
     await userEvent.click(screen.getByText('2 earlier reviews'))
+
+    expect(details).toHaveAttribute('open')
     expect(screen.getAllByText('(superseded)')).toHaveLength(2)
     expect(screen.getAllByText('Missing error handling')).toHaveLength(2)
   })
