@@ -207,4 +207,47 @@ describe('DependencyPanel', () => {
     expect(await screen.findByText('dependency not found: dep_f7585e15')).toBeInTheDocument()
     expect(screen.queryByText('cannot add dependency: would create circular dependency')).not.toBeInTheDocument()
   })
+
+  it('posts the id of a suggestion picked by title', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [makeIssue({ id: 'td-pick', title: 'The one to depend on' })],
+        limit: 1000, offset: 0, total: 1, has_more: false,
+      },
+    })))
+    let body: unknown
+    server.use(http.post('/v1/issues/td-6a0883/dependencies', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { dependency } })
+    }))
+    renderPanel([])
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+    await userEvent.click(await screen.findByText('The one to depend on'))
+    await userEvent.click(screen.getByRole('button', { name: 'Add dependency' }))
+
+    await waitFor(() => expect(body).toEqual({ depends_on: 'td-pick' }))
+  })
+
+  // Adding either would only earn a rejection from td.
+  it('offers neither the issue itself nor a blocker it already has', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [
+          makeIssue({ id: 'td-6a0883', title: 'The issue being viewed' }),
+          makeIssue({ id: 'td-ffe762', title: 'The blocker already linked' }),
+          makeIssue({ id: 'td-free', title: 'Still linkable' }),
+        ],
+        limit: 1000, offset: 0, total: 3, has_more: false,
+      },
+    })))
+    renderPanel([dependency])
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+
+    expect(await screen.findByRole('option')).toHaveTextContent('Still linkable')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+  })
 })

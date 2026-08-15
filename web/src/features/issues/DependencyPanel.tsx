@@ -4,8 +4,9 @@ import { useAddDependency, useRemoveDependency } from '../../api/mutations'
 import type { Dependency } from '../../api/types'
 import ConfirmButton from '../../components/ConfirmButton'
 import ErrorPanel from '../../components/ErrorPanel'
+import IssueCombobox from '../../components/IssueCombobox'
 import { useIssueIndex } from './useIssueIndex'
-import { isResolved, resolve, type Related } from './issueIndex'
+import { candidatesFor, isResolved, resolve, type Related } from './issueIndex'
 import { GroupHeading, RelatedRow } from './RelatedIssues'
 
 interface Props {
@@ -29,10 +30,14 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   const panelError = unboundMessage(error)
 
   // Dependencies carry only id triples; titles come from the shared index.
-  const { index } = useIssueIndex()
+  const { index, issues } = useIssueIndex()
   const related = resolve(dependencies, index, 'depends_on_id')
   const active = related.filter(item => !isResolved(item))
   const resolved = related.filter(isResolved)
+
+  // Offering the issue itself, or a blocker it already has, would only earn a
+  // rejection from td.
+  const candidates = candidatesFor(issues, [issueId, ...dependencies.map(d => d.depends_on_id)])
 
   const depIdFor = (id: string) =>
     dependencies.find(d => d.depends_on_id === id)?.dep_id ?? ''
@@ -65,13 +70,16 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
         }}
       >
         <label htmlFor="dependency-entry" className="sr-only">Depends on</label>
-        <input
-          id="dependency-entry"
-          value={entry}
-          placeholder="td-…"
-          onChange={event => setEntry(event.target.value)}
-          className="flex-1 rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
-        />
+        <div className="flex-1">
+          <IssueCombobox
+            id="dependency-entry"
+            value={entry}
+            onChange={setEntry}
+            candidates={candidates}
+            placeholder="td-…"
+            className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
+          />
+        </div>
         <button
           type="submit"
           disabled={add.isPending}
