@@ -37,15 +37,49 @@ export default function IssueCombobox({
   id, value, onChange, candidates, placeholder, className,
 }: Props) {
   const [open, setOpen] = useState(false)
+  // Index into `shown`. Reset to 0 whenever the query changes, so Enter
+  // always takes the row the reader is looking at rather than a leftover
+  // position from a longer list.
+  const [active, setActive] = useState(0)
 
   const found = candidates.filter(issue => matches(issue, value))
   const shown = found.slice(0, MAX_OPTIONS)
   const expanded = open && shown.length > 0
+  const activeIndex = Math.min(active, shown.length - 1)
   const listId = `${id}-listbox`
+  const optionId = (index: number) => `${listId}-option-${index}`
 
   const select = (issue: Issue) => {
     onChange(issue.id)
     setOpen(false)
+    setActive(0)
+  }
+
+  const keyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      // A closed list opens where it left off rather than jumping a row.
+      if (!expanded) setOpen(true)
+      else setActive(Math.min(activeIndex + 1, shown.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (expanded) setActive(Math.max(activeIndex - 1, 0))
+      return
+    }
+    if (event.key === 'Enter') {
+      // The field sits inside a form at both call sites: taking a suggestion
+      // must not also submit it. With the list closed, Enter is the form's.
+      if (!expanded) return
+      event.preventDefault()
+      select(shown[activeIndex])
+      return
+    }
+    if (event.key === 'Escape') {
+      // The text survives — only the list closes.
+      setOpen(false)
+    }
   }
 
   return (
@@ -61,7 +95,9 @@ export default function IssueCombobox({
         autoComplete="off"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        onChange={event => { onChange(event.target.value); setOpen(true) }}
+        onChange={event => { onChange(event.target.value); setOpen(true); setActive(0) }}
+        onKeyDown={keyDown}
+        aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
         className={className}
       />
 
@@ -71,15 +107,18 @@ export default function IssueCombobox({
           role="listbox"
           className="absolute z-10 mt-0.5 max-h-64 w-full overflow-y-auto rounded-sm border border-line bg-surface-raised"
         >
-          {shown.map(issue => (
+          {shown.map((issue, index) => (
             <li
               key={issue.id}
+              id={optionId(index)}
               role="option"
-              aria-selected={false}
+              aria-selected={index === activeIndex}
               // Blur would close the list before the click ever landed.
               onMouseDown={event => event.preventDefault()}
               onClick={() => select(issue)}
-              className="flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5"
+              className={`flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 ${
+                index === activeIndex ? 'bg-surface-hover' : ''
+              }`}
             >
               <span className="font-mono text-[11px] text-ink-muted">{issue.id}</span>
               <span className="flex-1 truncate text-ink">{issue.title}</span>

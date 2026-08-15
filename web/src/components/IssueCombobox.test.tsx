@@ -131,4 +131,107 @@ describe('IssueCombobox', () => {
 
     expect(screen.queryByText(/keep typing/)).not.toBeInTheDocument()
   })
+
+  // The first row is active as soon as the list opens, so two presses land on
+  // the third candidate.
+  it('moves the active row with the arrow keys and takes it with Enter', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('td-999999')
+  })
+
+  it('points aria-activedescendant at the active row', async () => {
+    const { input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}')
+
+    const active = screen.getAllByRole('option')[1]
+    expect(active).toHaveAttribute('aria-selected', 'true')
+    expect(input).toHaveAttribute('aria-activedescendant', active.id)
+  })
+
+  it('stops at the ends of the list', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('td-a1b2c3')
+  })
+
+  // Both call sites sit inside a <form>. Picking a suggestion must not also
+  // save the form.
+  it('does not submit the surrounding form while the list is open', async () => {
+    const onSubmit = vi.fn(event => event.preventDefault())
+    render(
+      <form onSubmit={onSubmit}>
+        <label htmlFor="pick">Depends on</label>
+        <IssueCombobox id="pick" value="" onChange={vi.fn()} candidates={candidates} />
+      </form>,
+    )
+    const input = screen.getByLabelText('Depends on')
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('submits the form on Enter once the list is closed', async () => {
+    const onSubmit = vi.fn(event => event.preventDefault())
+    render(
+      <form onSubmit={onSubmit}>
+        <label htmlFor="pick">Depends on</label>
+        <IssueCombobox id="pick" value="" onChange={vi.fn()} candidates={candidates} />
+      </form>,
+    )
+    const input = screen.getByLabelText('Depends on')
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes on Escape without clearing what was typed', async () => {
+    const { onChange, input } = renderBox('stor')
+
+    await userEvent.click(input)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(input).toHaveValue('stor')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('reopens the closed list with Arrow Down without selecting anything', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('{ArrowDown}')
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('starts over at the first row when the query changes', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.type(input, 'e')          // re-filters; the active row resets
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenLastCalledWith('td-a1b2c3')
+  })
 })
