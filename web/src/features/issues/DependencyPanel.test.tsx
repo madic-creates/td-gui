@@ -80,4 +80,66 @@ describe('DependencyPanel', () => {
     renderPanel([])
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
   })
+
+  it('fires no request for a whitespace-only entry', async () => {
+    let called = false
+    server.use(http.post('/v1/issues/td-6a0883/dependencies', () => {
+      called = true
+      return HttpResponse.json({ ok: true, data: { dependency } })
+    }))
+    renderPanel([])
+
+    await userEvent.type(screen.getByLabelText('Depends on'), '   ')
+    await userEvent.click(screen.getByRole('button', { name: 'Add dependency' }))
+
+    expect(called).toBe(false)
+  })
+
+  it('clears a stale add error when a subsequent remove succeeds', async () => {
+    server.use(http.post('/v1/issues/td-6a0883/dependencies', () =>
+      HttpResponse.json({
+        ok: false,
+        error: { code: 'validation_error', message: 'cannot add dependency: would create circular dependency' },
+      }, { status: 400 })))
+    renderPanel([dependency])
+
+    await userEvent.type(screen.getByLabelText('Depends on'), 'td-6a0883')
+    await userEvent.click(screen.getByRole('button', { name: 'Add dependency' }))
+    expect(await screen.findByText('cannot add dependency: would create circular dependency')).toBeInTheDocument()
+
+    server.use(http.delete('/v1/issues/td-6a0883/dependencies/:depId', () =>
+      HttpResponse.json({ ok: true, data: { removed: true } })))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+
+    await waitFor(() => expect(
+      screen.queryByText('cannot add dependency: would create circular dependency'),
+    ).not.toBeInTheDocument())
+  })
+
+  it('shows the fresh remove error, not a stale add error, when both fail', async () => {
+    server.use(http.post('/v1/issues/td-6a0883/dependencies', () =>
+      HttpResponse.json({
+        ok: false,
+        error: { code: 'validation_error', message: 'cannot add dependency: would create circular dependency' },
+      }, { status: 400 })))
+    renderPanel([dependency])
+
+    await userEvent.type(screen.getByLabelText('Depends on'), 'td-6a0883')
+    await userEvent.click(screen.getByRole('button', { name: 'Add dependency' }))
+    expect(await screen.findByText('cannot add dependency: would create circular dependency')).toBeInTheDocument()
+
+    server.use(http.delete('/v1/issues/td-6a0883/dependencies/:depId', () =>
+      HttpResponse.json({
+        ok: false,
+        error: { code: 'not_found', message: 'dependency not found: dep_f7585e15' },
+      }, { status: 404 })))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+
+    expect(await screen.findByText('dependency not found: dep_f7585e15')).toBeInTheDocument()
+    expect(screen.queryByText('cannot add dependency: would create circular dependency')).not.toBeInTheDocument()
+  })
 })

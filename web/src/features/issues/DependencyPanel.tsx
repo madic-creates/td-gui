@@ -21,6 +21,10 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   const add = useAddDependency(issueId)
   const remove = useRemoveDependency(issueId)
 
+  // Each mutation's error is only ever current for the action that produced
+  // it — reset the sibling before starting a new one so a stale add failure
+  // can't keep rendering next to an unrelated remove success, or mask a
+  // fresh remove failure. See IssueActions for the same pattern.
   const error = add.error ?? remove.error
 
   return (
@@ -46,7 +50,10 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
                 label="Remove"
                 question="Remove this dependency?"
                 disabled={remove.isPending}
-                onConfirm={() => remove.mutate(dependency.dep_id)}
+                onConfirm={() => {
+                  add.reset()
+                  remove.mutate(dependency.dep_id)
+                }}
               />
             </li>
           ))}
@@ -59,6 +66,7 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
           event.preventDefault()
           const id = entry.trim()
           if (!id) return
+          remove.reset()
           add.mutate(id, { onSuccess: () => setEntry('') })
         }}
       >
