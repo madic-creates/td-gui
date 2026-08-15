@@ -8,12 +8,18 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import IssueDetail from './IssueDetail'
 import { issueKeys } from '../../api/queries'
+import { makeIssue } from './issue.fixture'
 
 const server = setupServer(
   // The edit form's label autocomplete. Registered once so opening the editor
   // does not trip onUnhandledRequest in every test that clicks Edit.
   http.get('/v1/labels', () =>
     HttpResponse.json({ ok: true, data: { default_workflow: 'standard', labels: [] } })),
+  // The issue index the detail view resolves references against. Empty by
+  // default: tests that care about resolution override it.
+  http.get('/v1/issues', () => HttpResponse.json({
+    ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+  })),
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -485,5 +491,100 @@ describe('IssueDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment' }))
 
     await waitFor(() => expect(deleted).toBe('cm-1f0a2b3c'))
+  })
+
+  // `blocked_by` holds what waits on this issue, despite its name. Resolving
+  // the wrong end lists the opposite issues and still looks plausible.
+  it('lists what the issue blocks from blocked_by', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true,
+        data: {
+          ...detail,
+          blocked_by: [{
+            dep_id: 'dep_1', issue_id: 'td-waits',
+            depends_on_id: 'td-6a0883', relation_type: 'depends_on',
+          }],
+        },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [makeIssue({ id: 'td-waits', title: 'The dependent issue' })],
+          limit: 1000, offset: 0, total: 1, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('Blocks (1)')).toBeInTheDocument()
+    expect(screen.getByText('The dependent issue')).toBeInTheDocument()
+  })
+
+  it('lists the children of an epic', async () => {
+    const issue = { ...detail.issue, type: 'epic' }
+    server.use(
+      http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { ...detail, issue } })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [
+            makeIssue({ id: 'td-child0', title: 'A task in the epic', parent_id: 'td-6a0883' }),
+            makeIssue({ id: 'td-other0', title: 'Unrelated', parent_id: null }),
+          ],
+          limit: 1000, offset: 0, total: 2, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('Tasks (1)')).toBeInTheDocument()
+    expect(screen.getByText('A task in the epic')).toBeInTheDocument()
+    expect(screen.queryByText('Unrelated')).not.toBeInTheDocument()
+  })
+
+  it('lists no tasks for an issue that is not an epic', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: detail })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' })],
+          limit: 1000, offset: 0, total: 1, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    await screen.findByText('Probe issue for API shape')
+    expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
+  })
+
+  it('shows the standing review from active_review', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true,
+        data: {
+          ...detail,
+          // Nested on the issue, which is where td puts it.
+          issue: {
+            ...detail.issue,
+            active_review: {
+              id: 'rv-1', decision: 'approved', reviewer_session: 'ses_a2b123',
+              requested_by_session: 'ses_582415', summary: 'Looks right',
+              created_at: '2026-08-14T15:01:46+02:00', self_review: false,
+            },
+          },
+        },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('Looks right')).toBeInTheDocument()
   })
 })
