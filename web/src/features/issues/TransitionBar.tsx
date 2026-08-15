@@ -67,8 +67,13 @@ export default function TransitionBar({ issueId, available }: Props) {
   const busy = transition.isPending || record.isPending
   const error = transition.error ?? record.error
 
-  const close = () => {
-    setPending(null)
+  /**
+   * Empties the shared form. Every field belongs to the action that opened it —
+   * `recordOnly` most sharply, because its checkbox unmounts with the approve
+   * fieldset and a leftover `true` would silently record an approval on
+   * whatever action came next.
+   */
+  const resetForm = () => {
     setReason('')
     setMode('independent')
     setReviewedBy('')
@@ -76,6 +81,16 @@ export default function TransitionBar({ issueId, available }: Props) {
     // Both mutations feed one panel; a stale failure must not outlive its form.
     transition.reset()
     record.reset()
+  }
+
+  const open = (action: Transition) => {
+    resetForm()
+    setPending(action)
+  }
+
+  const close = () => {
+    resetForm()
+    setPending(null)
   }
 
   /** Only ever sets one of reviewed_by / self_review — never both. */
@@ -109,11 +124,16 @@ export default function TransitionBar({ issueId, available }: Props) {
               tone[action] ?? 'border-line text-ink'
             }`}
             disabled={busy}
-            onClick={() =>
-              takesReason[action]
-                ? setPending(action)
-                : transition.mutate({ action })
-            }
+            onClick={() => {
+              if (takesReason[action]) {
+                open(action)
+                return
+              }
+              // Fires at once, so any form still open belongs to an action the
+              // user has just walked away from — it goes with it.
+              close()
+              transition.mutate({ action })
+            }}
           >
             {labels[action] ?? action}
           </button>

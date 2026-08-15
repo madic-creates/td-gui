@@ -198,6 +198,54 @@ describe('TransitionBar record-only review', () => {
   })
 })
 
+describe('TransitionBar form state across actions', () => {
+  // The form is shared, but record-only outlives the fieldset that owns it:
+  // once another action takes over, its checkbox is unmounted and cannot be
+  // cleared, so a leftover `true` would turn the confirm into a recorded
+  // approval on a path the user never chose.
+  it('drops record-only when another action takes over the form', async () => {
+    const reject = captureBody('post', '/v1/issues/td-6a0883/reject')
+    const reviews = captureBody('post', '/v1/issues/td-6a0883/reviews')
+    server.use(reject.handler, reviews.handler)
+
+    renderBar(['approve', 'reject'])
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Record only, do not close' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'needs work')
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm reject' }))
+
+    await expect.poll(() => reject.seen.body).toEqual({ reason: 'needs work' })
+    expect(reviews.seen.body).toBeUndefined()
+  })
+
+  // A note written to justify one action must not ride along with another.
+  it('drops the typed reason when another action takes over the form', async () => {
+    const { seen, handler } = captureBody('post', '/v1/issues/td-6a0883/close')
+    server.use(handler)
+
+    renderBar(['block', 'close'])
+    await userEvent.click(screen.getByRole('button', { name: 'Block' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'waiting on ops')
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm close' }))
+
+    await expect.poll(() => seen.body).toEqual({})
+  })
+
+  it('closes an open form when a transition needing no reason fires', async () => {
+    const { seen, handler } = captureBody('post', '/v1/issues/td-6a0883/review')
+    server.use(handler)
+
+    renderBar(['review', 'block'])
+    await userEvent.click(screen.getByRole('button', { name: 'Block' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Request review' }))
+
+    await expect.poll(() => seen.body).toEqual({})
+    expect(screen.queryByLabelText('Reason')).not.toBeInTheDocument()
+  })
+})
+
 describe('TransitionBar error reporting', () => {
   // CLAUDE.md: td's wording is authoritative and reaches the user unchanged.
   it("shows td's mutual-exclusion 400 verbatim", async () => {
