@@ -6,6 +6,7 @@ import TransitionBar from './TransitionBar'
 import CommentForm from './CommentForm'
 import IssueActions from './IssueActions'
 import IssueEditForm from './IssueEditForm'
+import DependencyPanel from './DependencyPanel'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
@@ -33,7 +34,7 @@ export default function IssueDetail() {
     )
   }
 
-  const { issue, logs, comments, latest_handoff } = data
+  const { issue, logs, comments, dependencies, latest_handoff } = data
 
   return (
     <div className="px-5 py-4 pb-6">
@@ -73,6 +74,8 @@ export default function IssueDetail() {
       )}
 
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
+
+      <DependencyPanel issueId={issue.id} dependencies={dependencies} />
 
       <section className="mt-6">
         <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
