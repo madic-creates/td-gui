@@ -206,6 +206,46 @@ describe('IssueDetail', () => {
     expect(screen.getByLabelText('Title')).toHaveValue('Probe issue for API shape')
   })
 
+  // The editor turns the heading itself into the field. A second title field
+  // below the untouched heading puts the same value on screen twice, and only
+  // one of the two is the one that gets saved.
+  it('edits the title in place of the heading', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.queryByRole('heading', { name: 'Probe issue for API shape' }))
+      .not.toBeInTheDocument()
+    expect(screen.getAllByLabelText('Title')).toHaveLength(1)
+    expect(screen.getByLabelText('Title')).toHaveValue('Probe issue for API shape')
+  })
+
+  // Opening the editor must not remount IssueActions. react-query stops
+  // calling a mutation's mutate-level callbacks as soon as its observer loses
+  // its listeners, so an unmount mid-delete strands the navigate('/') that
+  // takes the user off the issue they just deleted.
+  it('leaves the view when a delete lands after the editor was opened', async () => {
+    let release = () => {}
+    const inFlight = new Promise<void>(resolve => { release = resolve })
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.delete('/v1/issues/td-6a0883', async () => {
+        await inFlight
+        return HttpResponse.json({ ok: true, data: { deleted: true } })
+      }),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+    await act(async () => { release() })
+
+    expect(await screen.findByText('issue list stand-in')).toBeInTheDocument()
+  })
+
   // A stale error from one action must not bleed into a later, unrelated one.
   it('drops a failed delete error once a later focus action succeeds', async () => {
     server.use(

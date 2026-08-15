@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiError, fieldErrorFor } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue, IssueType, Priority } from '../../api/types'
@@ -11,9 +11,17 @@ const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
 
 const fieldClass = 'w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink'
 const legendClass = 'mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted'
+const titleClass = 'mt-0.5 mb-2 text-xl font-semibold leading-snug tracking-tight text-ink'
 
 interface Props {
   issue: Issue
+  editing: boolean
+  /**
+   * Rendered between the title and the fields — the issue's tag row and
+   * action bar. They sit inside the form because the title is the form's
+   * first field and they belong below it on screen.
+   */
+  children: React.ReactNode
   onDone: () => void
 }
 
@@ -21,17 +29,48 @@ interface Props {
  * No client-side bounds anywhere: title length and the points enum are
  * per-project td config, so the server validates and this renders its answer.
  * The dates use type="date" because it emits td's YYYY-MM-DD exactly.
+ *
+ * Mounted whether or not the editor is open, rendering the title as a heading
+ * while it is closed. That is what lets the title be edited where it is read,
+ * without the action bar in `children` changing position when the editor
+ * opens: a move is a remount, and react-query stops calling a mutation's
+ * mutate-level callbacks the moment its observer loses its listeners — a
+ * delete in flight would lose the navigate('/') that follows it.
  */
-export default function IssueEditForm({ issue, onDone }: Props) {
-  // Both seeded once, deliberately. useLiveUpdates invalidates the detail
-  // query on every SSE event; re-syncing the draft would wipe whatever is
-  // being typed. `original` is the issue as it was at that same moment, and
-  // the diff is against it rather than against the live prop: another
-  // session's background change to a field the user never touched would
-  // otherwise read as an edit and get overwritten with the draft's stale copy.
-  const [original] = useState(issue)
+export default function IssueEditForm({ issue, editing, children, onDone }: Props) {
+  // Seeded when the editor opens, not on mount, since the component outlives
+  // a single editing session. Not re-synced while it is open: useLiveUpdates
+  // invalidates the detail query on every SSE event, and re-seeding would
+  // wipe whatever is being typed. `original` is the issue as it was at that
+  // same moment, and the diff is against it rather than against the live
+  // prop: another session's background change to a field the user never
+  // touched would otherwise read as an edit and get overwritten with the
+  // draft's stale copy.
+  const [original, setOriginal] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
+
+  // Adjusting state during render rather than in an effect, so the freshly
+  // opened editor never paints the previous session's abandoned draft first.
+  const [wasEditing, setWasEditing] = useState(editing)
+  if (editing !== wasEditing) {
+    setWasEditing(editing)
+    if (editing) {
+      setOriginal(issue)
+      setDraft(draftFrom(issue))
+    }
+  }
+
+  // A rejected save used to die with the form. It now has to be cleared by
+  // hand, on close rather than on open, so that a stale field error cannot
+  // paint for a frame on top of a draft that no longer produced it. Resetting
+  // a still-pending PATCH detaches it from its callbacks, which here means
+  // only the onDone that already ran and an error nothing is rendering.
+  useEffect(() => {
+    if (!editing) update.reset()
+    // `update` is a new object every render; only closing should run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
 
   function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
     setDraft(current => ({ ...current, [key]: value }))
@@ -51,106 +90,119 @@ export default function IssueEditForm({ issue, onDone }: Props) {
   const panelError = panelMessage(update.error)
 
   return (
-    <form className="mt-4 space-y-4 border-t border-line-subtle pt-4" onSubmit={submit}>
-      <div>
-        <label htmlFor="edit-title" className={legendClass}>Title</label>
-        <input id="edit-title" value={draft.title}
-          onChange={e => set('title', e.target.value)} className={fieldClass} />
-        <FieldError error={update.error} field="title" />
-      </div>
-
-      <div>
-        <label htmlFor="edit-description" className={legendClass}>Description</label>
-        <textarea id="edit-description" rows={6} value={draft.description}
-          onChange={e => set('description', e.target.value)} className={fieldClass} />
-        <FieldError error={update.error} field="description" />
-      </div>
-
-      <div>
-        <label htmlFor="edit-acceptance" className={legendClass}>Acceptance criteria</label>
-        <textarea id="edit-acceptance" rows={4} value={draft.acceptance}
-          onChange={e => set('acceptance', e.target.value)} className={fieldClass} />
-        <FieldError error={update.error} field="acceptance" />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-4">
-        <div>
-          <label htmlFor="edit-type" className={legendClass}>Type</label>
-          <select id="edit-type" value={draft.type}
-            onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
-            {types.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <FieldError error={update.error} field="type" />
+    <form onSubmit={submit}>
+      {/* The heading and the field are the same line of the page. The field
+          carries an aria-label rather than a visible legend: a TITLE caption
+          above the issue title would read as part of the issue. */}
+      {editing ? (
+        <div className="mt-0.5 mb-2">
+          <input aria-label="Title" value={draft.title}
+            onChange={e => set('title', e.target.value)}
+            className={`${fieldClass} text-xl font-semibold leading-snug tracking-tight`} />
+          <FieldError error={update.error} field="title" />
         </div>
-        <div>
-          <label htmlFor="edit-priority" className={legendClass}>Priority</label>
-          <select id="edit-priority" value={draft.priority}
-            onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
-            {priorities.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <FieldError error={update.error} field="priority" />
-        </div>
-        <div>
-          {/* No min or max: the accepted values are td config, and it names
-              them in the error when a value is rejected. */}
-          <label htmlFor="edit-points" className={legendClass}>Points</label>
-          <input id="edit-points" type="number" value={draft.points ?? ''}
-            onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
-            className={fieldClass} />
-          <FieldError error={update.error} field="points" />
-        </div>
-        <div>
-          <label htmlFor="edit-sprint" className={legendClass}>Sprint</label>
-          <input id="edit-sprint" value={draft.sprint}
-            onChange={e => set('sprint', e.target.value)} className={fieldClass} />
-          <FieldError error={update.error} field="sprint" />
-        </div>
-      </div>
+      ) : (
+        <h1 className={titleClass}>{issue.title}</h1>
+      )}
 
-      <div>
-        <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
-        <FieldError error={update.error} field="labels" />
-      </div>
+      {children}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <label htmlFor="edit-parent" className={legendClass}>Parent</label>
-          <input id="edit-parent" value={draft.parent_id} placeholder="td-…"
-            onChange={e => set('parent_id', e.target.value)} className={fieldClass} />
-          <FieldError error={update.error} field="parent_id" />
+      {editing && (
+        <div className="mt-4 space-y-4 border-t border-line-subtle pt-4">
+          <div>
+            <label htmlFor="edit-description" className={legendClass}>Description</label>
+            <textarea id="edit-description" rows={6} value={draft.description}
+              onChange={e => set('description', e.target.value)} className={fieldClass} />
+            <FieldError error={update.error} field="description" />
+          </div>
+
+          <div>
+            <label htmlFor="edit-acceptance" className={legendClass}>Acceptance criteria</label>
+            <textarea id="edit-acceptance" rows={4} value={draft.acceptance}
+              onChange={e => set('acceptance', e.target.value)} className={fieldClass} />
+            <FieldError error={update.error} field="acceptance" />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-4">
+            <div>
+              <label htmlFor="edit-type" className={legendClass}>Type</label>
+              <select id="edit-type" value={draft.type}
+                onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
+                {types.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <FieldError error={update.error} field="type" />
+            </div>
+            <div>
+              <label htmlFor="edit-priority" className={legendClass}>Priority</label>
+              <select id="edit-priority" value={draft.priority}
+                onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
+                {priorities.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <FieldError error={update.error} field="priority" />
+            </div>
+            <div>
+              {/* No min or max: the accepted values are td config, and it names
+                  them in the error when a value is rejected. */}
+              <label htmlFor="edit-points" className={legendClass}>Points</label>
+              <input id="edit-points" type="number" value={draft.points ?? ''}
+                onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
+                className={fieldClass} />
+              <FieldError error={update.error} field="points" />
+            </div>
+            <div>
+              <label htmlFor="edit-sprint" className={legendClass}>Sprint</label>
+              <input id="edit-sprint" value={draft.sprint}
+                onChange={e => set('sprint', e.target.value)} className={fieldClass} />
+              <FieldError error={update.error} field="sprint" />
+            </div>
+          </div>
+
+          <div>
+            <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
+            <FieldError error={update.error} field="labels" />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label htmlFor="edit-parent" className={legendClass}>Parent</label>
+              <input id="edit-parent" value={draft.parent_id} placeholder="td-…"
+                onChange={e => set('parent_id', e.target.value)} className={fieldClass} />
+              <FieldError error={update.error} field="parent_id" />
+            </div>
+            <div>
+              <label htmlFor="edit-due" className={legendClass}>Due date</label>
+              <input id="edit-due" type="date" value={draft.due_date}
+                onChange={e => set('due_date', e.target.value)} className={fieldClass} />
+              <FieldError error={update.error} field="due_date" />
+            </div>
+            <div>
+              <label htmlFor="edit-defer" className={legendClass}>Defer until</label>
+              <input id="edit-defer" type="date" value={draft.defer_until}
+                onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
+              <FieldError error={update.error} field="defer_until" />
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={draft.minor}
+              onChange={e => set('minor', e.target.checked)} />
+            <span>Minor — self-reviewable</span>
+          </label>
+
+          <div className="flex gap-1.5">
+            <button type="submit" disabled={update.isPending}
+              className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
+              Save changes
+            </button>
+            <button type="button" onClick={onDone}
+              className="rounded-sm border border-line px-3 py-1 text-[11px] text-ink-muted">
+              Cancel
+            </button>
+          </div>
+
+          {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
         </div>
-        <div>
-          <label htmlFor="edit-due" className={legendClass}>Due date</label>
-          <input id="edit-due" type="date" value={draft.due_date}
-            onChange={e => set('due_date', e.target.value)} className={fieldClass} />
-          <FieldError error={update.error} field="due_date" />
-        </div>
-        <div>
-          <label htmlFor="edit-defer" className={legendClass}>Defer until</label>
-          <input id="edit-defer" type="date" value={draft.defer_until}
-            onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
-          <FieldError error={update.error} field="defer_until" />
-        </div>
-      </div>
-
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={draft.minor}
-          onChange={e => set('minor', e.target.checked)} />
-        <span>Minor — self-reviewable</span>
-      </label>
-
-      <div className="flex gap-1.5">
-        <button type="submit" disabled={update.isPending}
-          className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
-          Save changes
-        </button>
-        <button type="button" onClick={onDone}
-          className="rounded-sm border border-line px-3 py-1 text-[11px] text-ink-muted">
-          Cancel
-        </button>
-      </div>
-
-      {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
+      )}
     </form>
   )
 }

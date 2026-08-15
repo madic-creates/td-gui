@@ -30,14 +30,24 @@ function renderForm(onDone = vi.fn()) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  const tree = (next: Issue) => (
+  const tree = (next: Issue, editing: boolean) => (
     <QueryClientProvider client={qc}>
-      <IssueEditForm issue={next} onDone={onDone} />
+      <IssueEditForm issue={next} editing={editing} onDone={onDone}>
+        {/* Stands in for the tag row and action bar the detail view nests
+            between the title and the fields. */}
+        <p>action bar stand-in</p>
+      </IssueEditForm>
     </QueryClientProvider>
   )
-  const { rerender } = render(tree(issue))
-  // Re-renders the open form with a changed issue prop — what a refetch does.
-  return { onDone, refetch: (next: Issue) => rerender(tree(next)) }
+  const { rerender } = render(tree(issue, true))
+  return {
+    onDone,
+    // Re-renders the open form with a changed issue prop — what a refetch does.
+    refetch: (next: Issue) => rerender(tree(next, true)),
+    // The form stays mounted when the editor closes, so open and close are
+    // prop changes rather than a mount and an unmount.
+    setEditing: (editing: boolean, next: Issue = issue) => rerender(tree(next, editing)),
+  }
 }
 
 describe('IssueEditForm', () => {
@@ -173,6 +183,56 @@ describe('IssueEditForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findByText('minor cannot be set on an epic')).toBeInTheDocument()
+  })
+
+  // Closed, the form is just the heading: it stays mounted only so that the
+  // action bar it wraps keeps its position in the tree.
+  it('renders the title as a heading while the editor is closed', () => {
+    const { setEditing } = renderForm()
+
+    setEditing(false)
+
+    expect(screen.getByRole('heading', { name: 'Probe issue for API shape' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Title')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save changes' })).not.toBeInTheDocument()
+  })
+
+  // Seeding happens when the editor opens, not when the component mounts —
+  // the component now outlives a single editing session, and an abandoned
+  // draft must not come back the next time the editor is opened.
+  it('re-seeds the draft each time the editor is opened', async () => {
+    const { setEditing } = renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'Edited but abandoned title')
+
+    setEditing(false)
+    setEditing(true, { ...issue, title: 'Renamed by another session' })
+
+    expect(screen.getByLabelText('Title')).toHaveValue('Renamed by another session')
+  })
+
+  it('drops a rejected save when the editor is closed and reopened', async () => {
+    server.use(http.patch('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error', message: 'Validation failed',
+          details: { fields: [{ field: 'title', rule: 'min_length', message: 'title too short (2 chars, min 15)' }] },
+        },
+      }, { status: 400 })))
+    const { setEditing } = renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'ab')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByText('title too short (2 chars, min 15)')).toBeInTheDocument()
+
+    setEditing(false)
+    setEditing(true)
+
+    await waitFor(() =>
+      expect(screen.queryByText('title too short (2 chars, min 15)')).not.toBeInTheDocument())
   })
 
   it('cancels without sending anything', async () => {

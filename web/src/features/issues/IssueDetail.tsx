@@ -58,27 +58,29 @@ function IssueDetailView({ id }: { id: string }) {
     <div className="px-5 py-4 pb-6">
       <Link to="/" className="text-[11px] text-ink-muted">← back to list</Link>
 
+      {/* The title is the edit form's first field, so the form owns it in both
+          states and everything below it down to the action bar is nested
+          inside — the one arrangement that edits the title where it is read
+          without moving IssueActions, whose place in the tree is load-bearing
+          (see IssueEditForm). */}
       <header className="mt-3">
         <span className="block font-mono text-[11px] text-ink-faint">{issue.id}</span>
-        <h1 className="mb-2 mt-0.5 text-xl font-semibold leading-snug tracking-tight text-ink">
-          {issue.title}
-        </h1>
-        <div className="flex items-center gap-2 text-[11px]">
-          <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
-            {issue.type}
-          </span>
-          <span className="rounded-sm border border-line px-1.5 py-0.5">
-            <PriorityTag priority={issue.priority} />
-          </span>
-          <span className="rounded-sm border border-line px-1.5 py-0.5">
-            <StatusTag status={issue.status} />
-          </span>
-        </div>
+        <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
+              {issue.type}
+            </span>
+            <span className="rounded-sm border border-line px-1.5 py-0.5">
+              <PriorityTag priority={issue.priority} />
+            </span>
+            <span className="rounded-sm border border-line px-1.5 py-0.5">
+              <StatusTag status={issue.status} />
+            </span>
+          </div>
+
+          <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+        </IssueEditForm>
       </header>
-
-      <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
-
-      {editing && <IssueEditForm issue={issue} onDone={() => setEditing(false)} />}
 
       <TransitionBar issueId={issue.id} available={issue.available_transitions} />
 
