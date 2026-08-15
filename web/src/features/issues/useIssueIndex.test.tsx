@@ -5,6 +5,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { useIssueIndex } from './useIssueIndex'
 import { makeIssue } from './issue.fixture'
+import { FETCH_LIMIT, useIssues } from '../../api/queries'
 import type { ReactNode } from 'react'
 
 const server = setupServer()
@@ -55,9 +56,22 @@ describe('useIssueIndex', () => {
     server.use(http.get('/v1/issues', () => HttpResponse.json(
       { ok: false, error: { code: 'internal', message: 'boom' } }, { status: 500 })))
 
-    const { result } = renderHook(() => useIssueIndex(), { wrapper })
+    // useIssueIndex only reads `data` off the query, so a component that
+    // reads nothing else never re-renders on a pending->error transition
+    // (react-query only notifies a component of fields it actually reads).
+    // Reading `status` alongside the hook, off the same query key, forces a
+    // render once the request genuinely fails, so the assertions below are
+    // checked against the failed state rather than replaying the initial
+    // pending render. This also means a hook that threw on error would fail
+    // this test: the throw would happen during that render and propagate out
+    // of renderHook, since nothing here catches it.
+    const { result } = renderHook(() => {
+      const { status } = useIssues({ limit: FETCH_LIMIT })
+      return { status, ...useIssueIndex() }
+    }, { wrapper })
 
-    await waitFor(() => expect(result.current.index.size).toBe(0))
+    await waitFor(() => expect(result.current.status).toBe('error'))
+    expect(result.current.index.size).toBe(0)
     expect(result.current.issues).toEqual([])
   })
 })
