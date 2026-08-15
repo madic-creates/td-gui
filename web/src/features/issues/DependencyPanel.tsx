@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useAddDependency, useRemoveDependency } from '../../api/mutations'
 import type { Dependency } from '../../api/types'
 import ConfirmButton from '../../components/ConfirmButton'
@@ -26,6 +26,7 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   // See IssueActions for the same pattern.
   const [lastAction, setLastAction] = useState<'add' | 'remove' | null>(null)
   const error = lastAction === 'add' ? add.error : lastAction === 'remove' ? remove.error : null
+  const panelError = unboundMessage(error)
 
   // Dependencies carry only id triples; titles come from the shared index.
   const { index } = useIssueIndex()
@@ -80,14 +81,11 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
         </button>
       </form>
 
-      {error && (
+      {panelError && (
         // No details.fields on these — "would create circular dependency",
         // "issue not found: td-zzzzzz" — so the message is all there is.
         <div className="mt-2">
-          <ErrorPanel
-            label="Dependency rejected"
-            message={error instanceof ApiError ? error.message : String(error)}
-          />
+          <ErrorPanel label="Dependency rejected" message={panelError} />
         </div>
       )}
     </section>

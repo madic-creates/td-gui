@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ApiError } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useDeleteIssue, useSetFocus } from '../../api/mutations'
 import type { Issue } from '../../api/types'
 import ConfirmButton from '../../components/ConfirmButton'
@@ -55,6 +55,7 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
   // it, so a stale delete failure can't keep rendering next to an unrelated
   // focus success, or vice versa.
   const error = lastAction === 'delete' ? remove.error : lastAction === 'focus' ? focus.error : null
+  const panelError = unboundMessage(error)
 
   function handleEdit() {
     setLastAction(null)
@@ -108,12 +109,10 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
         />
       </div>
 
-      {error && (
+      {/* Nothing here binds a field, so every message td sends belongs here. */}
+      {panelError && (
         <div className="mt-2">
-          <ErrorPanel
-            label="Action rejected"
-            message={error instanceof ApiError ? error.message : String(error)}
-          />
+          <ErrorPanel label="Action rejected" message={panelError} />
         </div>
       )}
     </div>

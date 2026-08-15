@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
-import IssueEditForm from './IssueEditForm'
+import IssueEditForm, { boundFields } from './IssueEditForm'
 import type { Issue } from '../../api/types'
 
 const issue: Issue = {
@@ -243,5 +243,57 @@ describe('IssueEditForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(onDone).toHaveBeenCalledOnce()
+  })
+})
+
+/**
+ * `boundFields` tells the panel which messages are already on screen, so a
+ * name that no input actually renders re-creates the silence the shared
+ * predicate exists to end. It is hand-maintained and cannot be derived — the
+ * panel's value is computed during the parent's render, before any child
+ * FieldError has run — so it is pinned here instead.
+ *
+ * Exactly once is the whole assertion, and it catches both directions: a stale
+ * entry renders the message nowhere (0), and a field left off the list renders
+ * it at the input and again in the panel (2).
+ */
+describe('IssueEditForm bound fields', () => {
+  it.each(boundFields)('renders td\'s message for %s at its own input', async field => {
+    const message = `${field} is not acceptable`
+    server.use(http.patch('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error', message: 'Validation failed',
+          details: { fields: [{ field, rule: 'invalid', message }] },
+        },
+      }, { status: 400 })))
+    renderForm()
+
+    // Any edit will do — the point is to get a rejected PATCH back.
+    await userEvent.type(screen.getByLabelText('Title'), ' edited')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findAllByText(message)).toHaveLength(1)
+  })
+
+  // The counterpart: `minor` is the one editable field with no FieldError of
+  // its own, so its message has to fall through to the panel.
+  it('sends a message for an unbound field to the panel', async () => {
+    const message = 'minor cannot be set on an epic'
+    server.use(http.patch('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error', message: 'Validation failed',
+          details: { fields: [{ field: 'minor', rule: 'invalid', message }] },
+        },
+      }, { status: 400 })))
+    renderForm()
+
+    await userEvent.type(screen.getByLabelText('Title'), ' edited')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findAllByText(message)).toHaveLength(1)
   })
 })

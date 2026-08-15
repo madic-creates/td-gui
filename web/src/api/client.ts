@@ -76,3 +76,36 @@ export function fieldErrorFor(error: unknown, field: string): string | undefined
   if (!(error instanceof ApiError)) return undefined
   return error.fields.find(f => f.field === field)?.message
 }
+
+/**
+ * What a form's error panel still has to say, given the fields it already
+ * renders a message against. `null` means everything has been said elsewhere.
+ *
+ * This is the single predicate for every form. It defaults to speaking, and
+ * three cases depend on that default:
+ *
+ * - a non-ApiError — `fetch` rejects with a TypeError when the connection
+ *   drops, and nothing catches it;
+ * - an ApiError carrying no fields — td's JSON type errors are
+ *   `validation_error` with no `details.fields`;
+ * - field errors naming something the form does not bind, including anything
+ *   td renames later.
+ *
+ * Earlier code guarded panels with `code !== 'validation_error'`, which
+ * swallowed the first two silently. Per CLAUDE.md td's wording is
+ * authoritative, so the rule is inverted here: show it unless it is already
+ * on screen.
+ *
+ * `boundFields` must list the fields the caller renders a message for. An
+ * omission is safe — the message merely appears twice. A stale entry is not:
+ * it re-creates exactly the silence this replaces, so callers pin theirs with
+ * a test that the field really renders at its input.
+ */
+export function unboundMessage(error: unknown, boundFields: string[] = []): string | null {
+  if (!error) return null
+  if (!(error instanceof ApiError)) return String(error)
+  if (error.fields.length === 0) return error.message
+  const unbound = error.fields.filter(f => !boundFields.includes(f.field))
+  if (unbound.length === 0) return null
+  return unbound.map(f => f.message).join(' — ')
+}

@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { ApiError, fieldErrorFor } from '../../api/client'
+import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useAddComment } from '../../api/mutations'
+
+const boundFields = ['text']
 
 export default function CommentForm({ issueId }: { issueId: string }) {
   const [text, setText] = useState('')
   const add = useAddComment(issueId)
+  const panelError = unboundMessage(add.error, boundFields)
 
   return (
     <form
@@ -22,8 +25,9 @@ export default function CommentForm({ issueId }: { issueId: string }) {
       {fieldErrorFor(add.error, 'text') && (
         <p className="mt-1.5 text-[11px] text-danger">{fieldErrorFor(add.error, 'text')}</p>
       )}
-      {add.error instanceof ApiError && add.error.code !== 'validation_error' && (
-        <p className="mt-1.5 text-[11px] text-danger" role="alert">{add.error.message}</p>
+      {/* Everything td says that the textarea above is not already showing. */}
+      {panelError && (
+        <p className="mt-1.5 text-[11px] text-danger" role="alert">{panelError}</p>
       )}
       <button type="submit" disabled={add.isPending}
         className="mt-2 rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">

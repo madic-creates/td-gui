@@ -51,6 +51,43 @@ describe('IssueForm', () => {
     expect(received).toEqual(expect.objectContaining({ title: 'ab' }))
   })
 
+  // td's JSON type errors arrive as validation_error with no details.fields.
+  // The panel used to be guarded by `code !== 'validation_error'`, so these
+  // were swallowed whole and the form simply went quiet.
+  it("shows td's validation error when it names no field", async () => {
+    const message = 'json: cannot unmarshal string into field points of type int'
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({ ok: false, error: { code: 'validation_error', message } },
+        { status: 400 })))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
+  // This form binds title and description only, so a field error naming
+  // anything else has no input to render against and must reach the panel.
+  it('shows a field error this form does not bind', async () => {
+    const message = 'unknown type: epicc'
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error',
+          message: 'Validation failed',
+          details: { fields: [{ field: 'type', rule: 'enum', value: 'epicc', expected: '', message }] },
+        },
+      }, { status: 400 })))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
   it('sends the entered values on success', async () => {
     let received: { title?: string; priority?: string } | null = null
     server.use(http.post('/v1/issues', async ({ request }) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ApiError } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import type { Transition } from '../../api/types'
@@ -76,6 +76,7 @@ export default function TransitionBar({ issueId, available }: Props) {
     lastAction === 'transition' ? transition.error
     : lastAction === 'record' ? record.error
     : null
+  const panelError = unboundMessage(error)
 
   /**
    * Empties the shared form. Every field belongs to the action that opened it —
@@ -246,14 +247,11 @@ export default function TransitionBar({ issueId, available }: Props) {
         </form>
       )}
 
-      {error && (
+      {panelError && (
         // td phrases policy rejections and validation errors precisely. Show
         // its message unchanged; a generic "not allowed" would lose the reason.
         <div className="mt-2">
-          <ErrorPanel
-            label="Transition rejected"
-            message={error instanceof ApiError ? error.message : String(error)}
-          />
+          <ErrorPanel label="Transition rejected" message={panelError} />
         </div>
       )}
     </div>
