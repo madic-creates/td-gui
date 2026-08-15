@@ -48,6 +48,7 @@ interface Props {
   onChange: (value: string) => void
   candidates: Issue[]
   placeholder?: string
+  className?: string            // styles the input; the wrapper stays `relative`
 }
 ```
 
