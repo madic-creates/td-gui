@@ -6,7 +6,7 @@ import ConfirmButton from '../../components/ConfirmButton'
 import ErrorPanel from '../../components/ErrorPanel'
 import { useIssueIndex } from './useIssueIndex'
 import { isResolved, resolve, type Related } from './issueIndex'
-import { RelatedRow } from './RelatedIssues'
+import { GroupHeading, RelatedRow } from './RelatedIssues'
 
 interface Props {
   issueId: string
@@ -93,9 +93,9 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
 }
 
 /**
- * One group of blockers. The row markup comes from RelatedRow so this panel
- * and the read-only relation sections cannot drift apart; only the remove
- * control is this panel's own.
+ * One group of blockers. Both the heading and the row markup come from
+ * RelatedIssues so this panel and the read-only relation sections cannot
+ * drift apart; only the remove control is this panel's own.
  *
  * That control stays on every row, resolved included: a dependency on a closed
  * issue is still a dependency, and taking it off is exactly what a reader is
@@ -117,9 +117,7 @@ function Group({
   if (items.length === 0) return null
   return (
     <>
-      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
-        {title} ({items.length})
-      </h2>
+      <GroupHeading title={title} count={items.length} />
       <ul className="mb-2">
         {items.map(item => (
           <RelatedRow key={item.id} {...item}>
