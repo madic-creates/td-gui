@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
@@ -13,6 +14,7 @@ export default function IssueForm() {
   const [type, setType] = useState<IssueType>('task')
   const [priority, setPriority] = useState<Priority>('P2')
   const create = useCreateIssue()
+  const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
 
   // No client-side length checks: td's title bounds are per-project config,
@@ -22,7 +24,14 @@ export default function IssueForm() {
       className="max-w-xl space-y-4 px-5 py-4"
       onSubmit={e => {
         e.preventDefault()
-        create.mutate({ title, description: description || undefined, type, priority })
+        // Land on the new issue rather than leaving the form sitting there:
+        // without this the fields kept their submitted values with nothing
+        // stopping a second click from creating a duplicate, and the only way
+        // to reach the issue just created was to go find it in the list.
+        create.mutate(
+          { title, description: description || undefined, type, priority },
+          { onSuccess: data => navigate(`/issues/${data.issue.id}`) },
+        )
       }}
     >
       <div>
@@ -69,8 +78,6 @@ export default function IssueForm() {
         className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
         Create
       </button>
-
-      {create.isSuccess && <p className="text-success">Issue created.</p>}
 
       {/* This form binds title and description; anything else td names, and
           any error carrying no field at all, belongs here. */}

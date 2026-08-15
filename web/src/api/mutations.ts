@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiSend } from './client'
 import { issueKeys } from './queries'
-import type { IssueType, IssuePatch, Priority, Transition } from './types'
+import type { IssueCreateResponse, IssueType, IssuePatch, Priority, Transition } from './types'
 
 /**
  * Review attribution, as td models it: `reviewed_by` names who actually
@@ -70,7 +70,7 @@ export interface IssueInput {
 export function useCreateIssue() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: IssueInput) => apiSend('POST', '/v1/issues', input),
+    mutationFn: (input: IssueInput) => apiSend<IssueCreateResponse>('POST', '/v1/issues', input),
     onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
   })
 }

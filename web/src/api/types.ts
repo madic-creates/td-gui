@@ -72,6 +72,11 @@ export interface Issue {
   reviews?: Review[]
 }
 
+/** POST /v1/issues */
+export interface IssueCreateResponse {
+  issue: Issue
+}
+
 /** GET /v1/issues — note this is NOT the generic {items, pagination} shape. */
 export interface IssueListResponse {
   issues: Issue[]

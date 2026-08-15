@@ -2,7 +2,7 @@ import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import IssueForm from './IssueForm'
@@ -16,7 +16,15 @@ function renderForm() {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter><IssueForm /></MemoryRouter>
+      <MemoryRouter initialEntries={['/new']}>
+        <Routes>
+          <Route path="/new" element={<IssueForm />} />
+          {/* A stand-in for the detail route, so a create's navigate lands
+              somewhere distinguishable — proving navigation actually fired
+              with the server's id, not just that the POST went out. */}
+          <Route path="/issues/:id" element={<p>issue detail stand-in</p>} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -88,7 +96,7 @@ describe('IssueForm', () => {
     expect(await screen.findByText(message)).toBeInTheDocument()
   })
 
-  it('sends the entered values on success', async () => {
+  it('sends the entered values and navigates to the new issue on success', async () => {
     let received: { title?: string; priority?: string } | null = null
     server.use(http.post('/v1/issues', async ({ request }) => {
       received = await request.json() as { title?: string; priority?: string }
@@ -100,7 +108,7 @@ describe('IssueForm', () => {
     await userEvent.selectOptions(screen.getByLabelText('Priority'), 'P1')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
-    await screen.findByText(/created/i)
+    await screen.findByText('issue detail stand-in')
     expect(received!.title).toBe('A sufficiently long issue title')
     expect(received!.priority).toBe('P1')
   })
