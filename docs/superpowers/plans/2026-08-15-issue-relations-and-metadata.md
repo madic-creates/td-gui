@@ -686,7 +686,7 @@ git commit -m "feat(web): supply the issue index from the shared list query"
 
 **Interfaces:**
 - Consumes: `Related` from `./issueIndex`; `StatusTag` from `../../components/StatusTag`.
-- Produces: `<RelatedIssues title={string} items={Related[]} />`, default export.
+- Produces: `<RelatedIssues title={string} items={Related[]} />` as the default export, and the named export `RelatedRow` — one `<li>` for a single reference, with an optional trailing slot via `children`. Task 6 reuses `RelatedRow` for the rows that also carry a remove control; do not copy its markup there.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -748,17 +748,37 @@ Expected: FAIL — `Failed to resolve import "./RelatedIssues"`.
 Create `web/src/features/issues/RelatedIssues.tsx`:
 
 ```tsx
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import StatusTag from '../../components/StatusTag'
 import type { Related } from './issueIndex'
 
 /**
- * One titled group of references to other issues — what this issue is blocked
- * by, what it blocks, or an epic's tasks.
+ * One reference to another issue. `children` is a trailing slot for a control
+ * that belongs to the row — DependencyPanel puts its remove button there, so
+ * the two surfaces share this markup instead of drifting apart.
  *
- * A row whose issue the index does not hold renders as the bare id and
- * nothing else: that is exactly what the panel showed before titles existed,
- * and it beats inventing a "not found" the reader cannot verify.
+ * An unresolved reference renders the bare id and an empty title cell: that
+ * is exactly what the panel showed before titles existed, and it beats
+ * inventing a "not found" the reader cannot verify. The title cell is rendered
+ * either way so the trailing slot keeps its position.
+ */
+export function RelatedRow({ id, issue, children }: Related & { children?: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0">
+      <Link to={`/issues/${id}`} className="shrink-0 font-mono text-[11px] text-accent">
+        {id}
+      </Link>
+      <span className="flex-1 truncate text-ink">{issue?.title}</span>
+      {issue && <StatusTag status={issue.status} />}
+      {children}
+    </li>
+  )
+}
+
+/**
+ * One titled group of references — what this issue is blocked by, what it
+ * blocks, or an epic's tasks.
  */
 export default function RelatedIssues({
   title,
@@ -776,23 +796,7 @@ export default function RelatedIssues({
       </h2>
       <ul>
         {items.map(item => (
-          <li
-            key={item.id}
-            className="flex items-center gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
-          >
-            <Link
-              to={`/issues/${item.id}`}
-              className="shrink-0 font-mono text-[11px] text-accent"
-            >
-              {item.id}
-            </Link>
-            {item.issue && (
-              <>
-                <span className="flex-1 truncate text-ink">{item.issue.title}</span>
-                <StatusTag status={item.issue.status} />
-              </>
-            )}
-          </li>
+          <RelatedRow key={item.id} {...item} />
         ))}
       </ul>
     </section>
@@ -919,8 +923,12 @@ In `web/src/features/issues/DependencyPanel.tsx`, add the imports:
 ```tsx
 import { useIssueIndex } from './useIssueIndex'
 import { isResolved, resolve, type Related } from './issueIndex'
-import StatusTag from '../../components/StatusTag'
+import { RelatedRow } from './RelatedIssues'
 ```
+
+`StatusTag` and `Link` are no longer needed directly in this file if nothing
+else uses them — `RelatedRow` owns both. Remove any import that becomes unused,
+or oxlint will fail the build.
 
 Inside the component, above the `return`, add:
 
@@ -936,9 +944,13 @@ Replace the heading and the single `<ul>` with a helper rendered twice. Add this
 
 ```tsx
 /**
- * One group of blockers. The remove control stays on every row, resolved
- * included: a dependency on a closed issue is still a dependency, and taking
- * it off is exactly what a reader is likely to want here.
+ * One group of blockers. The row markup comes from RelatedRow so this panel
+ * and the read-only relation sections cannot drift apart; only the remove
+ * control is this panel's own.
+ *
+ * That control stays on every row, resolved included: a dependency on a closed
+ * issue is still a dependency, and taking it off is exactly what a reader is
+ * likely to want here.
  */
 function Group({
   title,
@@ -961,26 +973,14 @@ function Group({
       </h2>
       <ul className="mb-2">
         {items.map(item => (
-          <li
-            key={item.id}
-            className="flex items-center gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
-          >
-            <Link to={`/issues/${item.id}`} className="shrink-0 font-mono text-[11px] text-accent">
-              {item.id}
-            </Link>
-            {item.issue && (
-              <>
-                <span className="flex-1 truncate text-ink">{item.issue.title}</span>
-                <StatusTag status={item.issue.status} />
-              </>
-            )}
+          <RelatedRow key={item.id} {...item}>
             <ConfirmButton
               label="Remove"
               question="Remove this dependency?"
               disabled={disabled}
               onConfirm={() => onRemove(depIdFor(item.id))}
             />
-          </li>
+          </RelatedRow>
         ))}
       </ul>
     </>
