@@ -1,3 +1,4 @@
+import { Children, type ReactNode } from 'react'
 import { Link, type To } from 'react-router'
 import { relativeTime, shortSession } from '../../lib/format'
 import type { Issue } from '../../api/types'
@@ -17,7 +18,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-function Block({ title, children }: { title: string; children: React.ReactNode }) {
+function Block({ title, children }: { title: string; children: ReactNode }) {
+  // Every Row inside is conditional, so a Block can end up with no rendered
+  // children (e.g. a plain issue with no metadata set). Children.toArray
+  // drops null/undefined/false but keeps '' (the falsy value a `sprint &&`
+  // guard yields), so filter(Boolean) is still needed on top of it.
+  if (Children.toArray(children).filter(Boolean).length === 0) return null
+
   return (
     <section className="border-b border-line-subtle py-3 last:border-b-0">
       <h2 className="mb-1.5 text-[11px] uppercase tracking-widest text-ink-muted">{title}</h2>

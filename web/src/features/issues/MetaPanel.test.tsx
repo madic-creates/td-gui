@@ -21,20 +21,32 @@ describe('MetaPanel', () => {
     expect(screen.getByText('2026-08-20')).toBeInTheDocument()
     expect(screen.getByText('2026-08-18')).toBeInTheDocument()
     expect(screen.getByText('feat/thing')).toBeInTheDocument()
+    expect(screen.getByText('Defers')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('Minor')).toBeInTheDocument()
+    expect(screen.getByText('self-reviewable')).toBeInTheDocument()
   })
 
   // No placeholder rows: an unset field is absent, not an em-dash. A row that
-  // says nothing still costs the reader a line to scan.
-  it('omits every field the issue does not set', () => {
+  // says nothing still costs the reader a line to scan. A Block with no set
+  // fields must not render its heading either — an empty "Metadata" section
+  // is the same lie as an empty row.
+  it('omits every field the issue does not set, and the section headings that would be empty', () => {
     show(makeIssue({
       points: 0, labels: [], sprint: '', due_date: null,
       defer_until: null, defer_count: 0, minor: false, created_branch: null,
       parent_id: null,
+      implementer_session: null, reviewer_session: null,
+      creator_session: null, closed_by_session: null,
     }))
 
-    for (const label of ['Points', 'Labels', 'Sprint', 'Due', 'Deferred', 'Branch', 'Parent', 'Minor']) {
+    for (const label of ['Points', 'Labels', 'Sprint', 'Due', 'Deferred', 'Defers', 'Branch', 'Parent', 'Minor']) {
       expect(screen.queryByText(label)).not.toBeInTheDocument()
     }
+    expect(screen.queryByText('Metadata')).not.toBeInTheDocument()
+    expect(screen.queryByText('Sessions')).not.toBeInTheDocument()
+    // Timeline always has Created/Updated, so it still renders.
+    expect(screen.getByText('Timeline')).toBeInTheDocument()
   })
 
   it('links the parent issue', () => {
