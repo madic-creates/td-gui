@@ -57,7 +57,16 @@ export default function IssueDetail() {
         </div>
       </header>
 
-      <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+      {/* Keyed on updated_at so a transition, an edit, or any other
+          td-reported change to the issue remounts the actions fresh — that
+          is what clears a stale focus acknowledgement or action error when
+          the issue changes underneath the component. */}
+      <IssueActions
+        key={issue.updated_at}
+        issue={issue}
+        editing={editing}
+        onEdit={() => setEditing(!editing)}
+      />
 
       {editing && <IssueEditForm issue={issue} onDone={() => setEditing(false)} />}
 

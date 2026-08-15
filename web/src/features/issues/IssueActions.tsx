@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { ApiError } from '../../api/client'
 import { useDeleteIssue, useSetFocus } from '../../api/mutations'
@@ -12,16 +12,28 @@ interface Props {
   onEdit: () => void
 }
 
+/**
+ * IssueDetail keys this component on `issue.updated_at`, so any td-reported
+ * change to the issue — a transition, an edit, anything else that bumps
+ * `updated_at` — remounts it fresh. That clears a stale focus acknowledgement
+ * or action error when the issue changes underneath the component (e.g. via
+ * TransitionBar, which this component never talks to), without a timer and
+ * without touching TransitionBar itself.
+ */
 export default function IssueActions({ issue, editing, onEdit }: Props) {
   const navigate = useNavigate()
   const remove = useDeleteIssue(issue.id)
   const focus = useSetFocus()
 
-  // `focus.isSuccess` never resets on its own, and this component is never
-  // unmounted by toggling edit mode or by a status transition — so the
-  // acknowledgement is tracked locally and cleared whenever another action
-  // starts, rather than left to display for the rest of the session.
+  // `focus.isSuccess` never resets on its own, so the acknowledgement is
+  // tracked locally and cleared whenever another action starts.
   const [focusAck, setFocusAck] = useState(false)
+
+  // Guards the async focus callback below: if Delete resolves and navigates
+  // away before a slower Focus response comes back, this component has
+  // already unmounted and must not touch state.
+  const mounted = useRef(true)
+  useEffect(() => () => { mounted.current = false }, [])
 
   // Each mutation's error is only ever current for the action that produced
   // it — reset the sibling before starting a new one so a stale delete
@@ -30,6 +42,7 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
   const error = remove.error ?? focus.error
 
   function handleEdit() {
+    remove.reset()
     focus.reset()
     setFocusAck(false)
     onEdit()
@@ -38,7 +51,11 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
   function handleFocus() {
     remove.reset()
     setFocusAck(false)
-    focus.mutate(issue.id, { onSuccess: () => setFocusAck(true) })
+    focus.mutate(issue.id, {
+      onSuccess: () => {
+        if (mounted.current) setFocusAck(true)
+      },
+    })
   }
 
   function handleDelete() {

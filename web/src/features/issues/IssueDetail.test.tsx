@@ -211,4 +211,52 @@ describe('IssueDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.queryByText('focus set')).not.toBeInTheDocument()
   })
+
+  // Opening the editor is itself "another action starting" — a stale delete
+  // failure must not keep rendering next to the now-open edit form.
+  it('drops a failed delete error when opening the editor', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.delete('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: false, error: { code: 'forbidden', message: 'cannot delete' } },
+          { status: 403 })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByText('cannot delete')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByText('cannot delete')).not.toBeInTheDocument()
+  })
+
+  // IssueActions is never remounted by IssueActions's own controls when a
+  // transition happens — TransitionBar owns a separate mutation and never
+  // calls into IssueActions. The issue itself changing underneath the
+  // component (its `updated_at` bumping on refetch) is what has to clear a
+  // stale acknowledgement here, not a click on one of IssueActions's buttons.
+  it('clears the focus acknowledgement once a transition changes the issue', async () => {
+    let fetches = 0
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => {
+        fetches += 1
+        const issue = fetches === 1
+          ? detail.issue
+          : { ...detail.issue, updated_at: '2026-08-14T16:00:00+02:00' }
+        return HttpResponse.json({ ok: true, data: { ...detail, issue } })
+      }),
+      http.put('/v1/focus', () => HttpResponse.json({ ok: true, data: { focused_issue_id: 'td-6a0883' } })),
+      http.post('/v1/issues/td-6a0883/review', () => HttpResponse.json({ ok: true, data: detail.issue })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Focus' }))
+    expect(await screen.findByText('focus set')).toBeInTheDocument()
+
+    // "Request review" takes no reason, so it fires immediately.
+    await userEvent.click(screen.getByRole('button', { name: 'Request review' }))
+
+    await waitFor(() => expect(screen.queryByText('focus set')).not.toBeInTheDocument())
+  })
 })
