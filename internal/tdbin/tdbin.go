@@ -2,6 +2,7 @@
 package tdbin
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,10 +10,17 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ErrNotFound reports that no usable td binary could be found.
 var ErrNotFound = errors.New("td binary not found")
+
+// versionTimeout bounds how long `td --version` may run. td-gui calls this
+// synchronously during startup, before anything else has happened; a td
+// binary that hangs (a wrapper script waiting on stdin, a broken shim) must
+// not hang td-gui with it.
+const versionTimeout = 5 * time.Second
 
 // versionRe matches the version token in `td --version` output, e.g.
 // "td version v0.57.0". The v prefix is optional; a build suffix is kept.
@@ -34,10 +42,24 @@ func Locate(override string) (string, error) {
 	return path, nil
 }
 
-// Version runs `td --version` and returns the parsed version string.
+// Version runs `td --version` and returns the parsed version string. The run
+// is bounded by versionTimeout.
 func Version(path string) (string, error) {
-	out, err := exec.Command(path, "--version").Output()
+	return VersionContext(context.Background(), path, versionTimeout)
+}
+
+// VersionContext runs `td --version` with the given timeout, returning the
+// parsed version string. Exposed separately from Version so tests can use a
+// short timeout without waiting out the real one.
+func VersionContext(ctx context.Context, path string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, path, "--version").Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("run %s --version: timed out after %s", path, timeout)
+		}
 		return "", fmt.Errorf("run %s --version: %w", path, err)
 	}
 	return ParseVersion(string(out))

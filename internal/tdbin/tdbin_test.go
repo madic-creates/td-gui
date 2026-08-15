@@ -1,10 +1,12 @@
 package tdbin
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestParseVersion(t *testing.T) {
@@ -88,5 +90,27 @@ func TestLocateMissingOverride(t *testing.T) {
 	_, err := Locate(filepath.Join(t.TempDir(), "nope"))
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("Locate(missing) error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestVersionContextTimesOutOnHungBinary(t *testing.T) {
+	dir := t.TempDir()
+	hung := filepath.Join(dir, "td")
+	// exec, not a bare sleep: without it sleep runs as a child of the shell,
+	// and killing the shell on timeout leaves sleep holding the output pipe
+	// open, so Output() would still block for the full sleep.
+	if err := os.WriteFile(hung, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	_, err := VersionContext(context.Background(), hung, 100*time.Millisecond)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("VersionContext with a hung binary: want error, got nil")
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("VersionContext did not respect its timeout: took %s", elapsed)
 	}
 }
