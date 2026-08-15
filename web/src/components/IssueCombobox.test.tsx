@@ -5,6 +5,9 @@ import userEvent from '@testing-library/user-event'
 import IssueCombobox, { MAX_OPTIONS } from './IssueCombobox'
 import { makeIssue } from '../features/issues/issue.fixture'
 
+// scrollIntoView is stubbed globally in setupTests.ts — jsdom has no layout
+// and doesn't implement it, and this component is not the only caller.
+
 const candidates = [
   makeIssue({ id: 'td-a1b2c3', title: 'Defer the storage read', status: 'open' }),
   makeIssue({ id: 'td-d4e5f6', title: 'Share the relation heading', status: 'in_progress' }),
@@ -132,8 +135,9 @@ describe('IssueCombobox', () => {
     expect(screen.queryByText(/keep typing/)).not.toBeInTheDocument()
   })
 
-  // The first row is active as soon as the list opens, so two presses land on
-  // the third candidate.
+  // The list opens on the first row (see the "reopens" case below for the
+  // one exception), so two ArrowDown presses from a fresh open land on the
+  // third candidate.
   it('moves the active row with the arrow keys and takes it with Enter', async () => {
     const { onChange, input } = renderBox()
 
@@ -155,14 +159,19 @@ describe('IssueCombobox', () => {
     expect(input).toHaveAttribute('aria-activedescendant', active.id)
   })
 
-  it('stops at the ends of the list', async () => {
+  // {ArrowDown}{ArrowDown} lands on the third row, so the ArrowUp that
+  // follows must move it back to the second, not just stay put — two
+  // ArrowUps from row one (the old version of this test) would pass even if
+  // ArrowUp did nothing at all. The bottom clamp is separately defended by
+  // activeIndex's own Math.min, so it needs no case of its own.
+  it('moves the active row up with the arrow key', async () => {
     const { onChange, input } = renderBox()
 
     await userEvent.click(input)
-    await userEvent.keyboard('{ArrowUp}{ArrowUp}')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowUp}')
     await userEvent.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('td-a1b2c3')
+    expect(onChange).toHaveBeenCalledWith('td-d4e5f6')
   })
 
   // Both call sites sit inside a <form>. Picking a suggestion must not also
@@ -198,6 +207,19 @@ describe('IssueCombobox', () => {
     await userEvent.keyboard('{Enter}')
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  // Both fall out of the single onBlur — this pins the design spec's "click
+  // or tab away closes the list" without an assertion for each cause.
+  it('closes the list when it loses focus, as by tabbing away', async () => {
+    const { input } = renderBox()
+
+    await userEvent.click(input)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+
+    await userEvent.tab()
+
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('closes on Escape without clearing what was typed', async () => {

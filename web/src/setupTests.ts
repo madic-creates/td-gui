@@ -1,4 +1,12 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
+
+// jsdom has no layout engine, so it doesn't implement scrollIntoView at all.
+// IssueCombobox calls it on its active row on every keyboard move; without
+// this stub any test that arrows through an open list throws.
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+  Element.prototype.scrollIntoView = vi.fn()
+}
 
 // Node's own experimental `localStorage` global shadows jsdom's and evaluates
 // to undefined unless node is started with --localstorage-file, so the tests

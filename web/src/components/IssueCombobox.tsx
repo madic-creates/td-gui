@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Issue } from '../api/types'
 import StatusTag from './StatusTag'
 
@@ -41,6 +41,7 @@ export default function IssueCombobox({
   // always takes the row the reader is looking at rather than a leftover
   // position from a longer list.
   const [active, setActive] = useState(0)
+  const activeRef = useRef<HTMLLIElement>(null)
 
   const found = candidates.filter(issue => matches(issue, value))
   const shown = found.slice(0, MAX_OPTIONS)
@@ -48,6 +49,15 @@ export default function IssueCombobox({
   const activeIndex = Math.min(active, shown.length - 1)
   const listId = `${id}-listbox`
   const optionId = (index: number) => `${listId}-option-${index}`
+  const capNoticeId = `${id}-cap-notice`
+  const capped = found.length > shown.length
+
+  // Keyboard nav can walk the active row below the fold of the scrollable
+  // list (MAX_OPTIONS is 20, the list shows about 8) — without this, the
+  // highlight moves out of view and the widget looks dead.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, expanded])
 
   const select = (issue: Issue) => {
     onChange(issue.id)
@@ -64,8 +74,11 @@ export default function IssueCombobox({
       return
     }
     if (event.key === 'ArrowUp') {
+      // Closed, ArrowUp is the caret's — swallowing it here would break
+      // moving to position 0 in a single-line input.
+      if (!expanded) return
       event.preventDefault()
-      if (expanded) setActive(Math.max(activeIndex - 1, 0))
+      setActive(Math.max(activeIndex - 1, 0))
       return
     }
     if (event.key === 'Enter') {
@@ -98,39 +111,59 @@ export default function IssueCombobox({
         onChange={event => { onChange(event.target.value); setOpen(true); setActive(0) }}
         onKeyDown={keyDown}
         aria-activedescendant={expanded ? optionId(activeIndex) : undefined}
+        aria-describedby={expanded && capped ? capNoticeId : undefined}
         className={className}
       />
 
       {expanded && (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute z-10 mt-0.5 max-h-64 w-full overflow-y-auto rounded-sm border border-line bg-surface-raised"
-        >
-          {shown.map((issue, index) => (
-            <li
-              key={issue.id}
-              id={optionId(index)}
-              role="option"
-              aria-selected={index === activeIndex}
-              // Blur would close the list before the click ever landed.
-              onMouseDown={event => event.preventDefault()}
-              onClick={() => select(issue)}
-              className={`flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 ${
-                index === activeIndex ? 'bg-surface-hover' : ''
-              }`}
+        // One floating panel holding both the list and the cap notice, so
+        // the notice stays visually attached under the rows without being
+        // absolutely positioned itself (it would have no static position of
+        // its own to anchor to, since the <ul> beside it already is).
+        <div className="absolute z-10 mt-0.5 w-full rounded-sm border border-line bg-surface-raised">
+          <ul
+            id={listId}
+            role="listbox"
+            aria-label="Issue suggestions"
+            // Blur would close the list before a row's click ever landed. On
+            // the <ul> rather than each <li> so a mousedown on the scrollbar
+            // itself — which bubbles from the list, not a row — is covered too.
+            onMouseDown={event => event.preventDefault()}
+            className="max-h-64 overflow-y-auto"
+          >
+            {shown.map((issue, index) => (
+              <li
+                key={issue.id}
+                ref={index === activeIndex ? activeRef : undefined}
+                id={optionId(index)}
+                role="option"
+                aria-selected={index === activeIndex}
+                onClick={() => select(issue)}
+                className={`flex cursor-pointer items-baseline gap-2 px-2.5 py-1.5 ${
+                  index === activeIndex ? 'bg-surface-hover' : ''
+                }`}
+              >
+                <span className="font-mono text-[11px] text-ink-muted">{issue.id}</span>
+                <span className="flex-1 truncate text-ink">{issue.title}</span>
+                <StatusTag status={issue.status} />
+              </li>
+            ))}
+          </ul>
+
+          {capped && (
+            // A sibling of the listbox, not a child: role="listbox" only
+            // counts role="option" children, so a note living inside it
+            // would report a 21st option to assistive tech rather than
+            // reach it as a hint.
+            <p
+              id={capNoticeId}
+              aria-live="polite"
+              className="border-t border-line px-2.5 py-1.5 text-[11px] text-ink-faint"
             >
-              <span className="font-mono text-[11px] text-ink-muted">{issue.id}</span>
-              <span className="flex-1 truncate text-ink">{issue.title}</span>
-              <StatusTag status={issue.status} />
-            </li>
-          ))}
-          {found.length > shown.length && (
-            <li role="presentation" className="px-2.5 py-1.5 text-[11px] text-ink-faint">
               {shown.length} of {found.length} matches — keep typing
-            </li>
+            </p>
           )}
-        </ul>
+        </div>
       )}
     </div>
   )
