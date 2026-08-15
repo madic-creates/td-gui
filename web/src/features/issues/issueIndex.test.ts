@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { childrenOf, indexById, isResolved, resolve } from './issueIndex'
+import { candidatesFor, childrenOf, indexById, isResolved, resolve } from './issueIndex'
 import { makeIssue } from './issue.fixture'
 import type { Dependency } from '../../api/types'
 
@@ -82,5 +82,39 @@ describe('isResolved', () => {
   // group rather than being quietly filed away as finished.
   it('counts an unresolved reference as still blocking', () => {
     expect(isResolved({ id: 'td-a', issue: null })).toBe(false)
+  })
+})
+
+describe('candidatesFor', () => {
+  it('drops every excluded id', () => {
+    const self = makeIssue({ id: 'td-self' })
+    const linked = makeIssue({ id: 'td-linked' })
+    const free = makeIssue({ id: 'td-free' })
+
+    expect(candidatesFor([self, linked, free], ['td-self', 'td-linked']))
+      .toEqual([free])
+  })
+
+  // A dependency on a closed issue is legitimate — the panel has a "Resolved"
+  // group for exactly that — so closed issues stay offerable, just last.
+  it('sorts closed issues after the ones still open', () => {
+    const done = makeIssue({ id: 'td-done', status: 'closed' })
+    const doing = makeIssue({ id: 'td-doing', status: 'in_progress' })
+
+    expect(candidatesFor([done, doing], [])).toEqual([doing, done])
+  })
+
+  it('keeps the incoming order within each group', () => {
+    const first = makeIssue({ id: 'td-1' })
+    const second = makeIssue({ id: 'td-2' })
+    const oldest = makeIssue({ id: 'td-3', status: 'closed' })
+    const newest = makeIssue({ id: 'td-4', status: 'closed' })
+
+    expect(candidatesFor([first, oldest, second, newest], []))
+      .toEqual([first, second, oldest, newest])
+  })
+
+  it('returns nothing for an empty list', () => {
+    expect(candidatesFor([], ['td-self'])).toEqual([])
   })
 })

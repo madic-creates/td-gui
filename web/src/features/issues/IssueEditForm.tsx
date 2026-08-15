@@ -3,8 +3,11 @@ import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue, IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
+import IssueCombobox from '../../components/IssueCombobox'
 import LabelInput from './LabelInput'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
+import { candidatesFor } from './issueIndex'
+import { useIssueIndex } from './useIssueIndex'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
 const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
@@ -49,6 +52,10 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
   const [original, setOriginal] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
+  // The same query the detail view already has in cache — the parent picker
+  // costs no request of its own. The form is mounted while the editor is
+  // closed too, which is why this sits with the other unconditional hooks.
+  const { issues } = useIssueIndex()
 
   // Adjusting state during render rather than in an effect, so the freshly
   // opened editor never paints the previous session's abandoned draft first.
@@ -165,8 +172,10 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label htmlFor="edit-parent" className={legendClass}>Parent</label>
-              <input id="edit-parent" value={draft.parent_id} placeholder="td-…"
-                onChange={e => set('parent_id', e.target.value)} className={fieldClass} />
+              <IssueCombobox id="edit-parent" value={draft.parent_id}
+                onChange={next => set('parent_id', next)}
+                candidates={candidatesFor(issues, [issue.id])}
+                placeholder="td-…" className={fieldClass} />
               <FieldError error={update.error} field="parent_id" />
             </div>
             <div>
