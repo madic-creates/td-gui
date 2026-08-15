@@ -278,3 +278,155 @@ func TestRecordReviewContract(t *testing.T) {
 }
 
 func jsonBody(s string) *strings.Reader { return strings.NewReader(s) }
+
+// patchIssue sends a PATCH and returns the updated issue plus the status code.
+func patchIssue(t *testing.T, front, id, body string) (map[string]any, int) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPatch, front+"/v1/issues/"+id,
+		strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH %s: %v", body, err)
+	}
+	defer resp.Body.Close()
+
+	var envelope struct {
+		Data struct {
+			Issue map[string]any `json:"issue"`
+		} `json:"data"`
+		Error struct {
+			Details struct {
+				Fields []map[string]any `json:"fields"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		t.Fatalf("decode PATCH response: %v", err)
+	}
+	if resp.StatusCode >= 300 {
+		return map[string]any{"__fields": len(envelope.Error.Details.Fields)}, resp.StatusCode
+	}
+	return envelope.Data.Issue, resp.StatusCode
+}
+
+// TestClearingContract pins the asymmetry web/src/features/issues/issueDiff.ts
+// is built on: td reads a null on a nullable field as "field absent" and leaves
+// the stored value alone, so only an empty string clears. If this ever flips,
+// every clear in the GUI silently stops working — this test is what turns that
+// into a failure.
+func TestClearingContract(t *testing.T) {
+	front, id := newProject(t)
+
+	if _, status := patchIssue(t, front, id,
+		`{"due_date":"2026-12-01","defer_until":"2026-11-01"}`); status != http.StatusOK {
+		t.Fatalf("seeding dates: status = %d, want 200", status)
+	}
+
+	issue, _ := patchIssue(t, front, id, `{"due_date":null,"defer_until":null}`)
+	if issue["due_date"] == nil || issue["defer_until"] == nil {
+		t.Error("null cleared a date; the GUI sends \"\" to clear because null is a no-op")
+	}
+
+	issue, _ = patchIssue(t, front, id, `{"due_date":"","defer_until":""}`)
+	if issue["due_date"] != nil {
+		t.Errorf("due_date = %v after an empty string, want null", issue["due_date"])
+	}
+	if issue["defer_until"] != nil {
+		t.Errorf("defer_until = %v after an empty string, want null", issue["defer_until"])
+	}
+}
+
+// TestPointsContract pins the inverse rule for points: 0 clears, and an empty
+// string is a JSON type error carrying no field errors to bind to.
+func TestPointsContract(t *testing.T) {
+	front, id := newProject(t)
+
+	if _, status := patchIssue(t, front, id, `{"points":5}`); status != http.StatusOK {
+		t.Fatalf("seeding points: status = %d, want 200", status)
+	}
+
+	issue, _ := patchIssue(t, front, id, `{"points":0}`)
+	if points, ok := issue["points"].(float64); !ok || points != 0 {
+		t.Errorf("points = %v after 0, want 0", issue["points"])
+	}
+
+	result, status := patchIssue(t, front, id, `{"points":""}`)
+	if status != http.StatusBadRequest {
+		t.Errorf("status = %d for an empty points, want 400", status)
+	}
+	if result["__fields"] != 0 {
+		t.Errorf("empty points returned %v field errors, want 0 — the form must "+
+			"send a number because there is nothing to bind this to", result["__fields"])
+	}
+}
+
+// TestDependencyContract pins the write shape and the field-less error the
+// dependency panel renders as a message.
+func TestDependencyContract(t *testing.T) {
+	front, id := newProject(t)
+
+	resp, err := http.Post(front+"/v1/issues/"+id+"/dependencies",
+		"application/json", jsonBody(`{"depends_on":"`+id+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d for a self-dependency, want 400", resp.StatusCode)
+	}
+
+	var body struct {
+		Error struct {
+			Message string `json:"message"`
+			Details struct {
+				Fields []map[string]any `json:"fields"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body.Error.Message, "circular") {
+		t.Errorf("message = %q, want td's circular-dependency wording", body.Error.Message)
+	}
+	if len(body.Error.Details.Fields) != 0 {
+		t.Errorf("got %d field errors, want 0 — the panel renders the message, "+
+			"not a field binding", len(body.Error.Details.Fields))
+	}
+}
+
+// TestFocusContract pins that focus is write-only. A GET would let the detail
+// view show which issue is focused; while it 405s, the GUI must not claim to
+// know.
+func TestFocusContract(t *testing.T) {
+	front, id := newProject(t)
+
+	req, err := http.NewRequest(http.MethodPut, front+"/v1/focus",
+		strings.NewReader(`{"issue_id":"`+id+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /v1/focus status = %d, want 200", resp.StatusCode)
+	}
+
+	read, err := http.Get(front + "/v1/focus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer read.Body.Close()
+	if read.StatusCode == http.StatusOK {
+		t.Error("GET /v1/focus now succeeds — the detail view can show focus state " +
+			"instead of only acknowledging the write")
+	}
+}
