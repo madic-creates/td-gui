@@ -5,3 +5,4 @@ internal/web/dist/*
 /td-gui
 .superpowers/
 .claude/worktrees/
+/node_modules/
