@@ -7,8 +7,15 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import DependencyPanel from './DependencyPanel'
 import type { Dependency } from '../../api/types'
+import { makeIssue } from './issue.fixture'
 
-const server = setupServer()
+const server = setupServer(
+  // The issue index the panel resolves blocker titles against. Empty by
+  // default: the tests that care about resolution override it.
+  http.get('/v1/issues', () => HttpResponse.json({
+    ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+  })),
+)
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -32,6 +39,64 @@ function renderPanel(dependencies: Dependency[]) {
 }
 
 describe('DependencyPanel', () => {
+  it('shows each blocker with its title, status and a remove control', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [makeIssue({ id: 'td-blk', title: 'The blocker', status: 'in_progress' })],
+        limit: 1000, offset: 0, total: 1, has_more: false,
+      },
+    })))
+
+    renderPanel([{ dep_id: 'dep_1', issue_id: 'td-6a0883', depends_on_id: 'td-blk', relation_type: 'depends_on' }])
+
+    expect(await screen.findByText('The blocker')).toBeInTheDocument()
+    expect(screen.getByText('in_progress')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+  })
+
+  // A finished dependency is not current work. Mixing the two makes a
+  // long-closed blocker read as something still in the way.
+  it('separates closed blockers from the ones still blocking, each keeping its title and remove control', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [
+          makeIssue({ id: 'td-open', title: 'Still blocking', status: 'open' }),
+          makeIssue({ id: 'td-done', title: 'Already done', status: 'closed' }),
+        ],
+        limit: 1000, offset: 0, total: 2, has_more: false,
+      },
+    })))
+
+    renderPanel([
+      { dep_id: 'dep_1', issue_id: 'td-6a0883', depends_on_id: 'td-open', relation_type: 'depends_on' },
+      { dep_id: 'dep_2', issue_id: 'td-6a0883', depends_on_id: 'td-done', relation_type: 'depends_on' },
+    ])
+
+    expect(await screen.findByText('Depends on (1)')).toBeInTheDocument()
+    expect(screen.getByText('Resolved (1)')).toBeInTheDocument()
+
+    // Both groups render the blocker's title and status, and both keep the
+    // remove control — a closed dependency is still a dependency to remove.
+    expect(screen.getByText('Still blocking')).toBeInTheDocument()
+    expect(screen.getByText('open')).toBeInTheDocument()
+    expect(screen.getByText('Already done')).toBeInTheDocument()
+    expect(screen.getByText('closed')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
+  })
+
+  it('keeps a blocker the index does not hold in the active group', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+    })))
+
+    renderPanel([{ dep_id: 'dep_1', issue_id: 'td-6a0883', depends_on_id: 'td-gone', relation_type: 'depends_on' }])
+
+    expect(await screen.findByText('Depends on (1)')).toBeInTheDocument()
+    expect(screen.queryByText('Resolved (1)')).not.toBeInTheDocument()
+  })
+
   it('posts depends_on when a dependency is added', async () => {
     let body: unknown
     server.use(http.post('/v1/issues/td-6a0883/dependencies', async ({ request }) => {

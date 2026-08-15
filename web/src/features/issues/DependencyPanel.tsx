@@ -1,21 +1,18 @@
 import { useState } from 'react'
-import { Link } from 'react-router'
 import { ApiError } from '../../api/client'
 import { useAddDependency, useRemoveDependency } from '../../api/mutations'
 import type { Dependency } from '../../api/types'
 import ConfirmButton from '../../components/ConfirmButton'
 import ErrorPanel from '../../components/ErrorPanel'
+import { useIssueIndex } from './useIssueIndex'
+import { isResolved, resolve, type Related } from './issueIndex'
+import { RelatedRow } from './RelatedIssues'
 
 interface Props {
   issueId: string
   dependencies: Dependency[]
 }
 
-/**
- * Bare ids on purpose. The API returns only id triples, so titles and statuses
- * need a follow-up read of each referenced issue — that is td-7a8b61's work,
- * and this panel is written to be enriched rather than replaced.
- */
 export default function DependencyPanel({ issueId, dependencies }: Props) {
   const [entry, setEntry] = useState('')
   const add = useAddDependency(issueId)
@@ -30,38 +27,31 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
   const [lastAction, setLastAction] = useState<'add' | 'remove' | null>(null)
   const error = lastAction === 'add' ? add.error : lastAction === 'remove' ? remove.error : null
 
+  // Dependencies carry only id triples; titles come from the shared index.
+  const { index } = useIssueIndex()
+  const related = resolve(dependencies, index, 'depends_on_id')
+  const active = related.filter(item => !isResolved(item))
+  const resolved = related.filter(isResolved)
+
+  const depIdFor = (id: string) =>
+    dependencies.find(d => d.depends_on_id === id)?.dep_id ?? ''
+
   return (
     <section className="mt-6">
-      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
-        Depends on ({dependencies.length})
-      </h2>
-
-      {dependencies.length > 0 && (
-        <ul className="mb-2">
-          {dependencies.map(dependency => (
-            <li
-              key={dependency.dep_id}
-              className="flex items-center gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
-            >
-              <Link
-                to={`/issues/${dependency.depends_on_id}`}
-                className="flex-1 font-mono text-[11px] text-accent"
-              >
-                {dependency.depends_on_id}
-              </Link>
-              <ConfirmButton
-                label="Remove"
-                question="Remove this dependency?"
-                disabled={remove.isPending}
-                onConfirm={() => {
-                  setLastAction('remove')
-                  remove.mutate(dependency.dep_id)
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+      <Group
+        title="Depends on"
+        items={active}
+        disabled={remove.isPending}
+        depIdFor={depIdFor}
+        onRemove={depId => { setLastAction('remove'); remove.mutate(depId) }}
+      />
+      <Group
+        title="Resolved"
+        items={resolved}
+        disabled={remove.isPending}
+        depIdFor={depIdFor}
+        onRemove={depId => { setLastAction('remove'); remove.mutate(depId) }}
+      />
 
       <form
         className="flex gap-1.5"
@@ -101,5 +91,49 @@ export default function DependencyPanel({ issueId, dependencies }: Props) {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * One group of blockers. The row markup comes from RelatedRow so this panel
+ * and the read-only relation sections cannot drift apart; only the remove
+ * control is this panel's own.
+ *
+ * That control stays on every row, resolved included: a dependency on a closed
+ * issue is still a dependency, and taking it off is exactly what a reader is
+ * likely to want here.
+ */
+function Group({
+  title,
+  items,
+  onRemove,
+  disabled,
+  depIdFor,
+}: {
+  title: string
+  items: Related[]
+  onRemove: (depId: string) => void
+  disabled: boolean
+  depIdFor: (id: string) => string
+}) {
+  if (items.length === 0) return null
+  return (
+    <>
+      <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
+        {title} ({items.length})
+      </h2>
+      <ul className="mb-2">
+        {items.map(item => (
+          <RelatedRow key={item.id} {...item}>
+            <ConfirmButton
+              label="Remove"
+              question="Remove this dependency?"
+              disabled={disabled}
+              onConfirm={() => onRemove(depIdFor(item.id))}
+            />
+          </RelatedRow>
+        ))}
+      </ul>
+    </>
   )
 }
