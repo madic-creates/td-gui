@@ -23,8 +23,13 @@ interface Props {
  * The dates use type="date" because it emits td's YYYY-MM-DD exactly.
  */
 export default function IssueEditForm({ issue, onDone }: Props) {
-  // Seeded once, deliberately. useLiveUpdates invalidates the detail query on
-  // every SSE event; re-syncing the draft would wipe whatever is being typed.
+  // Both seeded once, deliberately. useLiveUpdates invalidates the detail
+  // query on every SSE event; re-syncing the draft would wipe whatever is
+  // being typed. `original` is the issue as it was at that same moment, and
+  // the diff is against it rather than against the live prop: another
+  // session's background change to a field the user never touched would
+  // otherwise read as an edit and get overwritten with the draft's stale copy.
+  const [original] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
 
@@ -34,7 +39,7 @@ export default function IssueEditForm({ issue, onDone }: Props) {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
-    const patch = diffIssue(issue, draft)
+    const patch = diffIssue(original, draft)
     // Nothing changed — close rather than issue an empty PATCH.
     if (isEmptyPatch(patch)) {
       onDone()
@@ -43,12 +48,7 @@ export default function IssueEditForm({ issue, onDone }: Props) {
     update.mutate(patch, { onSuccess: onDone })
   }
 
-  // A validation error with no fields — td's JSON type errors — has nothing to
-  // bind to, so it belongs in the panel rather than silently nowhere.
-  const unboundError =
-    update.error instanceof ApiError && update.error.fields.length === 0
-      ? update.error.message
-      : null
+  const panelError = panelMessage(update.error)
 
   return (
     <form className="mt-4 space-y-4 border-t border-line-subtle pt-4" onSubmit={submit}>
@@ -150,9 +150,39 @@ export default function IssueEditForm({ issue, onDone }: Props) {
         </button>
       </div>
 
-      {unboundError && <ErrorPanel label="Update rejected" message={unboundError} />}
+      {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
     </form>
   )
+}
+
+/**
+ * Every field with a <FieldError> of its own above. `minor` is deliberately
+ * absent — it is the one editable field without one — so an error naming it,
+ * or naming anything td renames later, falls through to the panel instead of
+ * rendering nowhere.
+ */
+const boundFields = [
+  'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
+  'labels', 'parent_id', 'due_date', 'defer_until',
+]
+
+/**
+ * What the panel shows, if anything. The default is to show the error — the
+ * panel stays silent only when every field error it carries is already
+ * rendered against its own input, where repeating it would be noise.
+ *
+ * The three cases that would otherwise vanish: a non-ApiError (fetch rejects
+ * with a TypeError on a dropped connection and nothing catches it), an
+ * ApiError with no fields (td's JSON type errors), and field errors naming a
+ * field this form does not bind. All are rendered verbatim.
+ */
+function panelMessage(error: unknown): string | null {
+  if (!error) return null
+  if (!(error instanceof ApiError)) return String(error)
+  if (error.fields.length === 0) return error.message
+  const unbound = error.fields.filter(f => !boundFields.includes(f.field))
+  if (unbound.length === 0) return null
+  return unbound.map(f => f.message).join(' — ')
 }
 
 function FieldError({ error, field }: { error: unknown; field: string }) {

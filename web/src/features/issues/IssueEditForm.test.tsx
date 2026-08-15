@@ -30,12 +30,14 @@ function renderForm(onDone = vi.fn()) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  render(
+  const tree = (next: Issue) => (
     <QueryClientProvider client={qc}>
-      <IssueEditForm issue={issue} onDone={onDone} />
-    </QueryClientProvider>,
+      <IssueEditForm issue={next} onDone={onDone} />
+    </QueryClientProvider>
   )
-  return onDone
+  const { rerender } = render(tree(issue))
+  // Re-renders the open form with a changed issue prop — what a refetch does.
+  return { onDone, refetch: (next: Issue) => rerender(tree(next)) }
 }
 
 describe('IssueEditForm', () => {
@@ -70,7 +72,7 @@ describe('IssueEditForm', () => {
 
   it('closes without a request when nothing was edited', async () => {
     // onUnhandledRequest: 'error' turns a stray PATCH into a failure.
-    const onDone = renderForm()
+    const { onDone } = renderForm()
 
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
@@ -113,8 +115,68 @@ describe('IssueEditForm', () => {
     expect(await screen.findByText(/cannot unmarshal string into field points/)).toBeInTheDocument()
   })
 
+  // The draft is seeded once; the diff must use the issue from that same
+  // moment. Diffing against the live prop turns another session's background
+  // change into a field the user never touched — and overwrites it with the
+  // stale text the draft still holds.
+  it('ignores a background change to a field the user never touched', async () => {
+    let body: unknown
+    server.use(http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    const { refetch } = renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+
+    refetch({ ...issue, description: 'Rewritten by a concurrent session' })
+
+    // The draft stays put — that part already worked.
+    expect(screen.getByLabelText('Description')).toHaveValue('A description')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(body).toEqual({ title: 'A brand new title for it' }))
+  })
+
+  // fetch rejects with a TypeError on a dropped connection, which never
+  // reaches ApiError. Without a fallback the form just re-enables Save and
+  // says nothing at all.
+  it('shows a transport failure that never became an ApiError', async () => {
+    server.use(http.patch('/v1/issues/td-6a0883', () => HttpResponse.error()))
+    renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'Something long enough here')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByText('Update rejected')).toBeInTheDocument()
+  })
+
+  // `minor` is the one editable field with no <FieldError> of its own, so a
+  // field error naming it — like any field td renames later — has nowhere to
+  // bind and must fall through to the panel.
+  it('shows a field error for a field the form does not bind', async () => {
+    server.use(http.patch('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error', message: 'Validation failed',
+          details: { fields: [{ field: 'minor', rule: 'invalid', message: 'minor cannot be set on an epic' }] },
+        },
+      }, { status: 400 })))
+    renderForm()
+
+    await userEvent.click(screen.getByLabelText('Minor — self-reviewable'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByText('minor cannot be set on an epic')).toBeInTheDocument()
+  })
+
   it('cancels without sending anything', async () => {
-    const onDone = renderForm()
+    const { onDone } = renderForm()
 
     await userEvent.clear(screen.getByLabelText('Title'))
     await userEvent.type(screen.getByLabelText('Title'), 'Edited but abandoned title')

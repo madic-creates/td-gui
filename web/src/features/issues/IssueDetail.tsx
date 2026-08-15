@@ -15,9 +15,24 @@ import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
 import ConfirmButton from '../../components/ConfirmButton'
 
+/**
+ * Keyed on the id, which is load-bearing rather than cosmetic. The route
+ * element is the same component at the same position for every `:id`, so React
+ * reuses the instance when one detail view navigates to another — and a
+ * dependency link does exactly that. Everything seeded once from the issue
+ * (`editing` here, the edit form's draft, TransitionBar's reason) would
+ * otherwise survive the change and end up pointed at the wrong issue: Save
+ * would PATCH the issue now on screen with the values of the one left behind.
+ * The `Loading …` early return is no defence — a cached target renders
+ * synchronously.
+ */
 export default function IssueDetail() {
-  const [editing, setEditing] = useState(false)
   const { id = '' } = useParams()
+  return <IssueDetailView key={id} id={id} />
+}
+
+function IssueDetailView({ id }: { id: string }) {
+  const [editing, setEditing] = useState(false)
   const { data, error, isPending } = useIssue(id)
   const deleteComment = useDeleteComment(id)
 
