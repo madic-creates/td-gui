@@ -49,7 +49,13 @@ function renderDetail() {
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/issues/td-6a0883']}>
-        <Routes><Route path="/issues/:id" element={<IssueDetail />} /></Routes>
+        <Routes>
+          <Route path="/issues/:id" element={<IssueDetail />} />
+          {/* A stand-in for the list route, so a delete's navigate('/') has
+              somewhere distinguishable to land — proving navigation actually
+              fired, not just that the DELETE request went out. */}
+          <Route path="/" element={<p>issue list stand-in</p>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -137,6 +143,10 @@ describe('IssueDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
 
     await waitFor(() => expect(deleted).toBe(true))
+    // The detail route unmounts and the stand-in list route renders — proof
+    // that navigate('/') actually fired, not just that the DELETE went out.
+    expect(await screen.findByText('issue list stand-in')).toBeInTheDocument()
+    expect(screen.queryByText('Probe issue for API shape')).not.toBeInTheDocument()
   })
 
   it('sets focus and acknowledges the request without claiming to read it', async () => {
@@ -163,5 +173,42 @@ describe('IssueDetail', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
 
     expect(screen.getByLabelText('Title')).toHaveValue('Probe issue for API shape')
+  })
+
+  // A stale error from one action must not bleed into a later, unrelated one.
+  it('drops a failed delete error once a later focus action succeeds', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.delete('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: false, error: { code: 'forbidden', message: 'cannot delete' } },
+          { status: 403 })),
+      http.put('/v1/focus', () => HttpResponse.json({ ok: true, data: { focused_issue_id: 'td-6a0883' } })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    expect(await screen.findByText('cannot delete')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Focus' }))
+    await screen.findByText('focus set')
+    expect(screen.queryByText('cannot delete')).not.toBeInTheDocument()
+  })
+
+  // The acknowledgement has no persistent meaning once another action starts —
+  // IssueActions is never unmounted, so `focus.isSuccess` alone would stick
+  // around forever and start reading like a claim about current focus state.
+  it('clears the focus acknowledgement once another action starts', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.put('/v1/focus', () => HttpResponse.json({ ok: true, data: { focused_issue_id: 'td-6a0883' } })),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Focus' }))
+    expect(await screen.findByText('focus set')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.queryByText('focus set')).not.toBeInTheDocument()
   })
 })
