@@ -42,7 +42,9 @@ Spec: `docs/superpowers/specs/2026-08-15-issue-relations-and-metadata-design.md`
 
 ### Task 1: Pin the two API facts this design rests on
 
-The design resolves the wrong end of a dependency row if `blocked_by` is misread, and renders an empty review block if `active_review` is assumed always present. Both were probed on td v0.57.0; pin them before any code depends on them.
+The design resolves the wrong end of a dependency row if `blocked_by` is misread, and renders nothing forever if `active_review` is read from the wrong nesting level or assumed always present. Both were probed on td v0.57.0; pin them before any code depends on them.
+
+A first attempt at this task caught a defect in the plan itself, which has since been corrected here: `active_review` and `reviews` sit at `data.issue.*`, and `POST /v1/issues/{id}/reviews` enforces the same attribution policy as `/approve`. Both tests below already account for that.
 
 **Files:**
 - Modify: `test/contract/contract_test.go` (append before the final `jsonBody` helper)
@@ -159,12 +161,20 @@ func TestDependencyDirectionContract(t *testing.T) {
 func TestActiveReviewContract(t *testing.T) {
 	front, id := newProject(t)
 
+	// Keyed at data.issue, not data: active_review hangs off the issue, one
+	// level deeper than dependencies and blocked_by. Probing the envelope
+	// instead would report "absent" forever, whatever the review state.
 	var before struct {
-		Data map[string]json.RawMessage `json:"data"`
+		Data struct {
+			Issue map[string]json.RawMessage `json:"issue"`
+		} `json:"data"`
 	}
 	getJSON(t, front+"/v1/issues/"+id, &before)
-	if _, present := before.Data["active_review"]; present {
-		t.Errorf("active_review is present before any review: %s", before.Data["active_review"])
+	if len(before.Data.Issue) == 0 {
+		t.Fatal("data.issue is empty — the assertion below would pass vacuously")
+	}
+	if _, present := before.Data.Issue["active_review"]; present {
+		t.Errorf("active_review is present before any review: %s", before.Data.Issue["active_review"])
 	}
 
 	if code := post(t, front+"/v1/issues/"+id+"/start", `{}`); code != http.StatusOK {
@@ -173,44 +183,49 @@ func TestActiveReviewContract(t *testing.T) {
 	if code := post(t, front+"/v1/issues/"+id+"/review", `{}`); code != http.StatusOK {
 		t.Fatalf("review: status = %d", code)
 	}
+	// self_review is required, not decoration: /reviews runs the same review
+	// policy as /approve, and every call here shares one td session, so a bare
+	// {decision, summary} is refused with "you implemented this issue".
 	if code := post(t, front+"/v1/issues/"+id+"/reviews",
-		`{"decision":"approved","summary":"pinning the review shape"}`); code != http.StatusCreated && code != http.StatusOK {
+		`{"decision":"approved","summary":"pinning the review shape","self_review":true}`); code != http.StatusCreated && code != http.StatusOK {
 		t.Fatalf("record review: status = %d", code)
 	}
 
 	var after struct {
 		Data struct {
-			ActiveReview *struct {
-				ID              string `json:"id"`
-				Decision        string `json:"decision"`
-				ReviewerSession string `json:"reviewer_session"`
-				Summary         string `json:"summary"`
-				CreatedAt       string `json:"created_at"`
-			} `json:"active_review"`
-			Reviews []map[string]any `json:"reviews"`
+			Issue struct {
+				ActiveReview *struct {
+					ID              string `json:"id"`
+					Decision        string `json:"decision"`
+					ReviewerSession string `json:"reviewer_session"`
+					Summary         string `json:"summary"`
+					CreatedAt       string `json:"created_at"`
+				} `json:"active_review"`
+				Reviews []map[string]any `json:"reviews"`
+			} `json:"issue"`
 		} `json:"data"`
 	}
 	getJSON(t, front+"/v1/issues/"+id, &after)
-	if after.Data.ActiveReview == nil {
+	if after.Data.Issue.ActiveReview == nil {
 		t.Fatal("active_review is absent after a review was recorded")
 	}
-	if after.Data.ActiveReview.Decision != "approved" {
-		t.Errorf("decision = %q, want approved", after.Data.ActiveReview.Decision)
+	if after.Data.Issue.ActiveReview.Decision != "approved" {
+		t.Errorf("decision = %q, want approved", after.Data.Issue.ActiveReview.Decision)
 	}
 	for _, field := range []string{
-		after.Data.ActiveReview.ID,
-		after.Data.ActiveReview.ReviewerSession,
-		after.Data.ActiveReview.Summary,
-		after.Data.ActiveReview.CreatedAt,
+		after.Data.Issue.ActiveReview.ID,
+		after.Data.Issue.ActiveReview.ReviewerSession,
+		after.Data.Issue.ActiveReview.Summary,
+		after.Data.Issue.ActiveReview.CreatedAt,
 	} {
 		if field == "" {
-			t.Errorf("active_review has an empty field: %+v", after.Data.ActiveReview)
+			t.Errorf("active_review has an empty field: %+v", after.Data.Issue.ActiveReview)
 		}
 	}
 
 	// History arrives only when asked for.
 	getJSON(t, front+"/v1/issues/"+id+"?with=reviews", &after)
-	if len(after.Data.Reviews) == 0 {
+	if len(after.Data.Issue.Reviews) == 0 {
 		t.Error("reviews is empty under ?with=reviews, want the recorded review")
 	}
 }
@@ -304,22 +319,22 @@ export interface Review {
 }
 ```
 
-Extend `IssueDetail` in the same file:
+Both hang off the **issue**, not the detail envelope — one level deeper than
+`dependencies` and `blocked_by`. Add them to `Issue`, below
+`available_transitions`:
 
 ```ts
-export interface IssueDetail {
-  issue: Issue
-  logs: LogEntry[]
-  comments: Comment[]
-  dependencies: Dependency[]
-  blocked_by: Dependency[]
-  latest_handoff: Handoff | null
-  /** Absent until a review is recorded. */
+  /**
+   * Present on GET /v1/issues/{id} only, and only once a review exists. td
+   * nests these under `issue`, unlike `dependencies` and `blocked_by`, which
+   * are siblings of it.
+   */
   active_review?: ActiveReview
   /** Present only under `?with=reviews`. */
   reviews?: Review[]
-}
 ```
+
+`IssueDetail` is unchanged.
 
 - [ ] **Step 4: Move FETCH_LIMIT and widen the query**
 
@@ -1495,10 +1510,14 @@ Add to `web/src/features/issues/IssueDetail.test.tsx`, inside the existing `desc
         ok: true,
         data: {
           ...detail,
-          active_review: {
-            id: 'rv-1', decision: 'approved', reviewer_session: 'ses_a2b123',
-            requested_by_session: 'ses_582415', summary: 'Looks right',
-            created_at: '2026-08-14T15:01:46+02:00', self_review: false,
+          // Nested on the issue, which is where td puts it.
+          issue: {
+            ...detail.issue,
+            active_review: {
+              id: 'rv-1', decision: 'approved', reviewer_session: 'ses_a2b123',
+              requested_by_session: 'ses_582415', summary: 'Looks right',
+              created_at: '2026-08-14T15:01:46+02:00', self_review: false,
+            },
           },
         },
       })),
@@ -1551,11 +1570,11 @@ import { useIssueIndex } from './useIssueIndex'
 import { childrenOf, resolve } from './issueIndex'
 ```
 
-Widen the destructure of `data`:
+Widen the destructure of `data` with `blocked_by`. The review fields are not
+here — they live on `issue`, and `<ReviewPanel>` below reads them from there:
 
 ```tsx
-  const { issue, logs, comments, dependencies, blocked_by, latest_handoff,
-    active_review, reviews } = data
+  const { issue, logs, comments, dependencies, blocked_by, latest_handoff } = data
 ```
 
 Below it, resolve the references:
@@ -1580,7 +1599,7 @@ Wrap the existing content in a two-column grid. The outer `<div className="px-5 
         </div>
         <aside>
           <MetaPanel issue={issue} />
-          <ReviewPanel active={active_review} history={reviews} />
+          <ReviewPanel active={issue.active_review} history={issue.reviews} />
         </aside>
       </div>
     </div>
