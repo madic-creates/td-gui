@@ -93,6 +93,20 @@ function IssueDetailView({ id }: { id: string }) {
         </section>
       )}
 
+      {/* Verbatim, like the description: td stores one text field, and the
+          leading dashes the CLI writes are the author's, not a list this view
+          gets to re-render as markup. */}
+      {!editing && issue.acceptance && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
+            Acceptance criteria
+          </h2>
+          <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
+            {issue.acceptance}
+          </p>
+        </section>
+      )}
+
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
       <DependencyPanel issueId={issue.id} dependencies={dependencies} />

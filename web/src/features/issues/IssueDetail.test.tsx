@@ -89,6 +89,27 @@ describe('IssueDetail', () => {
     expect(screen.getByText('done bits')).toBeInTheDocument()
   })
 
+  // The editor has always been able to write them, so a view that never shows
+  // them hides a field the user just filled in.
+  it('renders the acceptance criteria', async () => {
+    const issue = { ...detail.issue, acceptance: '- The panel collapses past ten items' }
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: { ...detail, issue } })))
+
+    renderDetail()
+    expect(await screen.findByText('Acceptance criteria')).toBeInTheDocument()
+    expect(screen.getByText('- The panel collapses past ten items')).toBeInTheDocument()
+  })
+
+  it('omits the acceptance section when the issue has none', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    await screen.findByText('Probe issue for API shape')
+    expect(screen.queryByText('Acceptance criteria')).not.toBeInTheDocument()
+  })
+
   // The UI must render exactly what td permits, never a status-based guess.
   it('renders only the available transitions', async () => {
     server.use(http.get('/v1/issues/td-6a0883', () =>
