@@ -365,6 +365,62 @@ describe('IssueCombobox', () => {
     expect(onChange).toHaveBeenCalledWith('td-d4e5f6')
   })
 
+  // A closed list has no active row, so reopening it shows none. Arrowing onto
+  // a row and then leaving without taking it used to leave the highlight armed
+  // behind the closed list, and the next Enter spent itself on that row.
+  it('forgets the active row when focus leaves the list', async () => {
+    const onSubmit = vi.fn(event => event.preventDefault())
+    const onChange = vi.fn()
+    function Harness() {
+      const [value, setValue] = useState('')
+      return (
+        <form onSubmit={onSubmit}>
+          <label htmlFor="stale">Depends on</label>
+          <IssueCombobox id="stale" value={value} candidates={candidates}
+            onChange={next => { setValue(next); onChange(next) }} />
+        </form>
+      )
+    }
+    render(<Harness />)
+    const input = screen.getByLabelText('Depends on')
+
+    await userEvent.type(input, 'td-')
+    await userEvent.keyboard('{ArrowDown}')   // browse row one
+    await userEvent.tab()                     // leave without taking it
+    await userEvent.click(input)              // come back to save
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenLastCalledWith('td-')
+    expect(input).toHaveValue('td-')
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  // The same clearing, seen rather than inferred: nothing is highlighted when
+  // the reader comes back to the field.
+  it('highlights no row when the list reopens after a blur', async () => {
+    const { input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.tab()
+    await userEvent.click(input)
+
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+    expect(screen.queryByRole('option', { selected: true })).not.toBeInTheDocument()
+  })
+
+  it('forgets the active row when Escape closes the list', async () => {
+    const { onChange, input } = renderBox()
+
+    await userEvent.click(input)
+    await userEvent.keyboard('{ArrowDown}')   // row one is active
+    await userEvent.keyboard('{Escape}')
+    await userEvent.keyboard('{ArrowDown}')   // reopens, activating nothing
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('activates nothing when the active issue drops out of the list', async () => {
     const onChange = vi.fn()
     const tree = (list: typeof candidates) => (

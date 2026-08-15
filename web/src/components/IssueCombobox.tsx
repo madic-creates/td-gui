@@ -80,10 +80,19 @@ export default function IssueCombobox({
     activeRef.current?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex, expanded])
 
-  const select = (issue: Issue) => {
-    onChange(issue.id)
+  // A closed list has no active row. Every close goes through here, because
+  // `activeId` outliving `open` is what let a highlight the reader arrowed
+  // past — and then left without taking — sit armed behind the closed list:
+  // the next Enter spent itself on that row, overwriting what had been typed
+  // and swallowing the save it was meant to be.
+  const close = () => {
     setOpen(false)
     setActiveId(null)
+  }
+
+  const select = (issue: Issue) => {
+    onChange(issue.id)
+    close()
   }
 
   /** From no active row, Down takes the first and Up the last — ARIA's pattern. */
@@ -98,7 +107,8 @@ export default function IssueCombobox({
   const keyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      // A closed list opens where it left off rather than jumping a row.
+      // A closed list only opens; the walk starts on the next press, from no
+      // active row, exactly as it does when focus opens the list.
       if (!expanded) setOpen(true)
       else move(1)
       return
@@ -122,7 +132,7 @@ export default function IssueCombobox({
     }
     if (event.key === 'Escape') {
       // The text survives — only the list closes.
-      setOpen(false)
+      close()
     }
   }
 
@@ -138,7 +148,7 @@ export default function IssueCombobox({
         aria-autocomplete="list"
         autoComplete="off"
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={close}
         onChange={event => { onChange(event.target.value); setOpen(true); setActiveId(null) }}
         onKeyDown={keyDown}
         aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
