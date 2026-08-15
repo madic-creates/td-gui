@@ -357,7 +357,11 @@ func TestPointsContract(t *testing.T) {
 		t.Fatalf("seeding points: status = %d, want 200", status)
 	}
 
-	issue, _ := patchIssue(t, front, id, `{"points":0}`)
+	issue, status := patchIssue(t, front, id, `{"points":0}`)
+	if status != http.StatusOK {
+		t.Fatalf("clearing with 0: status = %d, want 200 — if td now rejects 0 on "+
+			"points the GUI's clear path is broken", status)
+	}
 	if points, ok := issue["points"].(float64); !ok || points != 0 {
 		t.Errorf("points = %v after 0, want 0", issue["points"])
 	}
