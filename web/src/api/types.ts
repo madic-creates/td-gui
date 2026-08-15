@@ -92,6 +92,35 @@ export interface IssueDetail {
   latest_handoff: Handoff | null
 }
 
+/**
+ * The PATCH /v1/issues/{id} body. Every field is optional: an absent field
+ * means "leave unchanged".
+ *
+ * Nullable fields clear with an empty string, not with null — td treats a null
+ * here as "field absent" and leaves the stored value alone. points is the
+ * exception: it clears with 0 and rejects "" with a JSON type error.
+ */
+export interface IssuePatch {
+  title?: string
+  description?: string
+  acceptance?: string
+  type?: IssueType
+  priority?: Priority
+  points?: number
+  labels?: string[]
+  parent_id?: string
+  sprint?: string
+  minor?: boolean
+  defer_until?: string
+  due_date?: string
+}
+
+/** GET /v1/labels. It also returns `workflows`, which the GUI does not use. */
+export interface LabelsResponse {
+  default_workflow: string
+  labels: string[]
+}
+
 export interface FieldError {
   field: string
   rule: string

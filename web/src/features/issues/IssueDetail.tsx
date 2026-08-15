@@ -1,17 +1,40 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useIssue } from '../../api/queries'
+import { useDeleteComment } from '../../api/mutations'
 import { ApiError } from '../../api/client'
 import TransitionBar from './TransitionBar'
 import CommentForm from './CommentForm'
+import IssueActions from './IssueActions'
+import IssueEditForm from './IssueEditForm'
+import DependencyPanel from './DependencyPanel'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import StatusTag from '../../components/StatusTag'
 import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
+import ConfirmButton from '../../components/ConfirmButton'
 
+/**
+ * Keyed on the id, which is load-bearing rather than cosmetic. The route
+ * element is the same component at the same position for every `:id`, so React
+ * reuses the instance when one detail view navigates to another — and a
+ * dependency link does exactly that. Everything seeded once from the issue
+ * (`editing` here, the edit form's draft, TransitionBar's reason) would
+ * otherwise survive the change and end up pointed at the wrong issue: Save
+ * would PATCH the issue now on screen with the values of the one left behind.
+ * The `Loading …` early return is no defence — a cached target renders
+ * synchronously.
+ */
 export default function IssueDetail() {
   const { id = '' } = useParams()
+  return <IssueDetailView key={id} id={id} />
+}
+
+function IssueDetailView({ id }: { id: string }) {
+  const [editing, setEditing] = useState(false)
   const { data, error, isPending } = useIssue(id)
+  const deleteComment = useDeleteComment(id)
 
   if (isPending) return <p className="p-4 text-ink-muted">Loading …</p>
 
@@ -29,7 +52,7 @@ export default function IssueDetail() {
     )
   }
 
-  const { issue, logs, comments, latest_handoff } = data
+  const { issue, logs, comments, dependencies, latest_handoff } = data
 
   return (
     <div className="px-5 py-4 pb-6">
@@ -53,9 +76,13 @@ export default function IssueDetail() {
         </div>
       </header>
 
+      <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+
+      {editing && <IssueEditForm issue={issue} onDone={() => setEditing(false)} />}
+
       <TransitionBar issueId={issue.id} available={issue.available_transitions} />
 
-      {issue.description && (
+      {!editing && issue.description && (
         <section className="mt-6">
           <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
           <p className="max-w-[68ch] whitespace-pre-wrap leading-relaxed">
@@ -65,6 +92,8 @@ export default function IssueDetail() {
       )}
 
       {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
+
+      <DependencyPanel issueId={issue.id} dependencies={dependencies} />
 
       <section className="mt-6">
         <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
@@ -94,10 +123,18 @@ export default function IssueDetail() {
               key={comment.id}
               className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
             >
-              <div className="mb-1.5 flex gap-2 font-mono text-[11px] text-ink-faint">
+              <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
                 <span>session {shortSession(comment.session_id)}</span>
                 <span>·</span>
                 <span>{relativeTime(comment.created_at)}</span>
+                <span className="ml-auto">
+                  <ConfirmButton
+                    label="Delete comment"
+                    question="Delete this comment?"
+                    disabled={deleteComment.isPending}
+                    onConfirm={() => deleteComment.mutate(comment.id)}
+                  />
+                </span>
               </div>
               <p className="whitespace-pre-wrap leading-relaxed">
                 {comment.text}
@@ -105,6 +142,21 @@ export default function IssueDetail() {
             </li>
           ))}
         </ul>
+        {/* deleteComment is one shared mutation for every comment in the
+            list, so its error is not scoped to a single row — surfacing it
+            once here (rather than per-row, which would wrongly imply every
+            comment failed) still puts td's message where it can be read,
+            instead of dropping it. */}
+        {deleteComment.error && (
+          <div className="mb-3">
+            <ErrorPanel
+              label="Delete failed"
+              message={deleteComment.error instanceof ApiError
+                ? deleteComment.error.message
+                : String(deleteComment.error)}
+            />
+          </div>
+        )}
         <CommentForm issueId={issue.id} />
       </section>
     </div>

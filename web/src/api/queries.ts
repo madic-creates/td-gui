@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from './client'
 import type {
-  IssueDetail, IssueListResponse, IssueStatus, IssueType, Priority,
+  IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority,
 } from './types'
 
 export interface IssueListParams {
@@ -40,5 +40,15 @@ export function useIssue(id: string) {
     queryKey: issueKeys.detail(id),
     queryFn: () => apiGet<IssueDetail>(`/v1/issues/${id}`),
     enabled: id !== '',
+  })
+}
+
+export const labelKeys = { all: ['labels'] as const }
+
+/** Backs label autocomplete. Labels are not validated by td. */
+export function useLabels() {
+  return useQuery({
+    queryKey: labelKeys.all,
+    queryFn: () => apiGet<LabelsResponse>('/v1/labels'),
   })
 }
