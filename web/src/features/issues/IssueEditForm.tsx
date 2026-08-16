@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue, IssueType, Priority } from '../../api/types'
@@ -20,6 +21,20 @@ interface Props {
   issue: Issue
   editing: boolean
   onDone: () => void
+  /**
+   * Where to put Save and Cancel. They belong after everything the editor can
+   * change, and the dependency panel is part of that while living outside this
+   * form — so the caller hands over a node down there and the buttons portal
+   * into it. Omit it and they render in place, at the foot of the fields.
+   *
+   * A portal rather than the caller owning the buttons: they read
+   * `update.isPending` and the rejection message off the mutation in here, and
+   * a portal moves the DOM without moving the React tree that holds it.
+   *
+   * `null` is the caller's slot before its first commit, and renders nothing —
+   * the buttons must not appear inside the form for a frame and then jump.
+   */
+  footerSlot?: HTMLElement | null
 }
 
 /**
@@ -41,7 +56,7 @@ interface Props {
  * impossible while it lived in here — TransitionBar renders its own <form>
  * for the reason, and nesting forms is invalid HTML.
  */
-export default function IssueEditForm({ issue, editing, onDone }: Props) {
+export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Props) {
   // Seeded when the editor opens, not on mount, since the component outlives
   // a single editing session. Not re-synced while it is open: useLiveUpdates
   // invalidates the detail query on every SSE event, and re-seeding would
@@ -53,6 +68,8 @@ export default function IssueEditForm({ issue, editing, onDone }: Props) {
   const [original, setOriginal] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
+  // Names the form so the portalled Save can point back at it.
+  const formId = useId()
   // The same query the detail view already has in cache — the parent picker
   // costs no request of its own. The form is mounted while the editor is
   // closed too, which is why this sits with the other unconditional hooks.
@@ -114,8 +131,31 @@ export default function IssueEditForm({ issue, editing, onDone }: Props) {
 
   const panelError = unboundMessage(update.error, boundFields)
 
+  // Still the form's submit button once it portals out of the <form>: the
+  // `form` attribute is what associates a control with a form it does not sit
+  // inside. Keeping it a real submit button rather than a plain one that calls
+  // the handler is not cosmetic — a form with no submit button of its own has
+  // no default button, and Enter in a text field stops saving.
+  const footer = (
+    <div className="mt-4 space-y-4">
+      <div className="flex gap-1.5">
+        <button type="submit" form={formId} disabled={update.isPending}
+          className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
+          Save changes
+        </button>
+        <button type="button" onClick={onDone}
+          className="rounded-sm border border-line px-3 py-1 text-[11px] text-ink-muted">
+          Cancel
+        </button>
+      </div>
+
+      {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
+    </div>
+  )
+
   return (
-    <form onSubmit={submit}>
+    <>
+    <form id={formId} onSubmit={submit}>
       {/* The heading and the field are the same line of the page. The field
           carries an aria-label rather than a visible legend: a TITLE caption
           above the issue title would read as part of the issue. */}
@@ -219,21 +259,21 @@ export default function IssueEditForm({ issue, editing, onDone }: Props) {
             <span>Minor — self-reviewable</span>
           </label>
 
-          <div className="flex gap-1.5">
-            <button type="submit" disabled={update.isPending}
-              className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
-              Save changes
-            </button>
-            <button type="button" onClick={onDone}
-              className="rounded-sm border border-line px-3 py-1 text-[11px] text-ink-muted">
-              Cancel
-            </button>
-          </div>
+          {/* The form's default button, and nothing else — it is what makes
+              Enter in a text field save, and Save itself is no longer here to
+              be it. The spec resolves the default button from the form's
+              associated elements, so the portalled Save ought to serve, but
+              jsdom only looks at the form's descendants and the suite is
+              where that behaviour is pinned. `hidden` keeps it out of the
+              layout and out of the accessible tree; both buttons run the same
+              onSubmit, so which one wins the tie does not matter. */}
+          <button type="submit" hidden tabIndex={-1} aria-hidden="true" />
 
-          {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
         </div>
       )}
     </form>
+    {editing && (footerSlot === undefined ? footer : footerSlot && createPortal(footer, footerSlot))}
+    </>
   )
 }
 

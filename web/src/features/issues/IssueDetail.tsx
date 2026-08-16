@@ -36,6 +36,8 @@ export default function IssueDetail() {
 
 function IssueDetailView({ id }: { id: string }) {
   const [editing, setEditing] = useState(false)
+  // The node IssueEditForm portals Save and Cancel into — see the slot below.
+  const [editorFooter, setEditorFooter] = useState<HTMLElement | null>(null)
   const { data, error, isPending } = useIssue(id)
   const deleteComment = useDeleteComment(id)
   // Called unconditionally, alongside the other hooks above: the isPending
@@ -83,7 +85,8 @@ function IssueDetailView({ id }: { id: string }) {
           chips; they are rows in MetaPanel now, which leaves the header as the
           title and one row of controls. */}
       <header className="mt-2">
-        <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)} />
+        <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}
+          footerSlot={editorFooter} />
       </header>
 
       {/* Row 3. One continuous bar of controls: what td offers to do with the
@@ -163,13 +166,28 @@ function IssueDetailView({ id }: { id: string }) {
             </section>
           )}
 
-          {latest_handoff && <HandoffPanel handoff={latest_handoff} />}
+          {!editing && latest_handoff && <HandoffPanel handoff={latest_handoff} />}
 
           <DependencyPanel
             issueId={issue.id} dependencies={dependencies} blockedBy={blocked_by} />
 
-          <RelatedIssues title="Blocks" items={blocks} />
-          <RelatedIssues title="Tasks" items={tasks} />
+          {!editing && <RelatedIssues title="Blocks" items={blocks} />}
+          {!editing && <RelatedIssues title="Tasks" items={tasks} />}
+
+          {/* Where Save and Cancel land while the editor is open. They close
+              the editor, so they come after every part of it — the fields
+              above and the dependency panel, which saves itself but is still
+              something the open editor changes. Everything else on this
+              column is read-only and hidden while editing, so the buttons are
+              the last thing on the page, which is where a form's commit
+              controls are looked for.
+
+              Rendered whether or not the editor is open, and empty when it is
+              not: a slot that appears with `editing` would only exist from the
+              commit after the one that opened the editor, and the buttons
+              would paint at the foot of the fields for that frame and then
+              jump down here. */}
+          <div ref={setEditorFooter} />
 
           {/* Both sections gone while the editor is open, like the description
               and the acceptance criteria above. Neither is editable, and the

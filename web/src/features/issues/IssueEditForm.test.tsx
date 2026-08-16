@@ -80,7 +80,12 @@ describe('IssueEditForm', () => {
 
     await userEvent.clear(screen.getByLabelText('Title'))
     await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
-    const form = screen.getByRole('button', { name: 'Save changes' }).closest('form')!
+    // `.form`, not `.closest('form')`: Save sits outside the <form> so it can
+    // be portalled below the dependency panel, and the `form` attribute is
+    // what still makes it that form's submit button.
+    const save = screen.getByRole('button', { name: 'Save changes' }) as HTMLButtonElement
+    const form = save.form!
+    expect(form).toBe(screen.getByLabelText('Title').closest('form'))
 
     fireEvent.submit(form)
     fireEvent.submit(form)
