@@ -31,13 +31,15 @@ function dataTransfer(id: string) {
   }
 }
 
-function renderSwimlanes(cards: BoardCard[]) {
+function renderSwimlanes(cards: BoardCard[], includeClosed = false) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter><SwimlaneView cards={cards} /></MemoryRouter>
+      <MemoryRouter>
+        <SwimlaneView cards={cards} includeClosed={includeClosed} />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -52,17 +54,44 @@ describe('SwimlaneView', () => {
     expect(screen.getByRole('region', { name: 'In progress' })).toHaveTextContent('td-bbb')
   })
 
-  it('shows the closed column only when a closed card is on the board', () => {
+  // Without include_closed td filters closed issues out of the payload, so the
+  // column would never exist on a normal board — and closing is the transition
+  // a drop most often wants to propose.
+  it('shows the closed column even when no closed card is on the board', () => {
     renderSwimlanes([makeCard({ id: 'td-aaa', status: 'open' })])
-    expect(screen.queryByRole('region', { name: 'Closed' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Closed' })).toBeInTheDocument()
   })
 
   it('shows the closed column once a closed card is included', () => {
     renderSwimlanes([
       makeCard({ id: 'td-aaa', status: 'open' }),
       makeCard({ id: 'td-zzz', status: 'closed' }),
-    ])
+    ], true)
     expect(screen.getByRole('region', { name: 'Closed' })).toHaveTextContent('td-zzz')
+  })
+
+  it('opens the transition panel on a drop onto the closed column', async () => {
+    renderSwimlanes([makeCard({ id: 'td-aaa', status: 'open' })])
+    const dt = dataTransfer('td-aaa')
+    fireEvent.dragStart(screen.getByText('td-aaa').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByRole('region', { name: 'Closed' }), { dataTransfer: dt })
+
+    expect(await screen.findByRole('dialog', { name: 'Move td-aaa' })).toBeInTheDocument()
+    expect(screen.getByText('Dropped on: Closed')).toBeInTheDocument()
+  })
+
+  it('explains the empty closed column while closed issues are filtered out', () => {
+    renderSwimlanes([makeCard({ id: 'td-aaa', status: 'open' })])
+    expect(screen.getByRole('region', { name: 'Closed' }))
+      .toHaveTextContent('Closed issues are hidden unless you include them.')
+  })
+
+  // With the box ticked an empty column means there is nothing closed to show,
+  // so the hint would be untrue.
+  it('drops the hint once closed issues are included', () => {
+    renderSwimlanes([makeCard({ id: 'td-aaa', status: 'open' })], true)
+    expect(screen.getByRole('region', { name: 'Closed' }))
+      .not.toHaveTextContent('Closed issues are hidden')
   })
 
   it('opens the transition panel on a cross-column drop', async () => {

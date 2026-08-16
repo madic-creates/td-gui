@@ -78,7 +78,7 @@ export default function BoardView() {
       ) : view === 'backlog' ? (
         <BacklogView boardId={board.id} cards={issues} />
       ) : (
-        <SwimlaneView cards={issues} />
+        <SwimlaneView cards={issues} includeClosed={includeClosed} />
       )}
     </div>
   )
