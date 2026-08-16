@@ -5,7 +5,7 @@ import { unboundMessage } from '../../api/client'
 import EmptyState from '../../components/EmptyState'
 import ErrorPanel from '../../components/ErrorPanel'
 import SkeletonRows from '../../components/SkeletonRows'
-import BoardCard from './BoardCard'
+import BacklogView from './BacklogView'
 import { isViewMode, readStoredView, storeView } from './viewMode'
 import type { BoardViewMode } from '../../api/types'
 
@@ -74,12 +74,10 @@ export default function BoardView() {
             hint="Nothing matches its query right now. Closed issues are hidden unless you include them."
           />
         )
+      ) : view === 'backlog' ? (
+        <BacklogView boardId={board.id} cards={issues} />
       ) : (
-        <ul className="space-y-1.5 p-4">
-          {issues.map(card => (
-            <li key={card.issue.id}><BoardCard issue={card.issue} /></li>
-          ))}
-        </ul>
+        <p className="p-4 text-ink-muted">Swimlanes arrive in the next task.</p>
       )}
     </div>
   )
