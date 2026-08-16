@@ -7,8 +7,12 @@ import type { Issue } from '../../api/types'
  * One card, shared by both board views. The issue arrives without description
  * and acceptance — td slims them out of the board payload — so nothing here
  * may depend on them.
+ *
+ * `showStatus` is what swimlanes turn off: their column heading already names
+ * the status, so the tag would only repeat it. The backlog mixes statuses in
+ * one list and needs it, hence the default.
  */
-export default function BoardCard({ issue }: { issue: Issue }) {
+export default function BoardCard({ issue, showStatus = true }: { issue: Issue; showStatus?: boolean }) {
   const blockers = issue.dependency_summary?.blockers ?? []
   return (
     <Link
@@ -27,7 +31,7 @@ export default function BoardCard({ issue }: { issue: Issue }) {
         </span>
       )}
       <span className="shrink-0 text-[11px]"><PriorityTag priority={issue.priority} /></span>
-      <span className="shrink-0"><StatusTag status={issue.status} /></span>
+      {showStatus && <span className="shrink-0"><StatusTag status={issue.status} /></span>}
     </Link>
   )
 }
