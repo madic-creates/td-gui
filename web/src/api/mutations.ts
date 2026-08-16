@@ -1,7 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiSend } from './client'
 import { issueKeys } from './queries'
-import type { IssueCreateResponse, IssueType, IssuePatch, Priority, Transition } from './types'
+import { boardKeys } from './boards'
+import type {
+  BoardCreateResponse, IssueCreateResponse, IssueType, IssuePatch, Priority, Transition,
+} from './types'
 
 /**
  * Review attribution, as td models it: `reviewed_by` names who actually
@@ -136,5 +139,67 @@ export function useRemoveDependency(issueId: string) {
 export function useSetFocus() {
   return useMutation({
     mutationFn: (issueId: string | null) => apiSend('PUT', '/v1/focus', { issue_id: issueId }),
+  })
+}
+
+export interface BoardInput {
+  name: string
+  query: string
+}
+
+export function useCreateBoard() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BoardInput) =>
+      apiSend<BoardCreateResponse>('POST', '/v1/boards', input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
+  })
+}
+
+/** td answers 403 `cannot modify builtin board` for is_builtin boards. */
+export function useUpdateBoard(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: BoardInput) =>
+      apiSend<BoardCreateResponse>('PATCH', `/v1/boards/${id}`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
+  })
+}
+
+export function useDeleteBoard() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiSend('DELETE', `/v1/boards/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
+  })
+}
+
+/**
+ * Pins a card at a slot.
+ *
+ * `slot` is td's 1-based insert position among the cards that ALREADY have a
+ * position — not the index of a rendered row, and not the `position` read back
+ * from the board, which is a sparse sort key. features/boards/position.ts owns
+ * that conversion.
+ */
+export function useSetCardPosition(boardId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ issueId, slot }: { issueId: string; slot: number }) =>
+      apiSend('POST', `/v1/boards/${boardId}/issues`, {
+        issue_id: issueId,
+        position: slot,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
+  })
+}
+
+/** Unpins a card: it falls back below every positioned card, in query order. */
+export function useClearCardPosition(boardId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (issueId: string) =>
+      apiSend('DELETE', `/v1/boards/${boardId}/issues/${issueId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
   })
 }

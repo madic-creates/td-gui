@@ -60,6 +60,12 @@ export interface Issue {
   defer_until: string | null
   due_date: string | null
   defer_count: number
+  /**
+   * Present on the board and list paths only. td also sends `category` there,
+   * but nothing in its codebase ever assigns it, so it is always "" and is
+   * deliberately not typed here.
+   */
+  dependency_summary?: DependencySummary
   /** Present on GET /v1/issues/{id} only. Absent means "unknown". */
   available_transitions?: Transition[]
   /**
@@ -172,3 +178,71 @@ export interface FieldError {
 export type ApiErrorCode =
   | 'validation_error' | 'unauthorized' | 'forbidden'
   | 'not_found' | 'conflict' | 'internal'
+
+/**
+ * One unresolved blocker. td already filters closed blockers out, so every
+ * entry is still in the way.
+ */
+export interface BlockerRef {
+  dep_id: string
+  /** The BLOCKER's id, i.e. depends_on_id — not the blocked issue. */
+  issue_id: string
+  title: string
+  status: string
+  relation_type: string
+}
+
+export interface DependencySummary {
+  blockers: BlockerRef[]
+}
+
+export type BoardViewMode = 'swimlanes' | 'backlog'
+
+/**
+ * `view_mode` is read-only over HTTP: PATCH /v1/boards/{id} accepts name and
+ * query only, so td's UpdateBoardViewMode is unreachable. The GUI treats it as
+ * the initial view and keeps its own preference.
+ */
+export interface Board {
+  id: string
+  name: string
+  query: string
+  is_builtin: boolean
+  view_mode: BoardViewMode
+  last_viewed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * One card on a board.
+ *
+ * `position` is td's sparse sort key (1000, 2000, 1500), NOT an index and NOT
+ * the value POST /v1/boards/{id}/issues expects — that one is a 1-based slot.
+ * Sort by it; never render it and never send it back.
+ *
+ * `issue` arrives without description and acceptance (td's slimForBoard) and
+ * without available_transitions, which only GET /v1/issues/{id} carries.
+ */
+export interface BoardCard {
+  issue: Issue
+  board_id: string
+  position: number
+  has_position: boolean
+}
+
+/** GET /v1/boards */
+export interface BoardListResponse {
+  boards: Board[]
+}
+
+/** GET /v1/boards/{id} */
+export interface BoardResponse {
+  board: Board
+  issues: BoardCard[]
+}
+
+/** POST /v1/boards and PATCH /v1/boards/{id} */
+export interface BoardCreateResponse {
+  board: Board
+}
