@@ -46,6 +46,12 @@ export default function BacklogView({ boardId, cards }: Props) {
 
   const dropAt = (gap: number) => (event: DragEvent) => {
     event.preventDefault()
+    // Same refusal the Move and Unpin buttons make with `disabled={busy}`, and
+    // the one the list announces as aria-busy. Nothing is reordered
+    // optimistically, so while a write is in flight the rendered block is the
+    // one td is about to replace — a gap measured against it would name a
+    // different place by the time td applied it.
+    if (busy) return
     const issueId = event.dataTransfer.getData('text/plain') || dragging
     setDragging(null)
     if (!issueId) return
@@ -73,7 +79,7 @@ export default function BacklogView({ boardId, cards }: Props) {
               <Fragment key={card.issue.id}>
                 <DropGap gap={index} onDrop={dropAt(index)} />
                 <li
-                  draggable
+                  draggable={!busy}
                   onDragStart={e => {
                     e.dataTransfer.setData('text/plain', card.issue.id)
                     e.dataTransfer.effectAllowed = 'move'
@@ -131,7 +137,7 @@ export default function BacklogView({ boardId, cards }: Props) {
             {auto.map(card => (
               <li
                 key={card.issue.id}
-                draggable
+                draggable={!busy}
                 onDragStart={e => {
                   e.dataTransfer.setData('text/plain', card.issue.id)
                   e.dataTransfer.effectAllowed = 'move'

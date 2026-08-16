@@ -148,13 +148,62 @@ describe('BacklogView', () => {
 
   // Dropping a card onto its own place would rewrite a sort key and can
   // trigger a respacing pass in td, all to leave the order exactly as it was.
+  //
+  // The handler pushes after `await request.json()`, so asserting on an empty
+  // array right after fireEvent would pass whether or not a request went out.
+  // A third drop that IS a move is issued last and awaited: once its body has
+  // been recorded, any request the two no-ops had issued — both started
+  // earlier — would have been recorded too. The assertion is on the whole
+  // array, so the no-ops have nowhere to hide.
   it('sends nothing when a card is dropped onto its own place', async () => {
     renderBacklog()
     const dt = dataTransfer('td-bbb')
     fireEvent.dragStart(screen.getByText('td-bbb').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
-    expect(positioned).toEqual([])
+
+    const move = { issue_id: 'td-bbb', position: 4 }
+    fireEvent.drop(screen.getByTestId('drop-gap-3'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  /**
+   * There is deliberately no optimistic reorder, so while a position write is
+   * in flight the rendered order is the one td is about to replace. A second
+   * drop would compute its gap against that stale layout and send a slot
+   * meaning something else by the time td applies it. The buttons already
+   * refuse (`disabled={busy}`) and the list already says `aria-busy` — the
+   * drag path has to agree.
+   */
+  it('ignores a drop while a position write is in flight', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>(resolve => { release = resolve })
+    server.use(http.post('/v1/boards/:id/issues', async ({ request }) => {
+      // Recorded on entry, before the gate: a second request would show up
+      // here just as the first one did, held or not.
+      positioned.push(await request.json())
+      await gate
+      return HttpResponse.json({ ok: true, data: { positioned: true } })
+    }))
+
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+    const pinned = screen.getByRole('list', { name: 'Pinned' })
+    await waitFor(() => expect(pinned).toHaveAttribute('aria-busy', 'true'))
+
+    const card = screen.getByText('td-ccc').closest('li')!
+    expect(card).toHaveAttribute('draggable', 'false')
+
+    const dt = dataTransfer('td-ccc')
+    fireEvent.dragStart(card, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
+
+    // Let the held request finish. Anything the drop issued started before the
+    // release and would have been recorded by the time the list settles.
+    release()
+    await waitFor(() => expect(pinned).toHaveAttribute('aria-busy', 'false'))
+    expect(positioned).toEqual([{ issue_id: 'td-aaa', position: 3 }])
   })
 
   // Without preventDefault on dragover the browser refuses the drop outright.
