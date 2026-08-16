@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
@@ -17,6 +17,14 @@ export default function IssueForm() {
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
 
+  // The submit button disables on create.isPending, but that reads from
+  // state and doesn't stop the form's native submit event: two submits
+  // landing before a render commits (a fast double-Enter, or two events in
+  // the same tick) would otherwise both read isPending as false and each
+  // fire a POST, creating two issues. A ref isn't tied to render timing, so
+  // it closes that gap regardless of how close together the events land.
+  const submitting = useRef(false)
+
   // No client-side length checks: td's title bounds are per-project config,
   // so any hardcoded value here would eventually be wrong.
   return (
@@ -24,13 +32,18 @@ export default function IssueForm() {
       className="max-w-xl space-y-4 px-5 py-4"
       onSubmit={e => {
         e.preventDefault()
+        if (submitting.current) return
+        submitting.current = true
         // Land on the new issue rather than leaving the form sitting there:
         // without this the fields kept their submitted values with nothing
         // stopping a second click from creating a duplicate, and the only way
         // to reach the issue just created was to go find it in the list.
         create.mutate(
           { title, description: description || undefined, type, priority },
-          { onSuccess: data => navigate(`/issues/${data.issue.id}`) },
+          {
+            onSuccess: data => navigate(`/issues/${data.issue.id}`),
+            onSettled: () => { submitting.current = false },
+          },
         )
       }}
     >

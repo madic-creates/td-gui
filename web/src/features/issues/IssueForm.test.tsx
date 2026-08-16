@@ -1,10 +1,10 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, delay } from 'msw'
 import IssueForm from './IssueForm'
 
 const server = setupServer()
@@ -111,5 +111,28 @@ describe('IssueForm', () => {
     await screen.findByText('issue detail stand-in')
     expect(received!.title).toBe('A sufficiently long issue title')
     expect(received!.priority).toBe('P1')
+  })
+
+  // The Create button disables on isPending, but that's a state update and
+  // does not stop the form's native submit event — a second Enter landing
+  // before React re-renders the button would otherwise fire a second POST
+  // and create a duplicate issue.
+  it('does not create a duplicate issue when the form is submitted twice in a row', async () => {
+    let count = 0
+    server.use(http.post('/v1/issues', async () => {
+      count += 1
+      await delay(20)
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    const form = screen.getByRole('button', { name: 'Create' }).closest('form')!
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await screen.findByText('issue detail stand-in')
+    expect(count).toBe(1)
   })
 })
