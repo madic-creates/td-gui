@@ -68,21 +68,6 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
     }
   }
 
-  // A rejected save used to die with the form. It now has to be cleared by
-  // hand, on close rather than on open, so that a stale field error cannot
-  // paint for a frame on top of a draft that no longer produced it. Resetting
-  // a still-pending PATCH detaches it from its callbacks, which here means
-  // only the onDone that already ran and an error nothing is rendering.
-  useEffect(() => {
-    if (!editing) update.reset()
-    // `update` is a new object every render; only closing should run this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing])
-
-  function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
-    setDraft(current => ({ ...current, [key]: value }))
-  }
-
   // The submit button disables on update.isPending, but that reads from
   // state and doesn't stop the form's native submit event: two submits
   // landing before a render commits (a fast double-Enter, or two events in
@@ -90,6 +75,25 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
   // fire a PATCH. A ref isn't tied to render timing, so it closes that gap —
   // same fix as IssueForm.tsx's create submit.
   const submitting = useRef(false)
+
+  // A rejected save used to die with the form. It now has to be cleared by
+  // hand, on close rather than on open, so that a stale field error cannot
+  // paint for a frame on top of a draft that no longer produced it. Resetting
+  // a still-pending PATCH detaches it from its callbacks — including the
+  // onSettled below that clears `submitting`, so a Cancel while a save is
+  // still in flight has to clear that ref itself or Save never works again.
+  useEffect(() => {
+    if (!editing) {
+      update.reset()
+      submitting.current = false
+    }
+    // `update` is a new object every render; only closing should run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
+
+  function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
+    setDraft(current => ({ ...current, [key]: value }))
+  }
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
