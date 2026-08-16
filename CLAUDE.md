@@ -32,13 +32,36 @@ These are load-bearing; changing them changes what td-gui is.
   policy stay intact.
 - All listeners bind `127.0.0.1` only, never `0.0.0.0`.
 - The bearer token must never appear in a response body, a response header,
-  or a log line.
+  or a log line. It **is** visible in the process table — see below.
 - The frontend never validates against hardcoded field limits. Title length
   and similar bounds are per-project td config — the server validates and the
   form displays the server's answer.
 - Transitions go through td's own endpoints (`start`, `review`, `approve`, …),
   never a raw status PATCH. The UI renders exactly the transitions td reports
   in `available_transitions`, and renders none when the field is absent.
+
+### The token is visible in `ps` — deliberately
+
+`internal/backend/manager.go` spawns the backend as `td serve … --token
+<token>`, and `/proc/<pid>/cmdline` is world-readable unless procfs is mounted
+with `hidepid`. Any local account can read the token out of `ps -ef`.
+
+This is td's interface, not our choice: `td serve` accepts the token only as a
+flag — no `--token-file`, no `--token-fd`, no environment variable. td-gui
+cannot close this alone.
+
+We accept it, because of what the token actually buys an attacker:
+
+- `td serve` binds loopback, so the attacker already needs a local account.
+- `.todos/issues.db` is mode 0644, so they can already read every issue, and a
+  process running as *you* can already write it directly.
+- What the token adds is API write access for a *different* local account,
+  logged against td-gui's session rather than theirs.
+
+The residual risk is a compromised unprivileged daemon laundering writes
+through our session. Do not paper over it with a side channel: if td ever
+gains `--token-file`, `--token-fd` or an environment variable, switch to it
+and delete this section.
 
 ## Build and test
 

@@ -100,7 +100,10 @@ td-gui is a local tool and its boundaries are deliberate:
 - Requests from another origin are rejected, so a random page in another tab
   cannot drive your backlog.
 - The bearer token used to reach `td serve` never appears in a response body, a
-  response header, or a log line.
+  response header, or a log line. It *is* visible in the process table: `td
+  serve` takes the token as a command-line flag, so any local account can read
+  it with `ps`. It grants API write access, not read — `.todos/issues.db` is
+  already world-readable — and closing this needs a change to td.
 
 ## When something goes wrong
 

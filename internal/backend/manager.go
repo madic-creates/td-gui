@@ -124,6 +124,10 @@ func (m *Manager) spawn(ctx context.Context) error {
 		return err
 	}
 
+	// --token puts the token in the child's argv, where any local account can
+	// read it out of /proc/<pid>/cmdline. That is accepted, not overlooked:
+	// td serve offers no other way to receive a token, and CLAUDE.md records
+	// the threat model. Switch to --token-file or --token-fd if td grows one.
 	cmd := exec.Command(m.cfg.TdPath,
 		"serve",
 		"--work-dir", m.cfg.BaseDir,
