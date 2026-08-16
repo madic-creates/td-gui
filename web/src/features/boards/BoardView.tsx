@@ -6,6 +6,7 @@ import EmptyState from '../../components/EmptyState'
 import ErrorPanel from '../../components/ErrorPanel'
 import SkeletonRows from '../../components/SkeletonRows'
 import BacklogView from './BacklogView'
+import SwimlaneView from './SwimlaneView'
 import { isViewMode, readStoredView, storeView } from './viewMode'
 import type { BoardViewMode } from '../../api/types'
 
@@ -77,7 +78,7 @@ export default function BoardView() {
       ) : view === 'backlog' ? (
         <BacklogView boardId={board.id} cards={issues} />
       ) : (
-        <p className="p-4 text-ink-muted">Swimlanes arrive in the next task.</p>
+        <SwimlaneView cards={issues} />
       )}
     </div>
   )
