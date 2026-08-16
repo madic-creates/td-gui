@@ -264,9 +264,13 @@ everywhere else.
 - `BoardForm.test.tsx` — td's `tdq_syntax` message appears verbatim on the query
   field; an error carrying no field lands in the panel.
 - `test/contract` (Go) — one case against a real `td`: create a board with a
-  query, position two issues by slot, assert `GET /v1/boards/{id}` returns them
-  in that order. This pins finding 1, the assumption most likely to break with a
-  future td release.
+  query and walk the three legs `insertSlot` stakes the feature on — slot 1
+  puts a card at the front, moving a card down by one takes `index + 2` as the
+  gap, and a slot of `pinned + 1` appends — asserting the order td returns
+  after each. This pins finding 1, the assumption most likely to break with a
+  future td release. The middle leg is the load-bearing one: a changed
+  `ComputeInsertPosition` would make Move-down a silent no-op that the unit
+  tests, which encode the same assumption they verify, cannot catch.
 
 No new dependency, no Go code outside `test/contract`. `make test` covers the
 change; the contract case only runs with `td` on PATH, so check for `--- SKIP`

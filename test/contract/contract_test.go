@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -692,14 +694,81 @@ func postJSON(t *testing.T, url, body string, into any) int {
 	return resp.StatusCode
 }
 
+// boardCard is one entry of a board's `issues` array, typed as
+// web/src/api/types.ts declares it.
+type boardCard struct {
+	Issue struct {
+		ID string `json:"id"`
+	} `json:"issue"`
+	BoardID     *string `json:"board_id"`
+	Position    *int    `json:"position"`
+	HasPosition *bool   `json:"has_position"`
+}
+
+// boardCardIDs reads a board and returns its card ids in the order td sorted
+// them, checking on the way that every field the TypeScript Board and
+// BoardCard types declare as required is actually present. Pointers, not
+// values: an absent field decodes to the zero value, and `position` is
+// legitimately 0 for the front card, so only nil distinguishes "td stopped
+// sending this" from "td sent zero".
+func boardCardIDs(t *testing.T, front, board string) []string {
+	t.Helper()
+
+	var got struct {
+		Data struct {
+			Board  map[string]json.RawMessage `json:"board"`
+			Issues []boardCard                `json:"issues"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/boards/"+board, &got)
+
+	for _, field := range []string{
+		"id", "name", "query", "is_builtin", "view_mode",
+		// Read as metadata rather than rendered, which is exactly why their
+		// absence would not show up anywhere else.
+		"last_viewed_at", "created_at", "updated_at",
+	} {
+		if _, ok := got.Data.Board[field]; !ok {
+			t.Errorf("board is missing %q", field)
+		}
+	}
+
+	ids := make([]string, 0, len(got.Data.Issues))
+	for i, card := range got.Data.Issues {
+		if card.BoardID == nil || *card.BoardID != board {
+			t.Errorf("card %d board_id = %v, want %q", i, card.BoardID, board)
+		}
+		if card.Position == nil {
+			t.Errorf("card %d has no position — it is the sparse sort key, and the "+
+				"only field the cards are ordered by", i)
+		}
+		if card.HasPosition == nil || !*card.HasPosition {
+			t.Errorf("card %d has_position = %v, want true", i, card.HasPosition)
+		}
+		ids = append(ids, card.Issue.ID)
+	}
+	return ids
+}
+
 // TestBoardPositionSlotContract pins the one thing the boards UI computes:
 // POST /v1/boards/{id}/issues takes a 1-BASED SLOT among the cards that
-// already have a position, while the position read back from the board is a
-// sparse sort key (1000, 2000, 1500). Sending slot 1 must put a card first.
+// already have a position — INCLUDING the card being moved — while the
+// position read back from the board is a sparse sort key.
 //
-// It also pins the response shape the cards are built from: issues[].issue and
-// issues[].has_position. A rename in td must fail here rather than surface as
-// an undefined card in the UI.
+// Three legs, in the order features/boards/position.ts stakes the feature on
+// them:
+//
+//   - slot 1 puts a card at the front;
+//   - moving a card down by one takes index + 2 as the gap, so the Move-down
+//     button on index 0 sends slot 3 — at slot 2 td would interpolate between
+//     the card and its successor and the card would keep its place. This leg
+//     is why insertSlot exists; without it a future ComputeInsertPosition
+//     change would turn Move-down into a silent no-op that the unit tests,
+//     which encode the same assumption they verify, could never catch;
+//   - a slot of pinned + 1 appends after the last positioned card.
+//
+// It also pins the response shape the cards are built from — see
+// boardCardIDs.
 func TestBoardPositionSlotContract(t *testing.T) {
 	front, first := newProject(t)
 
@@ -727,50 +796,79 @@ func TestBoardPositionSlotContract(t *testing.T) {
 		t.Fatal("created board has no id — POST /v1/boards nests it under `board`")
 	}
 
+	position := func(issue string, slot int) {
+		t.Helper()
+		if status := post(t, front+"/v1/boards/"+board+"/issues",
+			`{"issue_id":"`+issue+`","position":`+strconv.Itoa(slot)+`}`); status != http.StatusOK {
+			t.Fatalf("position %s at slot %d: status = %d, want 200", issue, slot, status)
+		}
+	}
+
 	// Pin the second issue first, then push the first issue in front of it.
 	// Both calls use slot 1, which is what makes the slot semantics visible:
 	// the value is not an index into anything the caller rendered.
-	if status := post(t, front+"/v1/boards/"+board+"/issues",
-		`{"issue_id":"`+second+`","position":1}`); status != http.StatusOK {
-		t.Fatalf("position second status = %d, want 200", status)
-	}
-	if status := post(t, front+"/v1/boards/"+board+"/issues",
-		`{"issue_id":"`+first+`","position":1}`); status != http.StatusOK {
-		t.Fatalf("position first status = %d, want 200", status)
+	position(second, 1)
+	position(first, 1)
+
+	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{first, second}) {
+		t.Fatalf("board order = %v, want %v — slot 1 must place a card at the front",
+			got, []string{first, second})
 	}
 
-	var got struct {
+	// Exactly what the Move-down button sends for the card at index 0 of a
+	// two-card block: gap = index + 2, so slot 3. Slot 2 would be the no-op.
+	position(first, 3)
+
+	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{second, first}) {
+		t.Fatalf("board order = %v, want %v — moving a card down by one is slot "+
+			"index + 3, because td counts the rows including the card being moved",
+			got, []string{second, first})
+	}
+
+	// The append leg. A third card is pinned at the front and then sent to
+	// slot pinned + 1, so the assertion is a move from first place to last —
+	// not a card that would have sorted last anyway.
+	if status := post(t, front+"/v1/issues",
+		`{"title":"Third contract issue with a long enough title","type":"feature","priority":"P1"}`,
+	); status != http.StatusCreated && status != http.StatusOK {
+		t.Fatalf("create third issue status = %d", status)
+	}
+	third := ""
+	for _, id := range boardIssueIDs(t, front) {
+		if id != first && id != second {
+			third = id
+		}
+	}
+	if third == "" {
+		t.Fatal("no third issue in the project")
+	}
+
+	position(third, 1)
+	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{third, second, first}) {
+		t.Fatalf("board order = %v, want %v", got, []string{third, second, first})
+	}
+
+	position(third, 4)
+	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{second, first, third}) {
+		t.Fatalf("board order = %v, want %v — a slot one past the positioned cards "+
+			"must append", got, []string{second, first, third})
+	}
+}
+
+// boardIssueIDs lists every issue in the project.
+func boardIssueIDs(t *testing.T, front string) []string {
+	t.Helper()
+	var body struct {
 		Data struct {
-			Board  map[string]json.RawMessage `json:"board"`
 			Issues []struct {
-				Issue struct {
-					ID string `json:"id"`
-				} `json:"issue"`
-				HasPosition *bool `json:"has_position"`
+				ID string `json:"id"`
 			} `json:"issues"`
 		} `json:"data"`
 	}
-	getJSON(t, front+"/v1/boards/"+board, &got)
-
-	for _, field := range []string{"id", "name", "query", "is_builtin", "view_mode"} {
-		if _, ok := got.Data.Board[field]; !ok {
-			t.Errorf("board is missing %q", field)
-		}
+	getJSON(t, front+"/v1/issues?limit=50", &body)
+	ids := make([]string, 0, len(body.Data.Issues))
+	for _, i := range body.Data.Issues {
+		ids = append(ids, i.ID)
 	}
-
-	if len(got.Data.Issues) < 2 {
-		t.Fatalf("board returned %d issues, want at least 2", len(got.Data.Issues))
-	}
-	if got.Data.Issues[0].Issue.ID != first {
-		t.Errorf("first card = %q, want %q — slot 1 must place a card at the front",
-			got.Data.Issues[0].Issue.ID, first)
-	}
-	if got.Data.Issues[1].Issue.ID != second {
-		t.Errorf("second card = %q, want %q", got.Data.Issues[1].Issue.ID, second)
-	}
-	for i, card := range got.Data.Issues[:2] {
-		if card.HasPosition == nil || !*card.HasPosition {
-			t.Errorf("card %d has_position = %v, want true", i, card.HasPosition)
-		}
-	}
+	return ids
 }
