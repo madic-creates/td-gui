@@ -121,3 +121,26 @@ func TestStartFailsWithoutTodosDir(t *testing.T) {
 		t.Fatal("Start succeeded in a non-td directory, want error")
 	}
 }
+
+func TestStartRecoversFromCorruptPortFile(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, ".todos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A stale write from a td serve that crashed mid-write is not always
+	// valid JSON. Start must spawn a fresh instance rather than treating this
+	// as a permanent failure — nothing else would ever overwrite the file.
+	if err := os.WriteFile(PortFilePath(base), []byte("{not valid json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTd(t), StartTimeout: 10 * time.Second})
+	if err := m.Start(context.Background()); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	if !m.Owned() {
+		t.Error("Owned = false after recovering from a corrupt port file, want true (Start should have spawned)")
+	}
+}

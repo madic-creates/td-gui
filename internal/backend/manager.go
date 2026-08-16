@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -93,9 +92,12 @@ func (m *Manager) Start(ctx context.Context) error {
 			return fmt.Errorf("a td serve instance is already running on port %d with a bearer token td-gui does not know; stop it, or start td-gui against a different project", info.Port)
 		}
 		// ProbeDead: fall through and spawn our own.
-	} else if err != nil && !errors.Is(err, ErrNoPortFile) {
-		return err
 	}
+	// A missing, corrupt or otherwise unreadable port file all mean the same
+	// thing here: there is nothing to reuse. A stale write — e.g. td serve
+	// crashing mid-write — must not become a permanent failure: spawning is
+	// the only thing that ever overwrites the file, so bailing out here would
+	// leave every future Start hitting the same corrupt file forever.
 
 	return m.spawn(ctx)
 }
