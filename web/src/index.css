@@ -144,19 +144,31 @@
 
      Composing with :focus-visible is deliberate: an outline and a background
      are different properties, so a focused button that is also hovered shows
-     both, and hover never weakens the keyboard affordance. */
-  button {
+     both, and hover never weakens the keyboard affordance.
+
+     `a[data-button]` is the handful of Links wearing the same bordered class
+     string — the header's Boards and New issue, BoardList's New board and
+     Edit. They sit beside real buttons and are indistinguishable from them, so
+     a rule that skipped them would leave the only bordered controls in the app
+     that stay dead under the pointer. They stay Links rather than gaining
+     role="button": they navigate, and a button role would cost the reader
+     middle-click and open-in-new-tab. The attribute is a styling marker only,
+     which is why it carries no ARIA. */
+  button,
+  a[data-button] {
     transition: background-color 120ms ease;
   }
 
-  button:not(:disabled):hover {
+  button:not(:disabled):hover,
+  a[data-button]:hover {
     background-color: var(--color-surface-hover);
   }
 
   /* On the base selector, not inside :hover — there it would fade in and snap
      back out. */
   @media (prefers-reduced-motion: reduce) {
-    button {
+    button,
+    a[data-button] {
       transition: none;
     }
   }

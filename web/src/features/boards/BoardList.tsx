@@ -27,7 +27,11 @@ export default function BoardList() {
       <div className="flex items-center gap-2.5 border-b border-line bg-surface-inset px-4 py-2">
         <h1 className="text-[11px] uppercase tracking-widest text-ink-muted">Boards</h1>
         <span className="flex-1" />
-        <Link to="/boards/new" className="rounded-sm border border-accent px-2.5 py-1 text-[11px] text-accent">
+        <Link
+          to="/boards/new"
+          data-button
+          className="rounded-sm border border-accent px-2.5 py-1 text-[11px] text-accent"
+        >
           New board
         </Link>
       </div>
@@ -44,8 +48,15 @@ export default function BoardList() {
       ) : (
         <ul>
           {data.boards.map(board => (
-            <li key={board.id} className={ROW}>
-              <Link to={`/boards/${board.id}`} className="w-56 shrink-0 truncate text-ink">
+            // The tint is a scanning aid, not a click affordance: unlike an
+            // IssueList row this one is not a link, it contains them. So it
+            // gets no accent inset edge — that edge means "your click lands
+            // here", which of this row is only true of the name.
+            <li key={board.id} className={`${ROW} hover:bg-surface-hover`}>
+              <Link
+                to={`/boards/${board.id}`}
+                className="w-56 shrink-0 truncate text-ink hover:underline"
+              >
                 {board.name}
               </Link>
               <span className="flex-1 truncate font-mono text-[11px] text-ink-faint">
@@ -59,6 +70,7 @@ export default function BoardList() {
                 <span className="flex items-center gap-1.5">
                   <Link
                     to={`/boards/${board.id}/edit`}
+                    data-button
                     className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
                   >
                     Edit {board.name}

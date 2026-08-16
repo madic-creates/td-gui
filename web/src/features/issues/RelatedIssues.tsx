@@ -15,8 +15,15 @@ import type { Related } from './issueIndex'
  */
 export function RelatedRow({ id, issue, children }: Related & { children?: ReactNode }) {
   return (
-    <li className="flex items-center gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0">
-      <Link to={`/issues/${id}`} className="shrink-0 font-mono text-[11px] text-accent">
+    // `-mx-1.5 px-1.5` lets the tint breathe past the text without moving it:
+    // the row has no padding of its own, so a flush background would sit hard
+    // against the id and the trailing control. Tint only, no accent edge —
+    // the row holds a link, it is not one.
+    <li className="-mx-1.5 flex items-center gap-2.5 rounded-sm border-b border-line-subtle px-1.5 py-1.5 last:border-b-0 hover:bg-surface-hover">
+      <Link
+        to={`/issues/${id}`}
+        className="shrink-0 font-mono text-[11px] text-accent hover:underline"
+      >
         {id}
       </Link>
       <span className="flex-1 truncate text-ink">{issue?.title}</span>
