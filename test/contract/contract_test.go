@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -14,6 +15,54 @@ import (
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
 )
+
+// TestMain scrubs inherited GIT_* environment variables before any test in
+// this package runs.
+//
+// Every test here spawns real td processes against a throwaway project in a
+// fresh temp directory: `td init` via run, and `td serve` via
+// backend.Manager. td resolves its project root through git, and when
+// GIT_DIR (and friends, e.g. GIT_INDEX_FILE) are inherited from a parent
+// process — as git itself sets them for every hook it invokes, including
+// this repo's own pre-commit go-test hook — `td init` walks that inherited
+// git context instead of the process's actual working directory. This repo
+// dogfoods td on itself, so its own .todos already exists at the repo root;
+// under a leaked GIT_DIR, `td init` in a brand-new temp dir sees that
+// pre-existing .todos, prints "Warning: .todos/ already exists", and exits
+// 0 having created nothing in the temp dir. An explicit --work-dir does not
+// help — verified separately, `td init --work-dir <dir>` still resolves via
+// GIT_DIR and skips. The failure then surfaces one step later and out of
+// context, as backend.Manager.Start's "not a td project (no .todos
+// directory)", which makes every test in this package fail identically
+// whenever the suite runs from inside a git hook — invisible without this
+// note.
+//
+// Clearing GIT_* here, once, for the whole test binary process, is
+// inherited by every exec.Command spawned without an explicit Env — both
+// `run`'s and the one backend.Manager starts — without touching either
+// helper or reaching into internal/backend. (Manager's own `td serve` turns
+// out to be unaffected by a leaked GIT_DIR on its own, since it always
+// passes --work-dir explicitly; it is scrubbed here anyway for the same
+// package-wide guarantee, rather than leaving that immunity to depend on
+// every future call always remembering the flag.)
+func TestMain(m *testing.M) {
+	var restore []func()
+	for _, kv := range os.Environ() {
+		name, value, ok := strings.Cut(kv, "=")
+		if !ok || !strings.HasPrefix(name, "GIT_") {
+			continue
+		}
+		os.Unsetenv(name)
+		restore = append(restore, func() { os.Setenv(name, value) })
+	}
+
+	code := m.Run()
+
+	for _, fn := range restore {
+		fn()
+	}
+	os.Exit(code)
+}
 
 // newProject creates a temp td project with one issue and fronts it with the
 // same proxy stack the real binary uses. It skips when td is unavailable so
