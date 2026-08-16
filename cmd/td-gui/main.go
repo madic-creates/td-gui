@@ -124,13 +124,6 @@ func run() error {
 	mux.Handle("/health", apiSwitch)
 	mux.Handle("/", assets)
 
-	srv := &http.Server{
-		Handler:      proxy.OriginGuard(origin, mux),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0, // SSE responses stay open indefinitely
-		IdleTimeout:  120 * time.Second,
-	}
-
 	fmt.Fprintf(os.Stderr, "td-gui is running on %s\n", origin)
 	fmt.Fprintf(os.Stderr, "  project:  %s\n", baseDir)
 	fmt.Fprintf(os.Stderr, "  td:       %s (%s)\n", td, version)
@@ -142,6 +135,30 @@ func run() error {
 
 	if !*noOpen {
 		openBrowser(origin)
+	}
+
+	if err := serve(ctx, ln, proxy.OriginGuard(origin, mux)); err != nil {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, "td-gui stopped")
+	return nil
+}
+
+// serve runs handler on ln until ctx is cancelled or Serve fails, then shuts
+// the server down.
+//
+// Request contexts descend from BaseContext, so cancelling connCtx below is
+// what makes shutdown immediate — see the comment at the Shutdown call.
+func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
+	connCtx, cancelConns := context.WithCancel(context.Background())
+	defer cancelConns()
+
+	srv := &http.Server{
+		Handler:      handler,
+		BaseContext:  func(net.Listener) context.Context { return connCtx },
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 0, // SSE responses stay open indefinitely
+		IdleTimeout:  120 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
@@ -160,10 +177,19 @@ func run() error {
 		}
 	}
 
+	// Shutdown waits for in-flight handlers and never cancels their contexts,
+	// and the UI always holds td's SSE endpoint open, so Shutdown on its own
+	// blocks for the full timeout. Worse, td serve is being stopped in the same
+	// breath and waits out its own grace period for that same stream, so Ctrl-C
+	// cost about ten seconds. Cancelling connCtx propagates to every in-flight
+	// request context, which tears the proxied stream down at once; nothing else
+	// this server answers is long-lived, so there is no drain worth waiting for.
+	cancelConns()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
-	fmt.Fprintln(os.Stderr, "td-gui stopped")
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		_ = srv.Close()
+	}
 	return nil
 }
 
