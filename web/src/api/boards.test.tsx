@@ -69,6 +69,44 @@ describe('board queries', () => {
     await waitFor(() => expect(withClosed.result.current.isSuccess).toBe(true))
     expect(requests).toContain('/v1/boards/bd-1?include_closed=true')
   })
+
+  /** One client for the whole hook, so a rerender reads the same cache. */
+  function stableWrapper() {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    )
+  }
+
+  // include_closed is part of the query key, so ticking the box lands on a key
+  // with nothing cached. Holding the previous answer keeps isPending false and
+  // BoardView's chrome — the checkbox being ticked included — mounted.
+  it('holds the previous answer while the same board refetches', async () => {
+    const { result, rerender } = renderHook(
+      ({ closed }) => useBoard('bd-1', closed),
+      { wrapper: stableWrapper(), initialProps: { closed: false } },
+    )
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    rerender({ closed: true })
+    expect(result.current.isPending).toBe(false)
+    expect(result.current.data).toBeDefined()
+  })
+
+  // But only for the same board. /boards/:id keeps BoardView mounted across an
+  // id change, so an unscoped keepPreviousData would render one board's name
+  // and cards under another board's url until the fetch landed.
+  it('does not hold one board over another', async () => {
+    const { result, rerender } = renderHook(
+      ({ id }) => useBoard(id),
+      { wrapper: stableWrapper(), initialProps: { id: 'bd-1' } },
+    )
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    rerender({ id: 'bd-2' })
+    expect(result.current.data).toBeUndefined()
+    expect(result.current.isPending).toBe(true)
+  })
 })
 
 describe('board mutations', () => {

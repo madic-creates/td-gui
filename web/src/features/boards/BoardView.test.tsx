@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -20,12 +20,8 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-function renderBoard(board: Board, issues: BoardCard[], path = '/boards/bd-sprint1') {
-  server.use(http.get('/v1/boards/:id', ({ request }) => {
-    const url = new URL(request.url)
-    urls.push(url.pathname + url.search)
-    return HttpResponse.json({ ok: true, data: { board, issues } })
-  }))
+/** Mounts BoardView against whichever handler the test installed. */
+function mount(path = '/boards/bd-sprint1') {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -36,6 +32,15 @@ function renderBoard(board: Board, issues: BoardCard[], path = '/boards/bd-sprin
       </MemoryRouter>
     </QueryClientProvider>,
   )
+}
+
+function renderBoard(board: Board, issues: BoardCard[], path = '/boards/bd-sprint1') {
+  server.use(http.get('/v1/boards/:id', ({ request }) => {
+    const url = new URL(request.url)
+    urls.push(url.pathname + url.search)
+    return HttpResponse.json({ ok: true, data: { board, issues } })
+  }))
+  mount(path)
 }
 
 describe('BoardView', () => {
@@ -87,6 +92,38 @@ describe('BoardView', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Include closed' }))
     await screen.findByRole('heading', { name: 'Sprint 1' })
     expect(urls).toContain('/v1/boards/bd-sprint1?include_closed=true')
+  })
+
+  // Ticking the box switches query keys, and a full-page skeleton would unmount
+  // the checkbox mid-interaction: a keyboard user who pressed Space would find
+  // focus back on <body> and the tab order restarted.
+  it('keeps the header and the focused checkbox through the refetch', async () => {
+    let land = () => {}
+    const closedRequest = new Promise<void>(resolve => { land = resolve })
+    server.use(http.get('/v1/boards/:id', async ({ request }) => {
+      const url = new URL(request.url)
+      urls.push(url.pathname + url.search)
+      if (url.searchParams.has('include_closed')) await closedRequest
+      return HttpResponse.json({
+        ok: true,
+        data: { board: makeBoard(), issues: [makeCard({ id: 'td-a1b2' })] },
+      })
+    }))
+    mount()
+
+    const box = await screen.findByRole('checkbox', { name: 'Include closed' })
+    box.focus()
+    await userEvent.keyboard(' ')
+    await waitFor(() =>
+      expect(urls).toContain('/v1/boards/bd-sprint1?include_closed=true'))
+
+    // Mid-flight: the chrome is still there and still holds the caret.
+    expect(screen.getByRole('heading', { name: 'Sprint 1' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Include closed' })).toHaveFocus()
+    expect(screen.getByRole('checkbox', { name: 'Include closed' })).toBeChecked()
+
+    land()
+    await waitFor(() => expect(screen.getByText('td-a1b2')).toBeInTheDocument())
   })
 
   // An empty query matches every issue — verified against td v0.57.0, where

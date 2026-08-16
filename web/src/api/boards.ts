@@ -19,6 +19,15 @@ export function useBoards() {
 /**
  * Without `include_closed` td filters the board to open, in_progress, blocked
  * and in_review — so a closed card is genuinely absent, not merely hidden.
+ *
+ * includeClosed is part of the query key, so ticking the box lands on a key
+ * with nothing cached and would otherwise put the whole view back into
+ * isPending — unmounting the very checkbox the user just pressed. Holding the
+ * previous answer keeps BoardView's chrome mounted across the refetch.
+ *
+ * Scoped to the same board on purpose: /boards/:id keeps BoardView mounted
+ * when only the id changes, so an unscoped keepPreviousData would show one
+ * board's name and cards under another board's url until the fetch landed.
  */
 export function useBoard(id: string, includeClosed = false) {
   return useQuery({
@@ -27,5 +36,7 @@ export function useBoard(id: string, includeClosed = false) {
       `/v1/boards/${id}${includeClosed ? '?include_closed=true' : ''}`,
     ),
     enabled: id !== '',
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[2] === id ? previous : undefined,
   })
 }
