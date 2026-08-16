@@ -54,6 +54,15 @@ describe('SwimlaneView', () => {
     expect(screen.getByRole('region', { name: 'In progress' })).toHaveTextContent('td-bbb')
   })
 
+  // The column heading already names the status, so a tag repeating it on every
+  // card inside is noise — and it disagrees with the heading's wording besides.
+  it('leaves the status off the cards, the column heading having said it', () => {
+    renderSwimlanes([makeCard({ id: 'td-bbb', status: 'in_progress' })])
+    const column = screen.getByRole('region', { name: 'In progress' })
+    expect(column).toHaveTextContent('td-bbb')
+    expect(column).not.toHaveTextContent('in_progress')
+  })
+
   // Without include_closed td filters closed issues out of the payload, so the
   // column would never exist on a normal board — and closing is the transition
   // a drop most often wants to propose.

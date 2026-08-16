@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { DragEvent } from 'react'
 import BoardCard from './BoardCard'
-import BoardTransitionPanel, { STATUS_LABEL } from './BoardTransitionPanel'
+import BoardTransitionPanel from './BoardTransitionPanel'
+import { STATUS_LABEL } from '../../components/statusLabel'
 import type { BoardCard as Card, IssueStatus } from '../../api/types'
 
 const COLUMNS: IssueStatus[] = ['open', 'in_progress', 'blocked', 'in_review', 'closed']
@@ -139,7 +140,7 @@ export default function SwimlaneView({
                     }}
                     onDragEnd={endDrag}
                   >
-                    <BoardCard issue={card.issue} />
+                    <BoardCard issue={card.issue} showStatus={false} />
                   </li>
                 ))}
               </ul>

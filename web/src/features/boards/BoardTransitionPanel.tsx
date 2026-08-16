@@ -4,15 +4,8 @@ import { unboundMessage } from '../../api/client'
 import ErrorPanel from '../../components/ErrorPanel'
 import SkeletonRows from '../../components/SkeletonRows'
 import TransitionBar from '../issues/TransitionBar'
+import { STATUS_LABEL } from '../../components/statusLabel'
 import type { IssueStatus } from '../../api/types'
-
-export const STATUS_LABEL: Record<IssueStatus, string> = {
-  open: 'Open',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  in_review: 'In review',
-  closed: 'Closed',
-}
 
 interface Props {
   issueId: string

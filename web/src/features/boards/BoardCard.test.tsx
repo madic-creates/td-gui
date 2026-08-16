@@ -8,6 +8,10 @@ function renderCard(issue = makeIssue()) {
   render(<MemoryRouter><BoardCard issue={issue} /></MemoryRouter>)
 }
 
+function renderCardWithoutStatus(issue = makeIssue()) {
+  render(<MemoryRouter><BoardCard issue={issue} showStatus={false} /></MemoryRouter>)
+}
+
 describe('BoardCard', () => {
   it('links to the issue and shows its id, title, priority and status', () => {
     renderCard(makeIssue({ id: 'td-a1b2', title: 'Wire up the thing', priority: 'P1', status: 'in_progress' }))
@@ -27,6 +31,15 @@ describe('BoardCard', () => {
     renderCard(makeIssue({ title: 'Wire up the thing' }))
     expect(screen.getByRole('link', { name: /Wire up the thing/ }))
       .toHaveAttribute('draggable', 'false')
+  })
+
+  // Swimlanes sort the cards into status columns, so the tag would only repeat
+  // the heading. Everywhere else the card stands on its own and keeps it.
+  it('drops the status tag when the caller says the surroundings state it', () => {
+    renderCardWithoutStatus(makeIssue({ id: 'td-a1b2', priority: 'P1', status: 'in_progress' }))
+    expect(screen.queryByText('in_progress')).not.toBeInTheDocument()
+    expect(screen.getByText('td-a1b2')).toBeInTheDocument()
+    expect(screen.getByText('P1')).toBeInTheDocument()
   })
 
   // td already drops closed blockers from this summary, so every entry is
