@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -106,5 +106,64 @@ describe('BacklogView', () => {
     renderBacklog()
     await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('issue not found: td-aaa')
+  })
+
+  /**
+   * jsdom implements neither DataTransfer nor the drag lifecycle, so the
+   * exchange is stubbed. That is the whole contract the component relies on:
+   * the issue id goes out on dragstart and comes back on drop.
+   */
+  function dataTransfer(id: string) {
+    const store: Record<string, string> = { 'text/plain': id }
+    return {
+      dropEffect: '', effectAllowed: '',
+      setData: (type: string, value: string) => { store[type] = value },
+      getData: (type: string) => store[type] ?? '',
+    }
+  }
+
+  it('drops a pinned card into a higher gap', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ccc')
+    fireEvent.dragStart(screen.getByText('td-ccc').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ccc', position: 2 }]))
+  })
+
+  it('pins a card dragged up from the query-ordered block', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 1 }]))
+  })
+
+  it('appends a card dropped at the end of the pinned block', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-3'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 4 }]))
+  })
+
+  // Dropping a card onto its own place would rewrite a sort key and can
+  // trigger a respacing pass in td, all to leave the order exactly as it was.
+  it('sends nothing when a card is dropped onto its own place', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-bbb')
+    fireEvent.dragStart(screen.getByText('td-bbb').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
+    expect(positioned).toEqual([])
+  })
+
+  // Without preventDefault on dragover the browser refuses the drop outright.
+  it('accepts the drag over a gap', () => {
+    renderBacklog()
+    const event = createEvent.dragOver(screen.getByTestId('drop-gap-0'), {
+      dataTransfer: dataTransfer('td-ddd'),
+    })
+    fireEvent(screen.getByTestId('drop-gap-0'), event)
+    expect(event.defaultPrevented).toBe(true)
   })
 })
