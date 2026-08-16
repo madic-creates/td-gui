@@ -43,14 +43,22 @@ These are load-bearing; changing them changes what td-gui is.
 ## Build and test
 
 ```bash
-make test     # lint, then go test ./... and the frontend suite
-make build    # web bundle into internal/web/dist, then the Go binary
-make lint     # golangci-lint plus oxlint, without the suites
+make test      # lint, then go test ./... and the frontend suite
+make build     # web bundle into internal/web/dist, then the Go binary
+make lint      # golangci-lint, oxlint and tsc, without the suites
+make typecheck # tsc -b alone, the fastest check of a frontend edit
 ```
 
 `make test` lints first, so it needs `golangci-lint` (v2) installed — a
 lint failure stops the run before any test executes. `pre-commit install`
 wires the same checks plus whitespace/EOL fixers into the commit hook.
+
+`lint` includes the TypeScript typecheck because nothing else reads types:
+golangci-lint compiles the Go and so typechecks it for free, but oxlint does
+not type, and vitest transpiles through esbuild, which strips types without
+checking them. Before `make typecheck` existed, `make test` passed on a tree
+`make build` could not compile, and a commit that broke the build reached
+main that way.
 
 **A green `make test` can be misleading.** `test/contract` drives a real `td`
 binary and skips itself when `td` is not on PATH — `go test ./...` still

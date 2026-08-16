@@ -46,6 +46,14 @@ repos:
         language: system
         files: ^web/src/.*\.(ts|tsx)$
         pass_filenames: false
+      - id: typecheck
+        name: tsc
+        entry: bash -c 'cd web && npm run typecheck'
+        language: system
+        # Wider than the oxlint and vitest hooks on purpose: a tsconfig or a
+        # dependency bump changes what typechecks without touching web/src.
+        files: ^web/(src/.*\.(ts|tsx)|tsconfig.*\.json|package\.json)$
+        pass_filenames: false
       - id: vitest
         name: vitest
         entry: bash -c 'cd web && npm test -- --run'

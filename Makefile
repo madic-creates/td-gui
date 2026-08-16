@@ -1,4 +1,4 @@
-.PHONY: web build test test-go test-web lint lint-go lint-web clean
+.PHONY: web build test test-go test-web lint lint-go lint-web typecheck clean
 
 # Vite writes straight into the embed directory. Its emptyOutDir wipes the
 # committed .gitkeep, which go:embed needs in order to compile before any web
@@ -20,13 +20,22 @@ build: web
 # Lint runs first so a style failure surfaces before the slower suites.
 test: lint test-go test-web
 
-lint: lint-go lint-web
+lint: lint-go lint-web typecheck
 
 lint-go:
 	golangci-lint run ./...
 
 lint-web:
 	cd web && npm run lint
+
+# Not optional, and not merely a build step: nothing else here reads types.
+# golangci-lint compiles the Go, so lint-go typechecks it as a side effect —
+# the web side had no such step. oxlint does not type, and vitest transpiles
+# through esbuild, which strips types without checking them. Until this
+# target existed, `make test` passed on a tree that `make build` could not
+# compile, and a broken commit reached main that way.
+typecheck:
+	cd web && npm run typecheck
 
 test-go:
 	go test ./...
