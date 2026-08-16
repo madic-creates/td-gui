@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue, IssueType, Priority } from '../../api/types'
@@ -83,15 +83,28 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
     setDraft(current => ({ ...current, [key]: value }))
   }
 
+  // The submit button disables on update.isPending, but that reads from
+  // state and doesn't stop the form's native submit event: two submits
+  // landing before a render commits (a fast double-Enter, or two events in
+  // the same tick) would otherwise both read isPending as false and each
+  // fire a PATCH. A ref isn't tied to render timing, so it closes that gap —
+  // same fix as IssueForm.tsx's create submit.
+  const submitting = useRef(false)
+
   const submit = (event: React.FormEvent) => {
     event.preventDefault()
+    if (submitting.current) return
     const patch = diffIssue(original, draft)
     // Nothing changed — close rather than issue an empty PATCH.
     if (isEmptyPatch(patch)) {
       onDone()
       return
     }
-    update.mutate(patch, { onSuccess: onDone })
+    submitting.current = true
+    update.mutate(patch, {
+      onSuccess: onDone,
+      onSettled: () => { submitting.current = false },
+    })
   }
 
   const panelError = unboundMessage(update.error, boundFields)

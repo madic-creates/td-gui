@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
+import { http, HttpResponse, delay } from 'msw'
 import IssueEditForm, { boundFields } from './IssueEditForm'
 import type { Issue } from '../../api/types'
 
@@ -67,6 +67,29 @@ describe('IssueEditForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     await waitFor(() => expect(body).toEqual({ title: 'A brand new title for it' }))
+  })
+
+  // The Save button disables on update.isPending, but that reads from state
+  // and doesn't stop the form's native submit event — two submits landing
+  // before a render commits would otherwise both read isPending as false and
+  // each fire a PATCH. Same shape as the double-submit IssueForm.tsx had.
+  it('sends only one PATCH when the form is submitted twice in a row', async () => {
+    let count = 0
+    server.use(http.patch('/v1/issues/td-6a0883', async () => {
+      count += 1
+      await delay(20)
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    const form = screen.getByRole('button', { name: 'Save changes' }).closest('form')!
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await waitFor(() => expect(count).toBe(1))
   })
 
   it('clears a date with an empty string rather than null', async () => {
