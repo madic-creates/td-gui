@@ -89,9 +89,19 @@ function Body({ board }: { board: Board | null }) {
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
         />
         <FieldError error={mutation.error} field="query" />
+        {/* The one place td-gui leaves the local origin: td documents the
+            grammar, so the form links there instead of restating it. The
+            example stays — it is what most people need without the trip. */}
         <p className="mt-1.5 text-[11px] text-ink-faint">
           TDQ, for example <span className="font-mono">priority &lt;= P1 AND type = bug</span>.
-          Leave empty to match every issue.
+          Leave empty to match every issue. See the{' '}
+          <a
+            href="https://td.haplab.com/docs/query-language"
+            target="_blank" rel="noreferrer"
+            className="text-ink-muted underline"
+          >
+            query language reference
+          </a>.
         </p>
       </div>
 

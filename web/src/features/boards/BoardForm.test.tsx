@@ -88,6 +88,21 @@ describe('BoardForm', () => {
       .toBeInTheDocument()
   })
 
+  // td owns the TDQ grammar, so the form points at td's documentation rather
+  // than restating it. The app's only outbound link: new tab, no referrer.
+  it('links to the TDQ documentation from the query hint', async () => {
+    renderForm('/boards/new')
+    const link = screen.getByRole('link', { name: 'query language reference' })
+    expect(link).toHaveAttribute('href', 'https://td.haplab.com/docs/query-language')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noreferrer')
+  })
+
+  it('keeps the inline TDQ example next to the documentation link', async () => {
+    renderForm('/boards/new')
+    expect(screen.getByText('priority <= P1 AND type = bug')).toBeInTheDocument()
+  })
+
   it('shows an error with no field in the panel', async () => {
     server.use(http.post('/v1/boards', () => HttpResponse.json({
       ok: false, error: { code: 'internal', message: 'failed to create board' },
