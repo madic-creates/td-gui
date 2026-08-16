@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import CommentForm from './CommentForm'
 
 const server = setupServer()
@@ -77,5 +77,27 @@ describe('CommentForm', () => {
 
     await submit('x')
     expect(await screen.findByText(message)).toBeInTheDocument()
+  })
+
+  // The Add comment button disables on add.isPending, but that reads from
+  // state and doesn't stop the form's native submit event — two submits
+  // landing before a render commits would otherwise both read isPending as
+  // false and each post the comment. Same shape as IssueForm.tsx had.
+  it('posts only one comment when the form is submitted twice in a row', async () => {
+    let count = 0
+    server.use(http.post('/v1/issues/td-6a0883/comments', async () => {
+      count += 1
+      await delay(20)
+      return HttpResponse.json({ ok: true, data: {} })
+    }))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Comment'), 'A remark')
+    const form = screen.getByRole('button', { name: 'Add comment' }).closest('form')!
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await expect.poll(() => count).toBe(1)
   })
 })

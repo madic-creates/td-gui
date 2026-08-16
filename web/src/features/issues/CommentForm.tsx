@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useAddComment } from '../../api/mutations'
 
@@ -9,12 +9,24 @@ export default function CommentForm({ issueId }: { issueId: string }) {
   const add = useAddComment(issueId)
   const panelError = unboundMessage(add.error, boundFields)
 
+  // The submit button disables on add.isPending, but that reads from state
+  // and doesn't stop the form's native submit event: two submits landing
+  // before a render commits (a fast double-Enter, or two events in the same
+  // tick) would otherwise both read isPending as false and each post the
+  // comment, creating a duplicate. Same fix as IssueForm.tsx's create submit.
+  const submitting = useRef(false)
+
   return (
     <form
       className="mt-3"
       onSubmit={e => {
         e.preventDefault()
-        add.mutate({ text }, { onSuccess: () => setText('') })
+        if (submitting.current) return
+        submitting.current = true
+        add.mutate({ text }, {
+          onSuccess: () => setText(''),
+          onSettled: () => { submitting.current = false },
+        })
       }}
     >
       <label htmlFor="comment" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Comment</label>
