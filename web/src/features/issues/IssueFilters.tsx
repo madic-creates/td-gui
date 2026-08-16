@@ -1,8 +1,13 @@
+import { useEffect, useRef, useState } from 'react'
 import type { IssueListParams } from '../../api/queries'
 import type { IssueStatus } from '../../api/types'
 
 // td's own vocabulary — no separate display labels.
 const statuses: IssueStatus[] = ['open', 'in_progress', 'in_review', 'blocked', 'closed']
+
+// Long enough to absorb a normal typing burst, short enough that the list
+// still feels live.
+const SEARCH_DEBOUNCE_MS = 300
 
 interface Props {
   params: IssueListParams
@@ -10,6 +15,28 @@ interface Props {
 }
 
 export default function IssueFilters({ params, onChange }: Props) {
+  const [search, setSearch] = useState(params.search ?? '')
+
+  // Refs, not deps, so the debounce timer always applies to the latest
+  // params/onChange (e.g. a status checkbox toggled mid-typing) without
+  // restarting the delay on every keystroke.
+  const paramsRef = useRef(params)
+  paramsRef.current = params
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    const handle = setTimeout(() => {
+      onChangeRef.current({ ...paramsRef.current, search: search || undefined })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(handle)
+  }, [search])
+
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-2.5">
       <input
@@ -17,8 +44,8 @@ export default function IssueFilters({ params, onChange }: Props) {
         aria-label="Search"
         placeholder="search …"
         className="flex-1 rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink placeholder:text-ink-faint"
-        defaultValue={params.search ?? ''}
-        onChange={e => onChange({ ...params, search: e.target.value || undefined })}
+        value={search}
+        onChange={e => setSearch(e.target.value)}
       />
       {statuses.map(status => {
         const active = params.status?.includes(status) ?? false
