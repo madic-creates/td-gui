@@ -42,4 +42,26 @@ describe('AppShell', () => {
     renderShell(true)
     expect(screen.getByRole('link', { name: 'Boards' })).toHaveAttribute('href', '/boards')
   })
+
+  // The rule under the header has to reach both window edges while the logo
+  // lines up closely with the body below it, so <header> stays full-bleed and
+  // only an inner wrapper is capped. A cap on <header> itself would stop the
+  // border short and turn the header into a boxed panel.
+  it('caps the header contents in a wrapper rather than capping the header', () => {
+    renderShell(true)
+    const header = screen.getByRole('banner')
+    const brand = screen.getByText('td-gui')
+
+    expect(header).toContainElement(brand)
+    expect(brand.parentElement).not.toBe(header)
+    expect(brand.parentElement?.parentElement).toBe(header)
+  })
+
+  // A regression guard rather than a red test: the route content is already in
+  // the main landmark, and wrapping <main> in anything that broke that would
+  // cost every view its landmark.
+  it('keeps the route content inside the main landmark', () => {
+    renderShell(true)
+    expect(screen.getByRole('main')).toContainElement(screen.getByText('route content'))
+  })
 })

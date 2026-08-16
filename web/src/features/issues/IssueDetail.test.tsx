@@ -95,6 +95,36 @@ describe('IssueDetail', () => {
     expect(screen.getByText('done bits')).toBeInTheDocument()
   })
 
+  // The back link and the id share a row rather than stacking — one of the
+  // merges that got seven header rows down to four. Asserting on the shared
+  // parent, not on classes: a class assertion passes on a layout that renders
+  // stacked anyway.
+  it('puts the back link and the issue id on one row', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const back = await screen.findByRole('link', { name: '← back to list' })
+
+    expect(back.parentElement).toBe(screen.getByText('td-6a0883').parentElement)
+  })
+
+  // The header is a band above the body, not the body column's first child.
+  // The open editor's field grid is sm:grid-cols-4 and needs the page width,
+  // not the 68ch prose column Task 4 introduces.
+  it('lifts the header out of the body column', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const title = await screen.findByRole('heading', { name: 'Probe issue for API shape' })
+    const header = title.closest('header')
+    const descriptionSection = screen.getByText('A description').closest('section')
+
+    expect(header).not.toBeNull()
+    expect(header?.parentElement).not.toBe(descriptionSection?.parentElement)
+  })
+
   // The editor has always been able to write them, so a view that never shows
   // them hides a field the user just filled in.
   it('renders the acceptance criteria', async () => {
@@ -105,6 +135,13 @@ describe('IssueDetail', () => {
     renderDetail()
     expect(await screen.findByText('Acceptance criteria')).toBeInTheDocument()
     expect(screen.getByText('- The panel collapses past ten items')).toBeInTheDocument()
+
+    // Acceptance criteria is what a person wrote about the issue, same as the
+    // description right above it — it belongs in the prose column, not the
+    // structure column, so the two sections must share a parent.
+    const descriptionColumn = screen.getByText('A description').closest('section')?.parentElement
+    const acceptanceColumn = screen.getByText('Acceptance criteria').closest('section')?.parentElement
+    expect(acceptanceColumn).toBe(descriptionColumn)
   })
 
   it('omits the acceptance section when the issue has none', async () => {
@@ -589,6 +626,44 @@ describe('IssueDetail', () => {
     renderDetail()
     await screen.findByText('Probe issue for API shape')
     expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
+  })
+
+  // Prose and machine record are separate columns from 1280px up, so what a
+  // person wrote about the issue and what happened to it can be read side by
+  // side. Asserting on the grouping rather than the breakpoint: the columns are
+  // the same two elements at every width, and only the track count changes.
+  it('groups the prose apart from the activity log', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const description = await screen.findByText('A description')
+    const proseColumn = description.closest('section')?.parentElement
+    const structureColumn = screen.getByText('Activity').closest('section')?.parentElement
+
+    expect(proseColumn).toBeTruthy()
+    expect(proseColumn).not.toBe(structureColumn)
+    expect(proseColumn?.parentElement).toBe(structureColumn?.parentElement)
+
+    // Without this, Comments could drift into the structure column with
+    // every assertion above still green — it is the other half of what a
+    // person wrote about the issue, so it belongs with the description.
+    const commentsColumn = screen.getByText('Comments').closest('section')?.parentElement
+    expect(commentsColumn).toBe(proseColumn)
+  })
+
+  // The comment form travels with the comments, into the prose column — it is
+  // the other half of what a person writes about an issue.
+  it('keeps the comment form with the comments', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const comment = await screen.findByText(
+      'The handoff panel should collapse past ten items per group.')
+    const submit = screen.getByRole('button', { name: 'Add comment' })
+
+    expect(comment.closest('section')).toBe(submit.closest('section'))
   })
 
   it('shows the standing review from active_review', async () => {
