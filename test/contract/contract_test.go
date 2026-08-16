@@ -674,3 +674,103 @@ func TestFocusContract(t *testing.T) {
 			"any other status is an unrelated routing regression", read.StatusCode)
 	}
 }
+
+// postJSON posts and decodes the envelope, for the endpoints whose response
+// body the caller needs rather than only its status.
+func postJSON(t *testing.T, url, body string, into any) int {
+	t.Helper()
+	resp, err := http.Post(url, "application/json", jsonBody(body))
+	if err != nil {
+		t.Fatalf("POST %s: %v", url, err)
+	}
+	defer resp.Body.Close()
+	if into != nil {
+		if err := json.NewDecoder(resp.Body).Decode(into); err != nil {
+			t.Fatalf("decode %s: %v", url, err)
+		}
+	}
+	return resp.StatusCode
+}
+
+// TestBoardPositionSlotContract pins the one thing the boards UI computes:
+// POST /v1/boards/{id}/issues takes a 1-BASED SLOT among the cards that
+// already have a position, while the position read back from the board is a
+// sparse sort key (1000, 2000, 1500). Sending slot 1 must put a card first.
+//
+// It also pins the response shape the cards are built from: issues[].issue and
+// issues[].has_position. A rename in td must fail here rather than surface as
+// an undefined card in the UI.
+func TestBoardPositionSlotContract(t *testing.T) {
+	front, first := newProject(t)
+
+	if status := post(t, front+"/v1/issues",
+		`{"title":"Second contract issue with a long enough title","type":"feature","priority":"P1"}`,
+	); status != http.StatusCreated && status != http.StatusOK {
+		t.Fatalf("create second issue status = %d", status)
+	}
+	second := otherIssue(t, front, first)
+
+	var created struct {
+		Data struct {
+			Board struct {
+				ID string `json:"id"`
+			} `json:"board"`
+		} `json:"data"`
+	}
+	if status := postJSON(t, front+"/v1/boards",
+		`{"name":"Contract board","query":"type = feature"}`, &created,
+	); status != http.StatusCreated {
+		t.Fatalf("create board status = %d, want 201", status)
+	}
+	board := created.Data.Board.ID
+	if board == "" {
+		t.Fatal("created board has no id — POST /v1/boards nests it under `board`")
+	}
+
+	// Pin the second issue first, then push the first issue in front of it.
+	// Both calls use slot 1, which is what makes the slot semantics visible:
+	// the value is not an index into anything the caller rendered.
+	if status := post(t, front+"/v1/boards/"+board+"/issues",
+		`{"issue_id":"`+second+`","position":1}`); status != http.StatusOK {
+		t.Fatalf("position second status = %d, want 200", status)
+	}
+	if status := post(t, front+"/v1/boards/"+board+"/issues",
+		`{"issue_id":"`+first+`","position":1}`); status != http.StatusOK {
+		t.Fatalf("position first status = %d, want 200", status)
+	}
+
+	var got struct {
+		Data struct {
+			Board  map[string]json.RawMessage `json:"board"`
+			Issues []struct {
+				Issue struct {
+					ID string `json:"id"`
+				} `json:"issue"`
+				HasPosition *bool `json:"has_position"`
+			} `json:"issues"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/boards/"+board, &got)
+
+	for _, field := range []string{"id", "name", "query", "is_builtin", "view_mode"} {
+		if _, ok := got.Data.Board[field]; !ok {
+			t.Errorf("board is missing %q", field)
+		}
+	}
+
+	if len(got.Data.Issues) < 2 {
+		t.Fatalf("board returned %d issues, want at least 2", len(got.Data.Issues))
+	}
+	if got.Data.Issues[0].Issue.ID != first {
+		t.Errorf("first card = %q, want %q — slot 1 must place a card at the front",
+			got.Data.Issues[0].Issue.ID, first)
+	}
+	if got.Data.Issues[1].Issue.ID != second {
+		t.Errorf("second card = %q, want %q", got.Data.Issues[1].Issue.ID, second)
+	}
+	for i, card := range got.Data.Issues[:2] {
+		if card.HasPosition == nil || !*card.HasPosition {
+			t.Errorf("card %d has_position = %v, want true", i, card.HasPosition)
+		}
+	}
+}
