@@ -124,7 +124,7 @@ function IssueDetailView({ id }: { id: string }) {
             the sidebar under the first column. The prose track takes exactly
             its 68ch measure and the log column takes the remainder, so neither
             carries slack. Row gaps stay with the sections' own mt-6. */}
-        <div className="grid content-start gap-x-6 xl:grid-cols-[minmax(0,68ch)_minmax(0,1fr)]">
+        <div className="grid gap-x-6 xl:grid-cols-[minmax(0,68ch)_minmax(0,1fr)]">
           <div>
             {!editing && issue.description && (
               <section className="mt-6">
@@ -265,8 +265,18 @@ function HandoffPanel({ handoff }: { handoff: Handoff }) {
   return (
     <section className="mt-6">
       <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Latest handoff</h2>
-      <div className="rounded-md border border-line bg-surface-raised px-4 py-3.5">
-        <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
+      {/* @container: the two-column switch below has to key off this card's
+          own width, not the viewport's. The card lives in the 68ch prose
+          track from xl up, so a viewport breakpoint like sm would still see
+          a wide window and cut it to ~226px sub-columns — 30 characters at
+          this font size. */}
+      <div className="@container rounded-md border border-line bg-surface-raised px-4 py-3.5">
+        {/* @2xl (42rem/672px) rather than @sm (24rem/384px): the card's
+            content box is ~474px in the prose track, which @sm would still
+            call "wide enough" for two columns — the exact bug this fixes.
+            @2xl only fires once the card itself is wide, which happens below
+            xl where the main column is undivided. */}
+        <div className="grid gap-x-5 gap-y-3.5 @2xl:grid-cols-2">
           {sections.filter(([, items]) => items.length > 0).map(([title, items]) => (
             <div key={title}>
               <h3 className={`mb-1.5 text-[11px] uppercase tracking-widest ${handoffTone[title]}`}>
