@@ -139,6 +139,30 @@ describe('IssueDetail', () => {
 
     expect(row).toBeTruthy()
     expect(row).toContainElement(screen.getByRole('button', { name: 'Request review' }))
+
+    // Both button rows are direct children of the same container, which is
+    // what lets the grid pin them to two columns of one row. Nested in a
+    // wrapper of their own they could not share a row at all.
+    expect(screen.getByRole('button', { name: 'Request review' }).parentElement?.parentElement)
+      .toBe(row)
+  })
+
+  // The reason form is a sibling of the two button rows, not a child of
+  // TransitionBar's own wrapper — it has none. That is what lets it claim a
+  // full-width row underneath the bar, where td's prompt and, next to it, td's
+  // rejection wording have room to be read rather than being trapped in the
+  // width of four buttons.
+  it('gives the reason form a row of its own under the buttons', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const block = await screen.findByRole('button', { name: 'Block' })
+    const row = block.parentElement?.parentElement
+
+    await userEvent.click(block)
+
+    expect(screen.getByLabelText('Reason').closest('form')?.parentElement).toBe(row)
   })
 
   // Hidden rather than unmounted: react-query stops calling a mutation's

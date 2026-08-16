@@ -86,23 +86,30 @@ function IssueDetailView({ id }: { id: string }) {
         <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)} />
       </header>
 
-      {/* Row 3. Both control groups on one line: what td offers to do with the
-          issue on the left, what this GUI offers on the right.
+      {/* Row 3. One continuous bar of controls: what td offers to do with the
+          issue, then what this GUI offers.
 
-          They are siblings rather than nested because TransitionBar renders
-          its own <form> for a transition's reason and IssueEditForm is a
-          <form> too — nesting them would be invalid HTML, which is what kept
-          these two on separate rows until IssueActions moved out of the edit
-          form.
+          The two come from different components because they answer to
+          different things, and they are siblings rather than nested because
+          TransitionBar renders its own <form> for a transition's reason while
+          IssueEditForm is a <form> too — nesting them would be invalid HTML,
+          which is what kept these on separate rows until IssueActions moved
+          out of the edit form.
 
-          A grid, not a flex row: IssueActions renders no wrapper of its own,
-          so its button row takes the right-hand cell while a rejection panel
-          from it spans a full row underneath at readable width. TransitionBar
-          keeps its own wrapper and so stays inside the 1fr cell with its
-          reason form and its own errors. The empty div around it holds that
-          cell open, since TransitionBar renders nothing at all when td reports
-          no available transitions — without it the action buttons would slide
-          left whenever that happens.
+          Neither renders a wrapper, so this grid receives their parts
+          directly: both button rows pin themselves to columns 1 and 2 of the
+          first row, and the reason form and both rejection panels take
+          full-width rows underneath, where td's wording has room to be read.
+          The third track is filler that absorbs the leftover width so the
+          buttons keep their own size and stay left.
+
+          `grid-flow-row-dense` is what holds the bar together. The parts
+          arrive in component order — transition buttons, reason form,
+          transition error, action buttons — so without dense packing the
+          action buttons would be placed after the full-width rows and drop
+          below them the moment a reason form opened. Dense back-fills column
+          2 of the first row instead, which is free, so the seven buttons stay
+          on one line in every state.
 
           `hidden` rather than an unmount while editing: react-query stops
           calling a mutation's mutate-level callbacks once its observer loses
@@ -111,11 +118,9 @@ function IssueDetailView({ id }: { id: string }) {
           while it is open. */}
       <div
         hidden={editing}
-        className="mt-3 grid grid-cols-[1fr_auto] items-start gap-x-4 gap-y-2"
+        className="mt-3 grid grid-flow-row-dense grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-1.5"
       >
-        <div>
-          <TransitionBar issueId={issue.id} available={issue.available_transitions} />
-        </div>
+        <TransitionBar issueId={issue.id} available={issue.available_transitions} />
         <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
       </div>
 

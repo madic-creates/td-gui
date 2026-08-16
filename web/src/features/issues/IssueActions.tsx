@@ -78,13 +78,14 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
   }
 
   return (
-    // No wrapper element on purpose. The host — IssueDetail's header — is a
-    // grid, and this returns two grid items rather than one: the button row
-    // takes a cell beside the tag row, and the panel below takes a row of its
-    // own. Wrapped, td's rejection wording would render at the width of three
-    // buttons. Vertical spacing is the grid's gap, not a margin here.
+    // No wrapper element on purpose. The host — IssueDetail's control row —
+    // is a grid, and this returns two grid items rather than one: the button
+    // row takes the second column of the first row, right beside
+    // TransitionBar's buttons so all seven read as one bar, and the panel
+    // below takes a full-width row of its own. Wrapped, td's rejection
+    // wording would render at the width of three buttons.
     <>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="col-start-2 flex flex-wrap items-center gap-1.5">
         <button
           type="button"
           onClick={handleEdit}
@@ -118,7 +119,7 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
           `col-span-full` is inert outside a grid, so this degrades to a plain
           block if the component is ever hosted somewhere else. */}
       {panelError && (
-        <div className="col-span-full">
+        <div className="col-span-full mt-2">
           <ErrorPanel label="Action rejected" message={panelError} />
         </div>
       )}

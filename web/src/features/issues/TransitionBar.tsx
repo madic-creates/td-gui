@@ -163,14 +163,23 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   }
 
   return (
-    /* No margin and no rule of its own. Both are the host's to decide, and
-       the hosts want different things: IssueDetail sits this bar in a grid
-       cell beside its own action buttons, where any margin here would drop
-       the two rows out of alignment, while BoardTransitionPanel wants a
-       separator above it. A rule here would also split one control bar into
-       two. See IssueDetail's action row and BoardTransitionPanel's wrapper. */
-    <div>
-      <div className="flex flex-wrap gap-1.5">
+    /* Three siblings, not a wrapper around them: IssueDetail's control row is
+       a grid, and it puts this button row and IssueActions' buttons in two
+       columns of one row so all seven read as one bar. That only works if the
+       reason form and the error panel are separate grid items able to claim a
+       full-width row of their own — inside a wrapper they would be trapped in
+       the button row's column, and td's rejection wording would render at the
+       width of four buttons. The column and span classes are inert outside a
+       grid, so BoardTransitionPanel, which stacks these three in a plain
+       block, is unaffected.
+
+       No margin and no rule above the buttons either. Both are the host's to
+       decide, and the hosts want different things: a margin here would drop
+       IssueDetail's two button groups out of alignment, while
+       BoardTransitionPanel wants a separator and supplies its own. A rule
+       here would also split one control bar into two. */
+    <>
+      <div className="col-start-1 flex flex-wrap gap-1.5">
         {available.map(action => (
           <button
             key={action}
@@ -198,7 +207,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
 
       {pending && (
         <form
-          className="mt-3"
+          className="col-span-full mt-3"
           onSubmit={e => {
             e.preventDefault()
             submit()
@@ -290,10 +299,10 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
       {panelError && (
         // td phrases policy rejections and validation errors precisely. Show
         // its message unchanged; a generic "not allowed" would lose the reason.
-        <div className="mt-2">
+        <div className="col-span-full mt-2">
           <ErrorPanel label="Transition rejected" message={panelError} />
         </div>
       )}
-    </div>
+    </>
   )
 }
