@@ -28,17 +28,36 @@ interface Envelope<T> {
   error?: { code: ApiErrorCode; message: string; details?: { fields?: FieldError[] } }
 }
 
+// Neither the browser's fetch nor the Go proxy's reverse-proxy transport time
+// out on their own — the server's WriteTimeout is deliberately 0 so an SSE
+// stream can stay open indefinitely, and that same handler serves every /v1
+// call. Without a bound here, a td serve that hangs (a lock, a stuck query)
+// leaves a form's mutate/query pending forever with no error to show and no
+// way out short of reloading the page.
+const REQUEST_TIMEOUT_MS = 20_000
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   // Resolve against the current origin. In the browser td-gui serves the SPA
   // and proxies /v1 from the same origin; under jsdom this turns the relative
   // path into the absolute URL Node's fetch requires.
   const url = new URL(path, window.location.origin).toString()
 
-  const res = await fetch(url, {
-    method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error(
+        `${method} ${path} timed out after ${REQUEST_TIMEOUT_MS / 1000}s — td serve is not responding`,
+      )
+    }
+    throw err
+  }
 
   let envelope: Envelope<T> | null = null
   try {
