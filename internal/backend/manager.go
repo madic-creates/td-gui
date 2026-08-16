@@ -141,10 +141,14 @@ func (m *Manager) spawn(ctx context.Context) error {
 	m.mu.Unlock()
 
 	// td serve writes .todos/serve-port once it is listening. Poll for it,
-	// then confirm with a probe rather than trusting the file alone.
+	// then confirm with a probe rather than trusting the file alone. The PID
+	// must match the child just started: a foreign process racing to spawn
+	// against the same BaseDir (another td-gui, a td monitor) can leave its
+	// own port file there, and reading it without checking PID would adopt
+	// an instance this Manager never spawned and does not supervise.
 	deadline := time.Now().Add(m.cfg.StartTimeout)
 	for time.Now().Before(deadline) {
-		if info, err := ReadPortFile(m.cfg.BaseDir); err == nil {
+		if info, err := ReadPortFile(m.cfg.BaseDir); err == nil && info.PID == cmd.Process.Pid {
 			url := fmt.Sprintf("http://127.0.0.1:%d", info.Port)
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url+"/health", nil)
 			if resp, err := m.client.Do(req); err == nil {

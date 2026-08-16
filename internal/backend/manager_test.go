@@ -115,6 +115,25 @@ func TestStartRejectsTokenProtectedForeignInstance(t *testing.T) {
 	}
 }
 
+func TestSpawnIgnoresStalePortFileFromAnotherInstance(t *testing.T) {
+	base := t.TempDir()
+	// A foreign, still-live instance's port file already sits at BaseDir,
+	// simulating another td-gui or td monitor racing to spawn against the
+	// same project. spawn must not adopt it just because it answers /health;
+	// the PID must belong to the child spawn just started.
+	foreign := startFakeServe(t, base, false)
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTd(t), StartTimeout: 10 * time.Second})
+	if err := m.spawn(context.Background()); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	defer m.Stop()
+
+	if m.BaseURL() == foreign.URL {
+		t.Errorf("spawn adopted the foreign instance's port file (%s), want its own child's", foreign.URL)
+	}
+}
+
 func TestStartFailsWithoutTodosDir(t *testing.T) {
 	m := NewManager(Config{BaseDir: t.TempDir(), TdPath: "/nonexistent/td"})
 	if err := m.Start(context.Background()); err == nil {
