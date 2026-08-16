@@ -85,6 +85,44 @@
       ],
       ignoreTests: true,
     },
+    {
+      // The one dep whose bump Renovate cannot land unattended. ci.yaml pins
+      // the semantic-release binary by version *and* by sha256, and Renovate
+      // can only move the first: a github-releases "digest" is the release's
+      // commit SHA, not the checksum of an asset, so there is no template that
+      // rewrites SEMREL_SHA256 alongside SEMREL_VERSION.
+      //
+      // Left on automerge that is a trap rather than a breakage. The release
+      // job runs on pushes to main only, so the bump PR never executes the
+      // step it just edited, goes green on the other jobs and merges — and the
+      // mismatch surfaces on main. Nothing corrupts (the digest is checked
+      // before the tag is published, so a failure costs a release, never a
+      // dangling tag), but it strands releases until a human intervenes.
+      //
+      // So make the human the one who merges it. Whoever takes the PR updates
+      // both lines together, from the checksums.txt asset of the same release.
+      matchDepNames: [
+        'go-semantic-release/semantic-release',
+      ],
+      automerge: false,
+    },
+  ],
+  // ci.yaml installs a pinned upstream binary by URL — no manager sees that,
+  // so the version would silently rot without this. Keyed on an explicit
+  // `# renovate:` comment rather than on the variable name alone: TD_VERSION
+  // sits in the same file and is deliberately the *oldest* td we support, so
+  // it must never be bumped automatically. Opting in by comment is what keeps
+  // these two apart.
+  customManagers: [
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '.github/workflows/*.yaml',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>[a-zA-Z0-9-._]+?) depName=(?<depName>[^\\s]+?)\\s+[A-Z0-9_]+_VERSION: (?<currentValue>\\S+)',
+      ],
+    },
   ],
   minimumReleaseAge: '5 days',
   // Apply the age check only when the datasource provides a release timestamp.

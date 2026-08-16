@@ -237,13 +237,29 @@ jobs:
             echo "proceed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pinning the version is not the same as pinning the bytes: GitHub
+      # release assets are mutable, so verify the digest before the file is
+      # ever made executable.
+      #
+      # The customManager in .github/renovate.json5 reads SEMREL_VERSION off
+      # the comment below and opens bump PRs for it. SEMREL_SHA256 it cannot
+      # touch — a github-releases "digest" is the release's commit SHA, not an
+      # asset checksum — so that dep is opted out of automerge over there and
+      # both lines are updated by hand, together. The new value is the
+      # linux_amd64 line of semantic-release_<version>_checksums.txt, published
+      # as an asset of the same release.
       - name: Install pinned semantic-release binary
         if: steps.guard.outputs.proceed == 'true'
+        env:
+          # renovate: datasource=github-releases depName=go-semantic-release/semantic-release
+          SEMREL_VERSION: v2.31.0
+          SEMREL_SHA256: b8f518b1aeb1d1742f4e6e91a179b707cea4309a64fe3854f465bf724f04f6d3
         run: |
           set -euo pipefail
           curl -fsSL \
-            https://github.com/go-semantic-release/semantic-release/releases/download/v2.31.0/semantic-release_v2.31.0_linux_amd64 \
+            "https://github.com/go-semantic-release/semantic-release/releases/download/${SEMREL_VERSION}/semantic-release_${SEMREL_VERSION}_linux_amd64" \
             -o /tmp/semantic-release
+          echo "${SEMREL_SHA256}  /tmp/semantic-release" | sha256sum -c -
           chmod +x /tmp/semantic-release
           /tmp/semantic-release --version
 
