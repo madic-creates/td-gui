@@ -1,10 +1,41 @@
 ---
 name: CI
 
+# The paths allowlist below is duplicated across push and pull_request on
+# purpose: GitHub does not expand YAML anchors in `on:`, so the two lists have
+# to be kept in sync by hand. Anything not listed — docs/**, the READMEs,
+# CLAUDE.md, .pre-commit-config.yaml, .gitignore, the Renovate config — cannot
+# affect a build, a test or a release artifact, so it starts no run at all.
+#
+# workflow_dispatch and schedule are deliberately unfiltered; GitHub does not
+# accept `paths:` on them anyway, and contract-drift depends on the schedule
+# firing unconditionally.
 on:
   push:
     branches: [main]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "test/**"
+      - "web/**"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - "Makefile"
+      - ".semrelrc"
+      - ".github/workflows/ci.yaml"
   pull_request:
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "test/**"
+      - "web/**"
+      - "go.mod"
+      - "go.sum"
+      - ".golangci.yml"
+      - "Makefile"
+      - ".semrelrc"
+      - ".github/workflows/ci.yaml"
   workflow_dispatch:
   schedule:
     - cron: "0 5 * * 1"  # Weekly, Mondays 05:00 UTC — contract-drift only
@@ -162,7 +193,12 @@ jobs:
   # derives the version from the commit subjects since the last tag, so the
   # scopes in CLAUDE.md decide what ships: feat -> minor, fix/perf/refactor/
   # chore(deps) -> patch, a `!` -> major. docs/test/ci/style commits produce no
-  # version at all, which is why this workflow needs no paths: filter.
+  # version at all.
+  #
+  # The paths allowlist at the top of this file cannot strand a version bump.
+  # The baseline is the last *tag*, not the last run, so a push filtered out
+  # here leaves its commits in the range: the next push that does trigger picks
+  # them up and ships them. Filtering delays a release, it never drops one.
   #
   # Unlike the other jobs this one must not cancel-in-progress. A cancel
   # between "Publish Git tag + GitHub Release" and "Upload binary" would leave
