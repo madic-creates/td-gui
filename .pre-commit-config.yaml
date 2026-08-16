@@ -52,7 +52,9 @@ repos:
         language: system
         # Wider than the oxlint and vitest hooks on purpose: a tsconfig or a
         # dependency bump changes what typechecks without touching web/src.
-        files: ^web/(src/.*\.(ts|tsx)|tsconfig.*\.json|package\.json)$
+        # vite.config.ts is named because tsconfig.node.json includes it, so it
+        # is the one file outside web/src that `tsc -b` actually reads.
+        files: ^web/(src/.*\.(ts|tsx)|vite\.config\.ts|tsconfig.*\.json|package\.json)$
         pass_filenames: false
       - id: vitest
         name: vitest

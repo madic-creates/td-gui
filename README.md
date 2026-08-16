@@ -94,7 +94,8 @@ started itself, it also stops, and restarts once if it dies unexpectedly.
 ```bash
 make test                 # lint, then Go and frontend tests
 make build                # web bundle into internal/web/dist, then the binary
-make lint                 # golangci-lint plus oxlint, without the suites
+make lint                 # golangci-lint, oxlint and tsc, without the suites
+make typecheck            # tsc alone, the fastest check of a frontend edit
 ```
 
 For hot reload against real data, run the server and the Vite dev server in two
