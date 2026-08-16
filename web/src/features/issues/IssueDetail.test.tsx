@@ -621,6 +621,38 @@ describe('IssueDetail', () => {
     expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
   })
 
+  // Prose and machine record are separate columns from 1280px up, so what a
+  // person wrote about the issue and what happened to it can be read side by
+  // side. Asserting on the grouping rather than the breakpoint: the columns are
+  // the same two elements at every width, and only the track count changes.
+  it('groups the prose apart from the activity log', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const description = await screen.findByText('A description')
+    const proseColumn = description.closest('section')?.parentElement
+    const structureColumn = screen.getByText('Activity').closest('section')?.parentElement
+
+    expect(proseColumn).toBeTruthy()
+    expect(proseColumn).not.toBe(structureColumn)
+    expect(proseColumn?.parentElement).toBe(structureColumn?.parentElement)
+  })
+
+  // The comment form travels with the comments, into the prose column — it is
+  // the other half of what a person writes about an issue.
+  it('keeps the comment form with the comments', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const comment = await screen.findByText(
+      'The handoff panel should collapse past ten items per group.')
+    const submit = screen.getByRole('button', { name: 'Add comment' })
+
+    expect(comment.closest('section')).toBe(submit.closest('section'))
+  })
+
   it('shows the standing review from active_review', async () => {
     server.use(
       http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
