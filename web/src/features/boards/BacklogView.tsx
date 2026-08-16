@@ -56,8 +56,10 @@ export default function BacklogView({ boardId, cards }: Props) {
     setDragging(null)
     // text/plain is whatever the drag carried, and a drag that started outside
     // the board carries something else — a link from another window arrives as
-    // its URL. td would answer that with a 404 the user did nothing to earn,
+    // its URL, and a drag no card here started leaves `dragging` null to fall
+    // back on. td would answer either with a 404 the user did nothing to earn,
     // so a payload that names no card here is a no-op, as in SwimlaneView.
+    if (!issueId) return
     if (!cards.some(c => c.issue.id === issueId)) return
     move(issueId, insertSlot(gap, pinnedIndexOf(issueId)))
   }
