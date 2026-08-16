@@ -77,11 +77,9 @@ export default function SwimlaneView({
 
   const dropOn = (status: IssueStatus) => (event: DragEvent) => {
     event.preventDefault()
-    // As in BacklogView's `dropAt`: the `|| dragging` fallback is deliberately
-    // untested. jsdom implements neither DataTransfer nor DragEvent, so the
-    // drag tests pass a hand-written stub, and a stub told to return '' would
-    // only assert itself. See the longer note there.
-    const issueId = event.dataTransfer.getData('text/plain') || dragging
+    // As in BacklogView's `dropAt`: text/plain is the whole story, with no
+    // fallback on `dragging`. See dragSource for why.
+    const issueId = event.dataTransfer.getData('text/plain')
     endDrag()
     if (!issueId) return
     const card = cards.find(c => c.issue.id === issueId)
