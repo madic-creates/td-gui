@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import BacklogView from './BacklogView'
-import { makeCard } from './board.fixture'
+import { dataTransfer, makeCard } from './board.fixture'
 import type { BoardCard } from '../../api/types'
 
 const positioned: unknown[] = []
@@ -147,20 +147,6 @@ describe('BacklogView', () => {
     await waitFor(() => expect(cleared).toEqual(['td-bbb']))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
-
-  /**
-   * jsdom implements neither DataTransfer nor the drag lifecycle, so the
-   * exchange is stubbed. That is the whole contract the component relies on:
-   * the issue id goes out on dragstart and comes back on drop.
-   */
-  function dataTransfer(id: string) {
-    const store: Record<string, string> = { 'text/plain': id }
-    return {
-      dropEffect: '', effectAllowed: '',
-      setData: (type: string, value: string) => { store[type] = value },
-      getData: (type: string) => store[type] ?? '',
-    }
-  }
 
   it('drops a pinned card into a higher gap', async () => {
     renderBacklog()

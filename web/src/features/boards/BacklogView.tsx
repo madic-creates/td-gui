@@ -4,6 +4,7 @@ import { unboundMessage } from '../../api/client'
 import { useClearCardPosition, useSetCardPosition } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import BoardCard from './BoardCard'
+import { dragSourceProps } from './dragSource'
 import { insertSlot } from './position'
 import type { BoardCard as Card } from '../../api/types'
 
@@ -155,13 +156,7 @@ export default function BacklogView({ boardId, cards }: Props) {
               <Fragment key={card.issue.id}>
                 <DropGap {...gapProps(index)} />
                 <li
-                  draggable={!busy}
-                  onDragStart={e => {
-                    e.dataTransfer.setData('text/plain', card.issue.id)
-                    e.dataTransfer.effectAllowed = 'move'
-                    setDragging(card.issue.id)
-                  }}
-                  onDragEnd={endDrag}
+                  {...dragSourceProps(card.issue.id, { setDragging, endDrag, enabled: !busy })}
                   className="flex items-center gap-1.5"
                 >
                   {/* The dimming sits on the card, not the row: the controls
@@ -225,13 +220,7 @@ export default function BacklogView({ boardId, cards }: Props) {
             {auto.map(card => (
               <li
                 key={card.issue.id}
-                draggable={!busy}
-                onDragStart={e => {
-                  e.dataTransfer.setData('text/plain', card.issue.id)
-                  e.dataTransfer.effectAllowed = 'move'
-                  setDragging(card.issue.id)
-                }}
-                onDragEnd={endDrag}
+                {...dragSourceProps(card.issue.id, { setDragging, endDrag, enabled: !busy })}
                 data-testid={`card-${card.issue.id}`}
                 className={dim(card.issue.id)}
               >

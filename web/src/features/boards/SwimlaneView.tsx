@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { DragEvent } from 'react'
 import BoardCard from './BoardCard'
 import BoardTransitionPanel from './BoardTransitionPanel'
+import { dragSourceProps } from './dragSource'
 import { STATUS_LABEL } from '../../components/statusLabel'
 import type { BoardCard as Card, IssueStatus } from '../../api/types'
 
@@ -136,13 +137,7 @@ export default function SwimlaneView({
                 {column.map(card => (
                   <li
                     key={card.issue.id}
-                    draggable
-                    onDragStart={e => {
-                      e.dataTransfer.setData('text/plain', card.issue.id)
-                      e.dataTransfer.effectAllowed = 'move'
-                      setDragging(card.issue.id)
-                    }}
-                    onDragEnd={endDrag}
+                    {...dragSourceProps(card.issue.id, { setDragging, endDrag })}
                   >
                     <BoardCard issue={card.issue} showStatus={false} />
                   </li>

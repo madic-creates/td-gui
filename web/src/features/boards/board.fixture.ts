@@ -32,3 +32,24 @@ export function makeCard(
     ...over,
   }
 }
+
+/**
+ * A stand-in for DataTransfer, shared by both views' drag tests.
+ *
+ * jsdom implements neither DataTransfer nor the drag lifecycle, so the
+ * exchange has to be stubbed. What is stubbed is the whole contract the views
+ * rely on: the issue id goes out on dragstart and comes back on drop. Pass an
+ * id no card on the board has to model a drag that started somewhere else.
+ *
+ * Being a stub, it is also more permissive than a real drag data store — it
+ * has no protected mode — so it cannot stand in for a browser that withholds
+ * the payload. See the note on the `|| dragging` fallback in BacklogView.
+ */
+export function dataTransfer(id: string) {
+  const store: Record<string, string> = { 'text/plain': id }
+  return {
+    dropEffect: '', effectAllowed: '',
+    setData: (type: string, value: string) => { store[type] = value },
+    getData: (type: string) => store[type] ?? '',
+  }
+}
