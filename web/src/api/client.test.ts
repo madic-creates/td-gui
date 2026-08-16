@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, expect, it, vi, beforeAll, afterAll, afterEach } from 'vitest'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { ApiError, apiGet, apiSend, unboundMessage } from './client'
@@ -8,6 +8,36 @@ const server = setupServer()
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
+
+describe('request timeout', () => {
+  // The 20s bound comes from AbortSignal.timeout, a native implementation
+  // fake timers cannot advance — waiting it out for real would make this test
+  // itself hang. Stubbing fetch to reject the way a real timeout does proves
+  // the conversion without needing the real duration to elapse.
+  it('turns a timed-out fetch into a message naming the request, not a raw DOMException', async () => {
+    const timeoutError = new DOMException('signal timed out', 'TimeoutError')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(timeoutError))
+
+    try {
+      await expect(apiGet('/v1/issues')).rejects.toThrow(
+        /GET \/v1\/issues timed out after 20s — td serve is not responding/,
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('leaves a dropped-connection TypeError unconverted', async () => {
+    const dropped = new TypeError('Failed to fetch')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(dropped))
+
+    try {
+      await expect(apiGet('/v1/issues')).rejects.toBe(dropped)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
 
 describe('apiGet', () => {
   it('unwraps the success envelope', async () => {

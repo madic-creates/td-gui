@@ -134,6 +134,38 @@ func TestSpawnIgnoresStalePortFileFromAnotherInstance(t *testing.T) {
 	}
 }
 
+// TestSpawnAbortsIfStoppedConcurrently guards against a race where Supervise
+// calls spawn to restart a crashed backend at the same moment Stop runs (e.g.
+// td-gui exiting on SIGTERM just as the child crashes). Stop reads m.cmd once
+// and returns immediately if it observes nil, so without this check spawn
+// would register the new process and report success for something nobody
+// remains to kill — orphaning it after td-gui has already exited.
+func TestSpawnAbortsIfStoppedConcurrently(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, ".todos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTd(t), StartTimeout: 10 * time.Second})
+
+	// Simulate Stop() having already run and set the flag by the time spawn
+	// reaches its post-Start check.
+	m.mu.Lock()
+	m.stopping = true
+	m.mu.Unlock()
+
+	if err := m.spawn(context.Background()); err == nil {
+		t.Fatal("spawn succeeded despite a concurrent Stop, want an error and no registered process")
+	}
+
+	m.mu.Lock()
+	cmd := m.cmd
+	m.mu.Unlock()
+	if cmd != nil {
+		t.Error("spawn registered a process after Stop had already run; it would outlive td-gui as an orphan")
+	}
+}
+
 func TestStartFailsWithoutTodosDir(t *testing.T) {
 	m := NewManager(Config{BaseDir: t.TempDir(), TdPath: "/nonexistent/td"})
 	if err := m.Start(context.Background()); err == nil {
