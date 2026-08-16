@@ -72,36 +72,52 @@ function IssueDetailView({ id }: { id: string }) {
 
   return (
     <div className="px-5 py-4 pb-6">
+      {/* Row 1. The id is the page's other name for what the title says, so it
+          belongs on the navigation line rather than owning a row of its own. */}
+      <div className="flex items-baseline gap-2 text-[11px]">
+        <Link to="/" className="text-ink-muted">← back to list</Link>
+        <span aria-hidden="true" className="text-ink-faint">·</span>
+        <span className="font-mono text-ink-faint">{issue.id}</span>
+      </div>
+
+      {/* Rows 2 and 3. The title is the edit form's first field, so the form
+          owns it in both states and the tag row and action bar are nested
+          inside — the one arrangement that edits the title where it is read
+          without moving IssueActions, whose place in the tree is load-bearing
+          (see IssueEditForm). The band sits above the body grid rather than in
+          its first cell: the open editor's field grid is sm:grid-cols-4 and
+          would be unusable inside a 68ch column. */}
+      <header className="mt-2">
+        <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}>
+          {/* Two columns, so the tags and the action buttons share row 3.
+              IssueActions renders no wrapper of its own: its button row takes
+              the right-hand cell, and a rejection panel spans a full row
+              underneath rather than rendering at button width. */}
+          <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
+                {issue.type}
+              </span>
+              <span className="rounded-sm border border-line px-1.5 py-0.5">
+                <PriorityTag priority={issue.priority} />
+              </span>
+              <span className="rounded-sm border border-line px-1.5 py-0.5">
+                <StatusTag status={issue.status} />
+              </span>
+            </div>
+
+            <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
+          </div>
+        </IssueEditForm>
+      </header>
+
+      {/* Row 4. */}
+      <TransitionBar issueId={issue.id} available={issue.available_transitions} />
+
+      {/* No top margin here: the sections inside own their mt-6, which is the
+          same distance the description already kept from the header. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div>
-          <Link to="/" className="text-[11px] text-ink-muted">← back to list</Link>
-
-          {/* The title is the edit form's first field, so the form owns it in both
-              states and everything below it down to the action bar is nested
-              inside — the one arrangement that edits the title where it is read
-              without moving IssueActions, whose place in the tree is load-bearing
-              (see IssueEditForm). */}
-          <header className="mt-3">
-            <span className="block font-mono text-[11px] text-ink-faint">{issue.id}</span>
-            <IssueEditForm issue={issue} editing={editing} onDone={() => setEditing(false)}>
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted">
-                  {issue.type}
-                </span>
-                <span className="rounded-sm border border-line px-1.5 py-0.5">
-                  <PriorityTag priority={issue.priority} />
-                </span>
-                <span className="rounded-sm border border-line px-1.5 py-0.5">
-                  <StatusTag status={issue.status} />
-                </span>
-              </div>
-
-              <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
-            </IssueEditForm>
-          </header>
-
-          <TransitionBar issueId={issue.id} available={issue.available_transitions} />
-
           {!editing && issue.description && (
             <section className="mt-6">
               <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>

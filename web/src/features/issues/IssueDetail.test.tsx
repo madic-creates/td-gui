@@ -95,6 +95,36 @@ describe('IssueDetail', () => {
     expect(screen.getByText('done bits')).toBeInTheDocument()
   })
 
+  // The back link and the id share a row rather than stacking — one of the
+  // merges that got seven header rows down to four. Asserting on the shared
+  // parent, not on classes: a class assertion passes on a layout that renders
+  // stacked anyway.
+  it('puts the back link and the issue id on one row', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const back = await screen.findByRole('link', { name: '← back to list' })
+
+    expect(back.parentElement).toBe(screen.getByText('td-6a0883').parentElement)
+  })
+
+  // The header is a band above the body, not the body column's first child.
+  // The open editor's field grid is sm:grid-cols-4 and needs the page width,
+  // not the 68ch prose column Task 4 introduces.
+  it('lifts the header out of the body column', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const title = await screen.findByRole('heading', { name: 'Probe issue for API shape' })
+    const header = title.closest('header')
+    const descriptionSection = screen.getByText('A description').closest('section')
+
+    expect(header).not.toBeNull()
+    expect(header?.parentElement).not.toBe(descriptionSection?.parentElement)
+  })
+
   // The editor has always been able to write them, so a view that never shows
   // them hides a field the user just filled in.
   it('renders the acceptance criteria', async () => {

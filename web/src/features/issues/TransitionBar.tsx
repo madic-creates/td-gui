@@ -156,7 +156,10 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   }
 
   return (
-    <div className="mt-4 border-t border-line-subtle pt-4">
+    /* No rule above the buttons: they are the fourth row of the issue's
+       header band, not a section of their own, and a separator between the
+       actions and the transitions split one control bar into two. */
+    <div className="mt-2">
       <div className="flex flex-wrap gap-1.5">
         {available.map(action => (
           <button
