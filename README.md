@@ -69,3 +69,11 @@ stamped into it via `-ldflags -X main.buildVersion=`.
 ## Design
 
 See [docs/superpowers/specs/2026-08-14-td-gui-design.md](docs/superpowers/specs/2026-08-14-td-gui-design.md).
+
+## License
+
+td-gui is licensed under the Apache License 2.0 — see [LICENSE](LICENSE).
+
+It is an independent project and contains no code from td; it drives the `td`
+binary and its HTTP API from the outside. td itself is a separate work by
+Marcus Vorwaller, distributed under the MIT License.
