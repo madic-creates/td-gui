@@ -18,7 +18,10 @@ export default function AppShell({
     <div className="min-h-screen bg-surface text-ink">
       {/* The border spans the window; only the contents centre. A cap on the
           <header> itself would stop the rule short of both edges and read as a
-          boxed panel rather than the top of the page. */}
+          boxed panel rather than the top of the page. That's specific to the
+          header, though — it's a sibling of <main>, not a descendant. Bars
+          inside <main> (the issue list and board toolbars) end at the same
+          1440px cap as everything else there, on purpose. */}
       <header className="border-b border-line bg-surface-inset">
         <div className="mx-auto flex w-full max-w-[1440px] items-center gap-2.5 px-4 py-2.5">
           <Link to="/" className="font-mono font-semibold tracking-widest text-accent">td-gui</Link>
