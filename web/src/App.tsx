@@ -3,6 +3,7 @@ import IssueList from './features/issues/IssueList'
 import IssueDetail from './features/issues/IssueDetail'
 import IssueForm from './features/issues/IssueForm'
 import BoardList from './features/boards/BoardList'
+import BoardForm from './features/boards/BoardForm'
 import AppShell from './components/AppShell'
 import NotFound from './components/NotFound'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -21,6 +22,8 @@ export default function App() {
           <Route path="/new" element={<IssueForm />} />
           <Route path="/issues/:id" element={<IssueDetail />} />
           <Route path="/boards" element={<BoardList />} />
+          <Route path="/boards/new" element={<BoardForm />} />
+          <Route path="/boards/:id/edit" element={<BoardForm />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </ErrorBoundary>
