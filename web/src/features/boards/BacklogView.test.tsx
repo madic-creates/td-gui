@@ -178,6 +178,25 @@ describe('BacklogView', () => {
     expect(positioned).toEqual([move])
   })
 
+  // A drag that started outside the board still carries text/plain — a link
+  // from another window arrives as its URL. Posting that to td would name an
+  // issue that does not exist and put td's 404 in the error panel, so the drop
+  // is a no-op instead. Same shape of proof as the self-drop test: a real move
+  // is issued last and awaited, and the assertion is on the whole array.
+  it('ignores a drop whose payload is not a card on this board', async () => {
+    renderBacklog()
+    fireEvent.drop(screen.getByTestId('drop-gap-1'), {
+      dataTransfer: dataTransfer('https://example.com'),
+    })
+
+    const move = { issue_id: 'td-ddd', position: 1 }
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
   /**
    * There is deliberately no optimistic reorder, so while a position write is
    * in flight the rendered order is the one td is about to replace. A second
