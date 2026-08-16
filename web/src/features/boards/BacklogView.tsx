@@ -98,22 +98,15 @@ export default function BacklogView({ boardId, cards }: Props) {
     // one td is about to replace — a gap measured against it would name a
     // different place by the time td applied it.
     if (busy) return
-    // The `|| dragging` fallback is deliberately untested, not accidentally
-    // uncovered. It catches a browser that hands back an empty drag data store
-    // on drop; the spec puts the store in read-only rather than protected mode
-    // there, so getData should work, and nothing in the suite can prove
-    // otherwise — jsdom implements neither DataTransfer nor DragEvent, so the
-    // tests pass a hand-written stub. Making that stub return '' would assert
-    // the stub's own behaviour and would pass with or without a real browser
-    // ever behaving that way. The drag tests below therefore exercise only the
-    // getData half; read the fallback as belt and braces.
-    const issueId = event.dataTransfer.getData('text/plain') || dragging
+    // text/plain is the whole story here, with no fallback on `dragging` — see
+    // dragSource for why the drag data store is readable at drop.
+    const issueId = event.dataTransfer.getData('text/plain')
     endDrag()
     // text/plain is whatever the drag carried, and a drag that started outside
     // the board carries something else — a link from another window arrives as
-    // its URL, and a drag no card here started leaves `dragging` null to fall
-    // back on. td would answer either with a 404 the user did nothing to earn,
-    // so a payload that names no card here is a no-op, as in SwimlaneView.
+    // its URL, and a drag carrying no text at all arrives empty. td would answer
+    // either with a 404 the user did nothing to earn, so a payload that names no
+    // card here is a no-op, as in SwimlaneView.
     if (!issueId) return
     if (!cards.some(c => c.issue.id === issueId)) return
     move(issueId, insertSlot(gap, pinnedIndexOf(issueId)))

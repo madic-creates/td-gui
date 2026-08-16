@@ -3,7 +3,13 @@ import type { DragEvent } from 'react'
 /**
  * The half of a board card's drag behaviour that both views share: the issue
  * id goes out on text/plain, and the view records which card it is holding so
- * that its drop targets can light up and a drop can fall back on it.
+ * that its drop targets can light up.
+ *
+ * text/plain is the only channel the drop handlers read. `dragging` is for the
+ * affordance and nothing else — neither handler falls back on it, because the
+ * spec puts the drag data store in read-only mode for drop. Protected mode,
+ * where getData returns '', covers dragover and dragenter instead, so the
+ * payload set here is always readable where a drop reads it.
  *
  * Only this half is shared. The drop handlers stay with their views and are
  * deliberately not folded in here — the backlog computes a slot in td's stored
