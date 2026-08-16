@@ -53,7 +53,7 @@ describe('DependencyPanel', () => {
 
     expect(await screen.findByText('The blocker')).toBeInTheDocument()
     expect(screen.getByText('in_progress')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove td-blk' })).toBeInTheDocument()
   })
 
   // A finished dependency is not current work. Mixing the two makes a
@@ -84,7 +84,42 @@ describe('DependencyPanel', () => {
     expect(screen.getByText('open')).toBeInTheDocument()
     expect(screen.getByText('Already done')).toBeInTheDocument()
     expect(screen.getByText('closed')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Remove' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Remove td-/ })).toHaveLength(2)
+  })
+
+  // Every row's control reads "Remove", so a list of N blockers used to expose
+  // N buttons with one indistinguishable accessible name. The id is on the row
+  // already and is unique per blocker, so it is what names the control — the
+  // title can be missing, and two issues can share one.
+  it('names each remove control after the blocker it would take off', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [
+          makeIssue({ id: 'td-open', title: 'Still blocking', status: 'open' }),
+          makeIssue({ id: 'td-done', title: 'Already done', status: 'closed' }),
+        ],
+        limit: 1000, offset: 0, total: 2, has_more: false,
+      },
+    })))
+
+    renderPanel([
+      { dep_id: 'dep_1', issue_id: 'td-6a0883', depends_on_id: 'td-open', relation_type: 'depends_on' },
+      { dep_id: 'dep_2', issue_id: 'td-6a0883', depends_on_id: 'td-done', relation_type: 'depends_on' },
+    ])
+
+    // The visible label stays "Remove"; only the accessible name says which.
+    expect(await screen.findByRole('button', { name: 'Remove td-open' }))
+      .toHaveTextContent('Remove')
+    expect(screen.getByRole('button', { name: 'Remove td-done' })).toBeInTheDocument()
+  })
+
+  // An unresolved blocker has no title to fall back on, and its control still
+  // has to name its target.
+  it('names the remove control of a blocker the index does not hold', async () => {
+    renderPanel([{ dep_id: 'dep_1', issue_id: 'td-6a0883', depends_on_id: 'td-gone', relation_type: 'depends_on' }])
+
+    expect(await screen.findByRole('button', { name: 'Remove td-gone' })).toBeInTheDocument()
   })
 
   it('keeps a blocker the index does not hold in the active group', async () => {
@@ -136,7 +171,7 @@ describe('DependencyPanel', () => {
     }))
     renderPanel([dependency])
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
 
     await waitFor(() => expect(removed).toBe('dep_f7585e15'))
@@ -198,7 +233,7 @@ describe('DependencyPanel', () => {
     server.use(http.delete('/v1/issues/td-6a0883/dependencies/:depId', () =>
       HttpResponse.json({ ok: true, data: { removed: true } })))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
 
     await waitFor(() => expect(
@@ -224,7 +259,7 @@ describe('DependencyPanel', () => {
         error: { code: 'not_found', message: 'dependency not found: dep_f7585e15' },
       }, { status: 404 })))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
 
     expect(await screen.findByText('dependency not found: dep_f7585e15')).toBeInTheDocument()
