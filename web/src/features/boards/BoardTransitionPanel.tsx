@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useIssue } from '../../api/queries'
 import { unboundMessage } from '../../api/client'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -30,11 +31,21 @@ interface Props {
  */
 export default function BoardTransitionPanel({ issueId, droppedOn, onClose }: Props) {
   const { data, error, isPending } = useIssue(issueId)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // A drop does not move DOM focus itself, so without this a keyboard user
+  // could only dismiss the panel by hunting down the Close button with the
+  // mouse — Escape would never reach a handler nothing has focused.
+  useEffect(() => {
+    dialogRef.current?.focus()
+  }, [])
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-label={`Move ${issueId}`}
+      tabIndex={-1}
       onKeyDown={e => { if (e.key === 'Escape') onClose() }}
       className="border-t border-line bg-surface-inset px-4 py-3"
     >

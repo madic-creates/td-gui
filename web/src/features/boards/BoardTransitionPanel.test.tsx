@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
@@ -13,7 +13,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderPanel(available?: Transition[]) {
+function renderPanel(available?: Transition[], onClose: () => void = () => {}) {
   server.use(http.get('/v1/issues/:id', () => HttpResponse.json({
     ok: true,
     data: {
@@ -27,7 +27,7 @@ function renderPanel(available?: Transition[]) {
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <BoardTransitionPanel issueId="td-aaa" droppedOn="in_review" onClose={() => {}} />
+        <BoardTransitionPanel issueId="td-aaa" droppedOn="in_review" onClose={onClose} />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -57,5 +57,17 @@ describe('BoardTransitionPanel', () => {
   it('says so when td omits the field entirely', async () => {
     renderPanel(undefined)
     expect(await screen.findByText(/no transitions available/i)).toBeInTheDocument()
+  })
+
+  // A drop does not move DOM focus itself, so Escape only reaches the panel
+  // if it takes focus on mount. Firing on document.activeElement rather than
+  // focusing the dialog by hand is the point: this only passes if the panel
+  // moved focus there itself, not because the test did.
+  it('closes on Escape once it has taken focus on open', async () => {
+    let closed = false
+    renderPanel(['review'], () => { closed = true })
+    await screen.findByRole('dialog', { name: 'Move td-aaa' })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(closed).toBe(true)
   })
 })
