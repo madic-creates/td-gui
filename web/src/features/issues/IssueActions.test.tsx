@@ -59,10 +59,21 @@ describe('IssueActions', () => {
       http.put('/v1/focus', () =>
         HttpResponse.json({ ok: false, error: { code: 'validation_error', message: 'cannot set focus' } }, { status: 400 })),
     )
-    renderActions()
+    const { container } = renderActions()
 
     await userEvent.click(screen.getByRole('button', { name: 'Focus' }))
-    expect(await screen.findByText('cannot set focus')).toBeInTheDocument()
+    const rejection = await screen.findByText('cannot set focus')
+    expect(rejection).toBeInTheDocument()
+
+    // Pins the half of the component's interface the issue header consumes:
+    // the button row and the rejection panel are both direct children of the
+    // host, siblings rather than one nested inside the other — the shape
+    // IssueDetail's grid depends on to give the panel a full row of its own.
+    const buttonRow = screen.getByRole('button', { name: 'Focus' }).parentElement
+    const panelWrapper = rejection.closest('[role="alert"]')?.parentElement
+    expect(buttonRow?.parentElement).toBe(container)
+    expect(panelWrapper?.parentElement).toBe(container)
+    expect(panelWrapper).not.toBe(buttonRow)
 
     server.use(http.delete('/v1/issues/:id', () => HttpResponse.json({ ok: true, data: {} })))
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }))

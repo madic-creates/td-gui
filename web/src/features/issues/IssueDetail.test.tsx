@@ -135,6 +135,13 @@ describe('IssueDetail', () => {
     renderDetail()
     expect(await screen.findByText('Acceptance criteria')).toBeInTheDocument()
     expect(screen.getByText('- The panel collapses past ten items')).toBeInTheDocument()
+
+    // Acceptance criteria is what a person wrote about the issue, same as the
+    // description right above it — it belongs in the prose column, not the
+    // structure column, so the two sections must share a parent.
+    const descriptionColumn = screen.getByText('A description').closest('section')?.parentElement
+    const acceptanceColumn = screen.getByText('Acceptance criteria').closest('section')?.parentElement
+    expect(acceptanceColumn).toBe(descriptionColumn)
   })
 
   it('omits the acceptance section when the issue has none', async () => {
@@ -637,6 +644,12 @@ describe('IssueDetail', () => {
     expect(proseColumn).toBeTruthy()
     expect(proseColumn).not.toBe(structureColumn)
     expect(proseColumn?.parentElement).toBe(structureColumn?.parentElement)
+
+    // Without this, Comments could drift into the structure column with
+    // every assertion above still green — it is the other half of what a
+    // person wrote about the issue, so it belongs with the description.
+    const commentsColumn = screen.getByText('Comments').closest('section')?.parentElement
+    expect(commentsColumn).toBe(proseColumn)
   })
 
   // The comment form travels with the comments, into the prose column — it is
