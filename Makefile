@@ -8,12 +8,14 @@ web:
 	touch internal/web/dist/.gitkeep
 
 # The release job stamps the tag it is about to publish into the binary:
-#   make build LDFLAGS="-X main.buildVersion=v1.2.3"
-# Left empty, main.buildVersion keeps its "dev" default.
-LDFLAGS ?=
+#   make build GO_LDFLAGS="-X main.buildVersion=v1.2.3"
+# Left empty, main.buildVersion keeps its "dev" default. Not named LDFLAGS:
+# that is a C-toolchain variable (Arch's makepkg.conf exports it), and make's
+# ?= would let those linker flags through to go build, which rejects them.
+GO_LDFLAGS ?=
 
 build: web
-	go build -ldflags "$(LDFLAGS)" -o td-gui ./cmd/td-gui
+	go build -ldflags "$(GO_LDFLAGS)" -o td-gui ./cmd/td-gui
 
 # Lint runs first so a style failure surfaces before the slower suites.
 test: lint test-go test-web

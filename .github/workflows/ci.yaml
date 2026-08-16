@@ -282,7 +282,7 @@ jobs:
           VERSION: ${{ steps.semrel-dry.outputs.version }}
         run: |
           set -euo pipefail
-          make build LDFLAGS="-X main.buildVersion=v${VERSION}"
+          make build GO_LDFLAGS="-X main.buildVersion=v${VERSION}"
           ./td-gui --version
 
       - name: Publish Git tag + GitHub Release
