@@ -43,21 +43,30 @@ export default function BoardView() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2.5 border-b border-line bg-surface-inset px-4 py-2">
-        <h1 className="text-ink">{board.name}</h1>
-        <span className="font-mono text-[11px] text-ink-faint">
-          {board.query || 'no query'}
-        </span>
-        <span className="flex-1" />
-        <label className="flex items-center gap-1.5 text-[11px] text-ink-muted">
-          <input
-            type="checkbox"
-            checked={includeClosed}
-            onChange={e => setIncludeClosed(e.target.checked)}
-          />
-          Include closed
-        </label>
-        <ViewToggle view={view} onChange={setView} />
+      {/* Full-bleed, like AppShell's header: this bar sits right under it, and
+          a rule that stops at main's 1440px cap while the header's spans the
+          whole window would read as two disagreeing rules stacked on top of
+          each other. Unlike the header, this bar is a descendant of <main> —
+          already capped — not a sibling of it, so reaching the window edges
+          takes the calc(50%-50vw) breakout below rather than simply leaving a
+          width class off. */}
+      <div className="mx-[calc(50%-50vw)] w-screen border-b border-line bg-surface-inset">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center gap-2.5 px-4 py-2">
+          <h1 className="text-ink">{board.name}</h1>
+          <span className="font-mono text-[11px] text-ink-faint">
+            {board.query || 'no query'}
+          </span>
+          <span className="flex-1" />
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted">
+            <input
+              type="checkbox"
+              checked={includeClosed}
+              onChange={e => setIncludeClosed(e.target.checked)}
+            />
+            Include closed
+          </label>
+          <ViewToggle view={view} onChange={setView} />
+        </div>
       </div>
 
       {/* Emptiness is decided first. A query-less board matches every issue,
