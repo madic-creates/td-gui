@@ -20,16 +20,20 @@ describe('BoardCard', () => {
 
   // td already drops closed blockers from this summary, so every entry is
   // still in the way — the count can be shown without further filtering.
+  //
+  // Three blockers, not two: with two, a badge that hardcoded its count would
+  // read the same as one that counted, and this test would pass either way.
   it('counts unresolved blockers and names them', () => {
     renderCard(makeIssue({
       dependency_summary: {
         blockers: [
           { dep_id: 'dep_1', issue_id: 'td-blk1', title: 'One', status: 'open', relation_type: 'depends_on' },
           { dep_id: 'dep_2', issue_id: 'td-blk2', title: 'Two', status: 'in_progress', relation_type: 'depends_on' },
+          { dep_id: 'dep_3', issue_id: 'td-blk3', title: 'Three', status: 'blocked', relation_type: 'depends_on' },
         ],
       },
     }))
-    expect(screen.getByLabelText('Blocked by td-blk1, td-blk2')).toHaveTextContent('2')
+    expect(screen.getByLabelText('Blocked by td-blk1, td-blk2, td-blk3')).toHaveTextContent('3')
   })
 
   it('shows no blocker badge when the summary is absent', () => {

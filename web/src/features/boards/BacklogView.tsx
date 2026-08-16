@@ -97,6 +97,15 @@ export default function BacklogView({ boardId, cards }: Props) {
     // one td is about to replace — a gap measured against it would name a
     // different place by the time td applied it.
     if (busy) return
+    // The `|| dragging` fallback is deliberately untested, not accidentally
+    // uncovered. It catches a browser that hands back an empty drag data store
+    // on drop; the spec puts the store in read-only rather than protected mode
+    // there, so getData should work, and nothing in the suite can prove
+    // otherwise — jsdom implements neither DataTransfer nor DragEvent, so the
+    // tests pass a hand-written stub. Making that stub return '' would assert
+    // the stub's own behaviour and would pass with or without a real browser
+    // ever behaving that way. The drag tests below therefore exercise only the
+    // getData half; read the fallback as belt and braces.
     const issueId = event.dataTransfer.getData('text/plain') || dragging
     endDrag()
     // text/plain is whatever the drag carried, and a drag that started outside
