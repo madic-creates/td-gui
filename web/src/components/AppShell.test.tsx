@@ -43,18 +43,14 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Boards' })).toHaveAttribute('href', '/boards')
   })
 
-  // The rule under the header has to reach both window edges while the logo
-  // lines up closely with the body below it, so <header> stays full-bleed and
-  // only an inner wrapper is capped. A cap on <header> itself would stop the
-  // border short and turn the header into a boxed panel.
-  it('caps the header contents in a wrapper rather than capping the header', () => {
+  // The shell imposes no width of its own: a 1440px cap lived here briefly and
+  // was taken back out, because it squeezed the detail view's prose while a
+  // third of the window sat empty and it clipped the toolbars inside <main>.
+  // Asserting on the tree rather than on classes — the brand sits directly in
+  // the header, with no centring wrapper between them.
+  it('puts the header contents straight in the header, with no capped wrapper', () => {
     renderShell(true)
-    const header = screen.getByRole('banner')
-    const brand = screen.getByText('td-gui')
-
-    expect(header).toContainElement(brand)
-    expect(brand.parentElement).not.toBe(header)
-    expect(brand.parentElement?.parentElement).toBe(header)
+    expect(screen.getByText('td-gui').parentElement).toBe(screen.getByRole('banner'))
   })
 
   // A regression guard rather than a red test: the route content is already in
