@@ -7,12 +7,19 @@ import type { Issue } from '../../api/types'
  * One card, shared by both board views. The issue arrives without description
  * and acceptance — td slims them out of the board payload — so nothing here
  * may depend on them.
+ *
+ * The card sits inside a draggable <li> in both views. The link must opt out
+ * of native anchor dragging or it becomes the drag source itself: the browser
+ * would seed the drag data with the issue URL as text/uri-list before our
+ * dragstart handler runs, so a card dropped on browser chrome offers to
+ * navigate, and the drag ghost would be the link rather than the whole row.
  */
 export default function BoardCard({ issue }: { issue: Issue }) {
   const blockers = issue.dependency_summary?.blockers ?? []
   return (
     <Link
       to={`/issues/${issue.id}`}
+      draggable={false}
       className="flex items-center gap-2.5 rounded-sm border border-line bg-surface-inset px-2.5 py-2 hover:bg-surface-hover"
     >
       <span className="w-[74px] shrink-0 font-mono text-[11px] text-ink-faint">{issue.id}</span>

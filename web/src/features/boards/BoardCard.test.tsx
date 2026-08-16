@@ -18,6 +18,17 @@ describe('BoardCard', () => {
     expect(screen.getByText('in_progress')).toBeInTheDocument()
   })
 
+  // Anchors are draggable by default, which would make the link the drag
+  // source: the browser seeds the drag data with text/uri-list before our
+  // dragstart runs, so dropping a card on browser chrome offers to navigate,
+  // and the drag ghost is the link instead of the row. Opting out hands the
+  // drag to the draggable <li> the card sits in.
+  it('opts the link out of native dragging', () => {
+    renderCard(makeIssue({ title: 'Wire up the thing' }))
+    expect(screen.getByRole('link', { name: /Wire up the thing/ }))
+      .toHaveAttribute('draggable', 'false')
+  })
+
   // td already drops closed blockers from this summary, so every entry is
   // still in the way — the count can be shown without further filtering.
   it('counts unresolved blockers and names them', () => {
