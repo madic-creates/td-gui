@@ -7,8 +7,13 @@ web:
 	cd web && npm ci && npm run build
 	touch internal/web/dist/.gitkeep
 
+# The release job stamps the tag it is about to publish into the binary:
+#   make build LDFLAGS="-X main.buildVersion=v1.2.3"
+# Left empty, main.buildVersion keeps its "dev" default.
+LDFLAGS ?=
+
 build: web
-	go build -o td-gui ./cmd/td-gui
+	go build -ldflags "$(LDFLAGS)" -o td-gui ./cmd/td-gui
 
 # Lint runs first so a style failure surfaces before the slower suites.
 test: lint test-go test-web

@@ -157,12 +157,128 @@ jobs:
       # and assert for real. This is the only job where that happens.
       - name: Re-run embed tests against the real bundle
         run: go test -count=1 ./internal/web/ -v
-      - uses: actions/upload-artifact@v7
+
+  # Cuts a release from main once every gate above is green. go-semantic-release
+  # derives the version from the commit subjects since the last tag, so the
+  # scopes in CLAUDE.md decide what ships: feat -> minor, fix/perf/refactor/
+  # chore(deps) -> patch, a `!` -> major. docs/test/ci/style commits produce no
+  # version at all, which is why this workflow needs no paths: filter.
+  #
+  # Unlike the other jobs this one must not cancel-in-progress. A cancel
+  # between "Publish Git tag + GitHub Release" and "Upload binary" would leave
+  # a tag that permanently lacks its binary — the next run computes the *next*
+  # version and never heals it. So releases serialize (cancel-in-progress:
+  # false) and the staleness guard below skips runs whose commit is no longer
+  # the main tip. That guard is what keeps go-semantic-release's "latest
+  # release" baseline an ancestor of HEAD when two pushes race.
+  release:
+    needs: [test-go, lint-go, tidy, web, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v7
         with:
-          name: td-gui
-          path: td-gui
-          retention-days: 1
-          if-no-files-found: error
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Skip release if not the current main tip
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TIP="$(gh api "repos/${{ github.repository }}/commits/main" --jq .sha)"
+          if [ "$TIP" != "${{ github.sha }}" ]; then
+            echo "::notice::HEAD ${{ github.sha }} is no longer the main tip (${TIP}); skipping release."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pinned semantic-release binary
+        if: steps.guard.outputs.proceed == 'true'
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            https://github.com/go-semantic-release/semantic-release/releases/download/v2.31.0/semantic-release_v2.31.0_linux_amd64 \
+            -o /tmp/semantic-release
+          chmod +x /tmp/semantic-release
+          /tmp/semantic-release --version
+
+      # Splitting dry-run from publish is what lets the binary carry the tag:
+      # the version has to be known before `make build`, but the tag must not
+      # exist until the artifact it points at has been built.
+      - name: Determine next version (dry-run)
+        id: semrel-dry
+        if: steps.guard.outputs.proceed == 'true'
+        # go-semantic-release/action v1.24.1
+        uses: go-semantic-release/action@2e9dc4247a6004f8377781bef4cb9dad273a741f
+        with:
+          bin: /tmp/semantic-release
+          dry: true
+          allow-initial-development-versions: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Everything below is skipped when the commits since the last tag warrant
+      # no release, so a docs-only push installs no toolchain at all.
+      - uses: actions/setup-go@v7
+        if: steps.semrel-dry.outputs.version != ''
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        if: steps.semrel-dry.outputs.version != ''
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # The build job cannot hand this binary over: it runs before the version
+      # is known. Same commit, same `make build`, plus the stamped tag.
+      - name: Build the release binary
+        if: steps.semrel-dry.outputs.version != ''
+        env:
+          VERSION: ${{ steps.semrel-dry.outputs.version }}
+        run: |
+          set -euo pipefail
+          make build LDFLAGS="-X main.buildVersion=v${VERSION}"
+          ./td-gui --version
+
+      - name: Publish Git tag + GitHub Release
+        if: steps.semrel-dry.outputs.version != ''
+        # go-semantic-release/action v1.24.1
+        uses: go-semantic-release/action@2e9dc4247a6004f8377781bef4cb9dad273a741f
+        with:
+          bin: /tmp/semantic-release
+          allow-initial-development-versions: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename binary + checksum for release
+        if: steps.semrel-dry.outputs.version != ''
+        env:
+          VERSION: ${{ steps.semrel-dry.outputs.version }}
+        run: |
+          set -euo pipefail
+          OUT="td-gui-v${VERSION}-linux-amd64"
+          mv td-gui "$OUT"
+          sha256sum "$OUT" > "${OUT}.sha256"
+          ls -la td-gui-*
+
+      - name: Upload binary to GitHub Release
+        if: steps.semrel-dry.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.semrel-dry.outputs.version }}
+        run: |
+          gh release upload "v${VERSION}" \
+            "td-gui-v${VERSION}-linux-amd64" \
+            "td-gui-v${VERSION}-linux-amd64.sha256" \
+            --clobber
 
   # The contract suite exists to catch renames in td's API. Pinning the test
   # job to TD_VERSION makes CI reproducible but blind to exactly that drift,

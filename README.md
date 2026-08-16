@@ -17,6 +17,9 @@ the CLI command.
 
 ## Install
 
+Grab a binary from the [latest release](https://github.com/madic-creates/td-gui/releases/latest)
+(`td-gui-vX.Y.Z-linux-amd64`, with a `.sha256` next to it), or build it:
+
 ```bash
 make build
 ./td-gui
@@ -32,6 +35,7 @@ td-gui --port 7777        # fixed port
 td-gui --no-open          # do not open a browser
 td-gui --work-dir ../other-project
 td-gui --td /path/to/td   # use a specific td binary
+td-gui --version          # released binaries print their tag, local builds "dev"
 ```
 
 ## Development
@@ -43,6 +47,24 @@ cd web && npm run dev     # Vite dev server, proxying to td-gui on :7777
 
 Run `td-gui --port 7777 --no-open` in one shell and `npm run dev` in another
 to get hot reload against real data.
+
+## Releases
+
+Releases are cut automatically by go-semantic-release when CI is green on
+`main`. The commit subjects decide the version, so the Conventional Commit
+scope in [CLAUDE.md](CLAUDE.md) is what ships a release:
+
+| Commit                                | Bump  |
+| ------------------------------------- | ----- |
+| `feat:`                               | minor |
+| `fix:`, `perf:`, `refactor:`, `chore(deps):` | patch |
+| any type with `!`                     | major |
+| `docs:`, `test:`, `ci:`, `style:`     | none  |
+
+The release job tags the commit, writes the changelog into the GitHub Release
+and attaches the `linux/amd64` binary plus its checksum. That binary is built
+in the release job itself, not reused from CI, because the tag has to be
+stamped into it via `-ldflags -X main.buildVersion=`.
 
 ## Design
 

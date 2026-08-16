@@ -26,6 +26,10 @@ import (
 // releases have `td serve` but lack available_transitions and active_review.
 const minTdVersion = "v0.57.0"
 
+// buildVersion is stamped by the release job via
+// -ldflags "-X main.buildVersion=v1.2.3". Every other build reports "dev".
+var buildVersion = "dev"
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "td-gui:", err)
@@ -38,7 +42,15 @@ func run() error {
 	noOpen := flag.Bool("no-open", false, "do not open a browser automatically")
 	tdPath := flag.String("td", "", "path to the td binary (default: from PATH)")
 	workDir := flag.String("work-dir", ".", "project directory")
+	showVersion := flag.Bool("version", false, "print the td-gui version and exit")
 	flag.Parse()
+
+	// Answered before td is located, so --version works on a machine that has
+	// no td installed yet.
+	if *showVersion {
+		fmt.Println("td-gui", buildVersion)
+		return nil
+	}
 
 	baseDir, err := filepath.Abs(*workDir)
 	if err != nil {
