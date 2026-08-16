@@ -37,4 +37,9 @@ describe('AppShell', () => {
       screen.getByText('Backend disconnected — the data shown may be out of date.'),
     ).toBeInTheDocument()
   })
+
+  it('links to the boards page', () => {
+    renderShell(true)
+    expect(screen.getByRole('link', { name: 'Boards' })).toHaveAttribute('href', '/boards')
+  })
 })

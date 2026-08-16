@@ -27,6 +27,9 @@ export default function AppShell({
           {connected ? 'connected' : 'disconnected'}
         </span>
         <ThemeToggle />
+        <Link to="/boards" className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted">
+          Boards
+        </Link>
         <Link
           to="/new"
           className="rounded-sm border border-accent px-2.5 py-1 text-[11px] text-accent"
