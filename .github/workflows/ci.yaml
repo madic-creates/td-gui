@@ -34,7 +34,7 @@ jobs:
       # fresh save each run, restore-keys pull the newest prior race build so
       # only changed packages recompile.
       - name: Cache go-build (race)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/go-build
           key: go-build-test-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
@@ -74,7 +74,7 @@ jobs:
       # golangci-lint keeps its own analysis cache but leans on go-build for
       # type-checking. Separate key so it doesn't evict the race build.
       - name: Cache go-build (lint)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/go-build
           key: go-build-lint-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
@@ -144,7 +144,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Cache go-build (binary)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/go-build
           key: go-build-build-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
