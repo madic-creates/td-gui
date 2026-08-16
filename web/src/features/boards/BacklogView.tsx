@@ -36,7 +36,33 @@ export default function BacklogView({ boardId, cards }: Props) {
     setPosition.mutate({ issueId, slot })
   }
 
+  /**
+   * The card a write is currently about, so it can be dimmed. Nothing is
+   * reordered optimistically, so the card sits in its old place for the whole
+   * flight and `aria-busy` on the list is the only other sign anything is
+   * happening — and that says a write is in flight, not which card it moves.
+   */
+  const movingId = setPosition.isPending
+    ? (setPosition.variables?.issueId ?? null)
+    : clearPosition.isPending
+      ? (clearPosition.variables ?? null)
+      : null
+
   const [dragging, setDragging] = useState<string | null>(null)
+  const [overGap, setOverGap] = useState<number | null>(null)
+
+  /**
+   * A drag that a card on this board started, which a drop would accept. Foreign
+   * payloads leave `dragging` null and `dropAt` refuses them, so the gaps stay
+   * dark rather than advertise a drop that is discarded without a word — the
+   * same reason they stay dark while `busy`.
+   */
+  const armed = dragging !== null && !busy
+
+  const endDrag = () => {
+    setDragging(null)
+    setOverGap(null)
+  }
 
   /** The dragged card's index in the pinned block, or null when unpinned. */
   const pinnedIndexOf = (issueId: string) => {
@@ -53,7 +79,7 @@ export default function BacklogView({ boardId, cards }: Props) {
     // different place by the time td applied it.
     if (busy) return
     const issueId = event.dataTransfer.getData('text/plain') || dragging
-    setDragging(null)
+    endDrag()
     // text/plain is whatever the drag carried, and a drag that started outside
     // the board carries something else — a link from another window arrives as
     // its URL, and a drag no card here started leaves `dragging` null to fall
@@ -63,6 +89,22 @@ export default function BacklogView({ boardId, cards }: Props) {
     if (!cards.some(c => c.issue.id === issueId)) return
     move(issueId, insertSlot(gap, pinnedIndexOf(issueId)))
   }
+
+  const gapProps = (gap: number) => ({
+    gap,
+    state: (!armed ? 'idle' : overGap === gap ? 'active' : 'armed') as GapState,
+    onDrop: dropAt(gap),
+    // Set on dragover rather than dragenter: dragover repeats for as long as
+    // the cursor is held over the gap, so a dragenter the browser skipped on a
+    // 6px strip still resolves. Re-setting the same value is a no-op in React.
+    onDragOver: () => setOverGap(gap),
+    // Only if it is still this gap's turn: the gap being left reports dragleave
+    // after the gap being entered has already reported dragover.
+    onDragLeave: () => setOverGap(current => (current === gap ? null : current)),
+  })
+
+  /** Dims the card a write is currently about. */
+  const dim = (issueId: string) => (movingId === issueId ? 'opacity-40' : '')
 
   return (
     <div className="space-y-4 p-4">
@@ -76,14 +118,14 @@ export default function BacklogView({ boardId, cards }: Props) {
               Nothing is pinned. Drag a card up here to give it a stored position.
             </p>
             <ul aria-label="Pinned">
-              <DropGap gap={0} onDrop={dropAt(0)} />
+              <DropGap {...gapProps(0)} />
             </ul>
           </>
         ) : (
           <ul aria-label="Pinned" aria-busy={busy} className="space-y-1.5">
             {pinned.map((card, index) => (
               <Fragment key={card.issue.id}>
-                <DropGap gap={index} onDrop={dropAt(index)} />
+                <DropGap {...gapProps(index)} />
                 <li
                   draggable={!busy}
                   onDragStart={e => {
@@ -91,10 +133,18 @@ export default function BacklogView({ boardId, cards }: Props) {
                     e.dataTransfer.effectAllowed = 'move'
                     setDragging(card.issue.id)
                   }}
-                  onDragEnd={() => setDragging(null)}
+                  onDragEnd={endDrag}
                   className="flex items-center gap-1.5"
                 >
-                  <span className="flex-1"><BoardCard issue={card.issue} /></span>
+                  {/* The dimming sits on the card, not the row: the controls
+                      beside it are `disabled` while a write is in flight and
+                      already carry their own `disabled:opacity-40`. */}
+                  <span
+                    data-testid={`card-${card.issue.id}`}
+                    className={`flex-1 ${dim(card.issue.id)}`}
+                  >
+                    <BoardCard issue={card.issue} />
+                  </span>
                   <button
                     type="button"
                     aria-label={`Move ${card.issue.id} up`}
@@ -131,7 +181,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                 </li>
               </Fragment>
             ))}
-            <DropGap gap={pinned.length} onDrop={dropAt(pinned.length)} />
+            <DropGap {...gapProps(pinned.length)} />
           </ul>
         )}
       </section>
@@ -153,7 +203,9 @@ export default function BacklogView({ boardId, cards }: Props) {
                   e.dataTransfer.effectAllowed = 'move'
                   setDragging(card.issue.id)
                 }}
-                onDragEnd={() => setDragging(null)}
+                onDragEnd={endDrag}
+                data-testid={`card-${card.issue.id}`}
+                className={dim(card.issue.id)}
               >
                 <BoardCard issue={card.issue} />
               </li>
@@ -166,22 +218,54 @@ export default function BacklogView({ boardId, cards }: Props) {
 }
 
 /**
+ * `idle` — nothing is being dragged. `armed` — a drop would be accepted here,
+ * drawn as a hairline so every place a card can land is visible before the
+ * cursor finds it. `active` — the cursor is over this gap and the card lands
+ * here.
+ */
+type GapState = 'idle' | 'armed' | 'active'
+
+/**
+ * The gap never changes height. Reflowing a 6px strip to make room would move
+ * it out from under the cursor mid-drag and set dragleave and dragenter
+ * fighting each other, so the marker is painted with box-shadow — which does
+ * not affect layout — the way IssueList paints its row hover edge. The active
+ * gap reads as 14px: a 6px bar plus a 4px halo on each side.
+ */
+const GAP_STYLE: Record<GapState, string> = {
+  idle: '',
+  armed: 'shadow-[inset_0_1px_0_var(--color-line-subtle)]',
+  active: 'bg-accent shadow-[0_0_0_4px_var(--color-accent-bg)]',
+}
+
+interface DropGapProps {
+  gap: number
+  state: GapState
+  onDrop: (e: DragEvent) => void
+  onDragOver: () => void
+  onDragLeave: () => void
+}
+
+/**
  * A drop target between two pinned cards. Decorative for assistive tech — the
  * keyboard path is the Move up/down buttons, which are real controls with real
  * names — so it is aria-hidden and addressed by test id.
  */
-function DropGap({ gap, onDrop }: { gap: number; onDrop: (e: DragEvent) => void }) {
+function DropGap({ gap, state, onDrop, onDragOver, onDragLeave }: DropGapProps) {
   return (
     <li
       aria-hidden="true"
       data-testid={`drop-gap-${gap}`}
+      data-state={state}
       onDragOver={e => {
         // Without this the browser rejects the drop and no drop event fires.
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
+        onDragOver()
       }}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
-      className="h-1.5 rounded-sm"
+      className={`h-1.5 rounded-sm ${GAP_STYLE[state]}`}
     />
   )
 }

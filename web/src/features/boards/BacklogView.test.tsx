@@ -244,4 +244,95 @@ describe('BacklogView', () => {
     fireEvent(screen.getByTestId('drop-gap-0'), event)
     expect(event.defaultPrevented).toBe(true)
   })
+
+  /** Holds the position write open so the in-flight render can be inspected. */
+  function heldPosition() {
+    let release: () => void = () => {}
+    const gate = new Promise<void>(resolve => { release = resolve })
+    server.use(http.post('/v1/boards/:id/issues', async ({ request }) => {
+      positioned.push(await request.json())
+      await gate
+      return HttpResponse.json({ ok: true, data: { positioned: true } })
+    }))
+    return () => release()
+  }
+
+  /**
+   * The board is not reordered optimistically, so the only thing that says a
+   * move is happening at all is the card's own dimming. `aria-busy` on the list
+   * says a write is in flight; it does not say which card it is about.
+   */
+  it('dims the card being moved while the write is in flight', async () => {
+    const release = heldPosition()
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+
+    await waitFor(() => expect(screen.getByTestId('card-td-aaa')).toHaveClass('opacity-40'))
+    expect(screen.getByTestId('card-td-bbb')).not.toHaveClass('opacity-40')
+
+    release()
+    await waitFor(() => expect(screen.getByTestId('card-td-aaa')).not.toHaveClass('opacity-40'))
+  })
+
+  it('dims the card being unpinned', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>(resolve => { release = resolve })
+    server.use(http.delete('/v1/boards/:id/issues/:issueId', async () => {
+      await gate
+      return HttpResponse.json({ ok: true, data: { deleted: true } })
+    }))
+
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Unpin td-bbb' }))
+
+    await waitFor(() => expect(screen.getByTestId('card-td-bbb')).toHaveClass('opacity-40'))
+    expect(screen.getByTestId('card-td-aaa')).not.toHaveClass('opacity-40')
+    release()
+  })
+
+  const gapStates = () =>
+    screen.getAllByTestId(/^drop-gap-/).map(gap => gap.getAttribute('data-state'))
+
+  // A 6px transparent strip is not a target anyone can find. Picking a card up
+  // is what says where the drops are.
+  it('shows every gap once a card is picked up', () => {
+    renderBacklog()
+    expect(gapStates()).toEqual(['idle', 'idle', 'idle', 'idle'])
+
+    fireEvent.dragStart(screen.getByText('td-ccc').closest('li')!, {
+      dataTransfer: dataTransfer('td-ccc'),
+    })
+    expect(gapStates()).toEqual(['armed', 'armed', 'armed', 'armed'])
+  })
+
+  it('marks the gap under the cursor and clears it when the drag ends', () => {
+    renderBacklog()
+    const card = screen.getByText('td-ccc').closest('li')!
+    const dt = dataTransfer('td-ccc')
+    fireEvent.dragStart(card, { dataTransfer: dt })
+
+    fireEvent.dragOver(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
+    expect(gapStates()).toEqual(['armed', 'active', 'armed', 'armed'])
+
+    fireEvent.dragEnd(card)
+    expect(gapStates()).toEqual(['idle', 'idle', 'idle', 'idle'])
+  })
+
+  /**
+   * `dropAt` refuses while a write is in flight. A gap that lit up anyway would
+   * be advertising a drop the handler discards without a word.
+   */
+  it('leaves the gaps dark while a position write is in flight', async () => {
+    const release = heldPosition()
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+    await waitFor(() =>
+      expect(screen.getByRole('list', { name: 'Pinned' })).toHaveAttribute('aria-busy', 'true'))
+
+    fireEvent.dragStart(screen.getByText('td-ccc').closest('li')!, {
+      dataTransfer: dataTransfer('td-ccc'),
+    })
+    expect(gapStates()).toEqual(['idle', 'idle', 'idle', 'idle'])
+    release()
+  })
 })
