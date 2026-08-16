@@ -74,7 +74,7 @@ and the GUI reproduces it rather than inventing a second truth.
 
 | Route | Content |
 |---|---|
-| `/boards` | board list: name, query, card count, `builtin` marker, "New board" |
+| `/boards` | board list: name, query, `builtin` marker, "New board" |
 | `/boards/:id` | one board, `?view=backlog\|swimlanes` |
 
 `AppShell` gains a `Boards` link in the header. New directory
@@ -175,14 +175,17 @@ parsed in the frontend: td answers invalid syntax with
 the field exactly as `IssueForm` binds td's validation errors today.
 
 Boards with `is_builtin` render no edit and no delete control; td answers those
-with 403 `cannot modify builtin board` / `cannot delete builtin board`. Deletion
-uses the existing `ConfirmButton`.
+with 403 `cannot modify builtin board` / `cannot delete builtin board`, so the
+control would be a dead end. Deletion uses the existing `ConfirmButton` and
+lives on the board list row. The list is also the only place a board is
+deleted, so the 403 is unreachable from the UI — what the tests pin is the
+absence of the control, not td's wording for a request we never send.
 
 ### Cards
 
-A card shows id, title, `PriorityTag`, `StatusTag` and — in the backlog view —
-relative `updated_at`, reusing the tokens and components of the issue list. The
-whole card links to `/issues/:id`.
+A card shows id, title, `PriorityTag` and `StatusTag`, reusing the tokens and
+components of the issue list. The whole card links to `/issues/:id`. One card
+component serves both views, so it carries nothing view-specific.
 
 Board cards additionally carry `dependency_summary.blockers`: the unresolved
 blockers, with closed ones already filtered out by td. A card with blockers
@@ -240,15 +243,19 @@ everywhere else.
   block, and the two no-op gaps around the moved card. Pure unit tests, no DOM.
 - `BoardList.test.tsx` — boards render; a builtin board shows no edit and no
   delete control; the empty list invites creating one.
-- `BoardView.test.tsx` — the pin boundary renders; a drop with a synthetic
-  `DataTransfer` posts the expected slot; "Move up" posts the same slot as the
-  equivalent drop; "Unpin" issues the DELETE; the no-query board shows its own
-  message; view toggling updates `?view`.
-- `BoardTransitionPanel.test.tsx` — a cross-column drop fetches the issue and
-  renders only td's reported transitions; nothing renders when the field is
-  absent.
+- `BoardView.test.tsx` — the initial view follows td's `view_mode`, a toggle is
+  remembered per board, `include_closed` refetches, and the no-query board shows
+  its own message only when it is actually empty.
+- `BacklogView.test.tsx` — the pin boundary renders; a drop with a synthetic
+  `DataTransfer` posts the expected slot; "Move down" posts `index + 3` and
+  "Move up" posts `index`; a drop onto a card's own place sends nothing;
+  "Unpin" issues the DELETE.
+- `SwimlaneView.test.tsx` — cards land in their status column; a cross-column
+  drop opens the panel; a drop inside the same column does nothing.
+- `BoardTransitionPanel.test.tsx` — the panel fetches the issue and renders only
+  td's reported transitions; it says so when the field is empty or absent.
 - `BoardForm.test.tsx` — td's `tdq_syntax` message appears verbatim on the query
-  field; a 403 on a builtin board surfaces td's wording.
+  field; an error carrying no field lands in the panel.
 - `test/contract` (Go) — one case against a real `td`: create a board with a
   query, position two issues by slot, assert `GET /v1/boards/{id}` returns them
   in that order. This pins finding 1, the assumption most likely to break with a
