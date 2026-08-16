@@ -41,7 +41,9 @@ export default function LabelInput({ value, onChange }: Props) {
                 type="button"
                 aria-label={`Remove label ${label}`}
                 onClick={() => onChange(value.filter((_, i) => i !== index))}
-                className="text-ink-faint"
+                // The padding gives the global hover background a shape, and
+                // makes the remove target findable — it is a bare × otherwise.
+                className="rounded-sm px-1 text-ink-faint"
               >
                 ×
               </button>

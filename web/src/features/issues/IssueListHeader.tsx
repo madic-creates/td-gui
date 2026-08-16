@@ -32,7 +32,9 @@ function SortButton({ column, sort, onChange }: SortButtonProps) {
       type="button"
       aria-label={name}
       onClick={() => onChange(next)}
-      className={`whitespace-nowrap ${active ? 'text-ink' : 'text-ink-faint hover:text-ink-muted'}`}
+      // Unpadded text, so the global button hover background would paint a
+      // rectangle tight around the label. It answers hover in ink instead.
+      className={`whitespace-nowrap hover:bg-transparent ${active ? 'text-ink' : 'text-ink-faint hover:text-ink-muted'}`}
     >
       {LABEL[column]}
       <span aria-hidden="true">{active ? (sort.direction === 'asc' ? ' ▴' : ' ▾') : ''}</span>
