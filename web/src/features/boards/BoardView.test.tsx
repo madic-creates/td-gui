@@ -7,6 +7,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import BoardView from './BoardView'
 import { makeBoard, makeCard } from './board.fixture'
+import { storeView } from './viewMode'
 import type { Board, BoardCard } from '../../api/types'
 
 const urls: string[] = []
@@ -44,12 +45,35 @@ describe('BoardView', () => {
     expect(screen.getByText('priority <= P1')).toBeInTheDocument()
   })
 
-  it('starts in the mode td reports and follows the url instead when it says so', async () => {
+  it('starts in the mode td reports when there is no url and no stored preference', async () => {
     renderBoard(makeBoard({ view_mode: 'swimlanes' }), [])
     expect(await screen.findByRole('button', { name: 'Backlog' }))
       .toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Swimlanes' }))
       .toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // The url must win even when it disagrees with both the stored preference
+  // and what td reports — otherwise a shared link with ?view=... would be
+  // silently overridden by whichever of the other two happens to apply.
+  it('prefers the url over both the stored preference and td', async () => {
+    storeView('bd-sprint1', 'backlog')
+    renderBoard(makeBoard({ view_mode: 'backlog' }), [], '/boards/bd-sprint1?view=swimlanes')
+    expect(await screen.findByRole('button', { name: 'Swimlanes' }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Backlog' }))
+      .toHaveAttribute('aria-pressed', 'false')
+  })
+
+  // This is the leg a url -> td -> stored order would get wrong: with no url
+  // present, the stored preference must still outrank td's own view_mode.
+  it('prefers the stored preference over td when there is no url', async () => {
+    storeView('bd-sprint1', 'swimlanes')
+    renderBoard(makeBoard({ view_mode: 'backlog' }), [])
+    expect(await screen.findByRole('button', { name: 'Swimlanes' }))
+      .toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Backlog' }))
+      .toHaveAttribute('aria-pressed', 'false')
   })
 
   it('remembers the toggled view for this board', async () => {
