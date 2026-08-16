@@ -92,6 +92,9 @@ export default function BacklogView({ boardId, cards }: Props) {
                   <button
                     type="button"
                     aria-label={`Move ${card.issue.id} up`}
+                    // The glyph names nothing on its own, and this is the
+                    // primary pointer affordance next to dragging.
+                    title={`Move ${card.issue.id} up`}
                     disabled={busy || index === 0}
                     onClick={() => move(card.issue.id, insertSlot(index - 1, index))}
                     className="rounded-sm border border-line px-2 py-1 text-[11px] text-ink-muted disabled:opacity-40"
@@ -101,6 +104,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                   <button
                     type="button"
                     aria-label={`Move ${card.issue.id} down`}
+                    title={`Move ${card.issue.id} down`}
                     disabled={busy || index === pinned.length - 1}
                     // gap = index + 2, not index + 1: at index + 1 td interpolates
                     // between the card and its successor and it keeps its place.

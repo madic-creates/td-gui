@@ -25,7 +25,7 @@ function renderPanel(available?: Transition[], onClose: () => void = () => {}) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  render(
+  return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <BoardTransitionPanel issueId="td-aaa" droppedOn="in_review" onClose={onClose} />
@@ -48,6 +48,14 @@ describe('BoardTransitionPanel', () => {
     expect(await screen.findByRole('button', { name: 'Request review' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Block' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+  })
+
+  // The placeholder is the issue list's row skeleton. Inside a small inline
+  // panel it has to say what is actually being waited for, and be one row
+  // rather than five fake table rows.
+  it('says what it is waiting for while the issue loads', () => {
+    renderPanel(['review'])
+    expect(screen.getByRole('status', { name: 'Loading transitions' })).toBeInTheDocument()
   })
 
   it('says so when td reports none', async () => {
@@ -83,5 +91,22 @@ describe('BoardTransitionPanel', () => {
     await screen.findByRole('dialog', { name: 'Move td-aaa' })
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     expect(closed).toBe(true)
+  })
+
+  // Taking focus is only half of it: dropping it on unmount leaves the user on
+  // <body> with the tab order restarted, which after Escape is the one moment
+  // they are most likely to keep using the keyboard.
+  it('gives focus back to where it was when it closes', async () => {
+    const before = document.createElement('button')
+    document.body.append(before)
+    before.focus()
+
+    const { unmount } = renderPanel(['review'])
+    await screen.findByRole('dialog', { name: 'Move td-aaa' })
+    expect(document.activeElement).not.toBe(before)
+
+    unmount()
+    expect(document.activeElement).toBe(before)
+    before.remove()
   })
 })

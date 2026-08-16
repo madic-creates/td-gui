@@ -229,8 +229,15 @@ with a `boardKeys` factory alongside `issueKeys`. Mutations join
 
 A board whose query is empty gets its own message instead of the generic one:
 
-> This board has no query. It shows only issues positioned on it by hand — drag
-> issues here or use `td board move`.
+> This board has no query. It shows only issues positioned on it by hand. Run
+> `td board move` to put the first one here — the GUI can reorder cards on a
+> board, but it has no drag source outside one.
+
+The CLI is the only way out of this state, and the message has to say so.
+There is no drag source anywhere but a board: cards are dragged within the
+backlog view, so on an empty board there is nothing to pick up and no drop
+target rendered. "Drag issues here" would name the one gesture that cannot
+work on the one screen that shows it.
 
 A board with a query and no matches gets the ordinary empty state with a hint to
 include closed issues. Query execution errors come back as

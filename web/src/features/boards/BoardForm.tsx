@@ -19,7 +19,8 @@ export default function BoardForm() {
   const { data, error, isPending } = useBoards()
 
   if (id === undefined) return <Body board={null} />
-  if (isPending) return <SkeletonRows />
+  // Two fields wait behind this, not a list.
+  if (isPending) return <SkeletonRows label="Loading board" rows={2} />
   if (error) {
     return (
       <div className="p-4">

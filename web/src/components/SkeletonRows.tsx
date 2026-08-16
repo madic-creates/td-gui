@@ -9,10 +9,20 @@ import { COL, ROW } from '../features/issues/columns'
  * Geometry comes from the shared columns module, so this cannot drift from the
  * real row. The bars carry no text, so a bare flex row would size to its
  * tallest child (~11px) — the height in ROW is what prevents that.
+ *
+ * The shape is a list row, and the defaults are the issue list's. Anywhere
+ * else, say what is loading and how much of it: five table-shaped rows are a
+ * poor stand-in for a two-field form or a small inline dialog.
  */
-export default function SkeletonRows({ rows = 5 }: { rows?: number }) {
+export default function SkeletonRows({
+  rows = 5,
+  label = 'Loading issues',
+}: {
+  rows?: number
+  label?: string
+}) {
   return (
-    <div role="status" aria-label="Loading issues">
+    <div role="status" aria-label={label}>
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} aria-hidden="true" className={ROW}>
           <span className={`${COL.id} h-[11px] rounded-sm bg-surface-hover`} />

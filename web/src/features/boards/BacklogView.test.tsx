@@ -75,6 +75,16 @@ describe('BacklogView', () => {
     expect(positioned).toEqual([{ issue_id: 'td-ccc', position: 2 }])
   })
 
+  // ↑ and ↓ name nothing to a sighted mouse user, and dragging aside they are
+  // the feature's primary pointer affordance.
+  it('names the move glyphs on hover as well as to assistive tech', () => {
+    renderBacklog()
+    expect(screen.getByRole('button', { name: 'Move td-aaa down' }))
+      .toHaveAttribute('title', 'Move td-aaa down')
+    expect(screen.getByRole('button', { name: 'Move td-ccc up' }))
+      .toHaveAttribute('title', 'Move td-ccc up')
+  })
+
   it('cannot move the first card up or the last one down', () => {
     renderBacklog()
     expect(screen.getByRole('button', { name: 'Move td-aaa up' })).toBeDisabled()

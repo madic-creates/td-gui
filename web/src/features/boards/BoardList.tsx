@@ -13,7 +13,7 @@ export default function BoardList() {
   const remove = useDeleteBoard()
   const removeError = unboundMessage(remove.error)
 
-  if (isPending) return <SkeletonRows />
+  if (isPending) return <SkeletonRows label="Loading boards" />
   if (error) {
     return (
       <div className="p-4">

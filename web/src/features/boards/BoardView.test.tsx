@@ -95,6 +95,12 @@ describe('BoardView', () => {
   it('explains a board that has no query', async () => {
     renderBoard(makeBoard({ query: '' }), [])
     expect(await screen.findByText(/This board has no query/)).toBeInTheDocument()
+    // The CLI is the only way to pin the first card. There is no drag source
+    // outside a board, so on an empty one there is nothing to pick up and no
+    // drop target rendered — telling the user to drag would be a dead end on
+    // the one screen where it cannot work.
+    expect(screen.getByText(/td board move/)).toBeInTheDocument()
+    expect(screen.queryByText(/drag issues here/i)).not.toBeInTheDocument()
   })
 
   it('offers the closed filter when a board with a query matches nothing', async () => {

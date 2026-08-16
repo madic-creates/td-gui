@@ -16,7 +16,7 @@ export default function BoardView() {
   const [includeClosed, setIncludeClosed] = useState(false)
   const { data, error, isPending } = useBoard(id, includeClosed)
 
-  if (isPending) return <SkeletonRows />
+  if (isPending) return <SkeletonRows label="Loading board" />
   if (error) {
     return (
       <div className="p-4">
@@ -67,7 +67,7 @@ export default function BoardView() {
         board.query === '' ? (
           <EmptyState
             message="This board has no query."
-            hint="It shows only issues positioned on it by hand — drag issues here or use td board move."
+            hint="It shows only issues positioned on it by hand. Run td board move to put the first one here — the GUI can reorder cards on a board, but it has no drag source outside one."
           />
         ) : (
           <EmptyState

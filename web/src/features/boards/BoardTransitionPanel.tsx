@@ -36,8 +36,16 @@ export default function BoardTransitionPanel({ issueId, droppedOn, onClose }: Pr
   // A drop does not move DOM focus itself, so without this a keyboard user
   // could only dismiss the panel by hunting down the Close button with the
   // mouse — Escape would never reach a handler nothing has focused.
+  //
+  // Taking focus obliges us to give it back: unmounting the focused element
+  // drops focus to <body> and restarts the tab order, and Escape is exactly
+  // when a keyboard user is about to keep going from where they were.
   useEffect(() => {
+    const previous = document.activeElement
     dialogRef.current?.focus()
+    return () => {
+      if (previous instanceof HTMLElement) previous.focus()
+    }
   }, [])
 
   return (
@@ -62,7 +70,9 @@ export default function BoardTransitionPanel({ issueId, droppedOn, onClose }: Pr
         </button>
       </div>
 
-      {isPending && <SkeletonRows />}
+      {/* One row inside an inline panel: what is being waited for is the
+          issue's transitions, not a list. */}
+      {isPending && <SkeletonRows label="Loading transitions" rows={1} />}
       {error && <ErrorPanel message={unboundMessage(error) ?? 'Request failed'} />}
       {data && (
         data.issue.available_transitions?.length ? (
