@@ -128,6 +128,11 @@ export default function DependencyPanel({ issueId, dependencies, blockedBy }: Pr
  * That control stays on every row, resolved included: a dependency on a closed
  * issue is still a dependency, and taking it off is exactly what a reader is
  * likely to want here.
+ *
+ * Its visible label reads "Remove" on every row, so the blocker's id rides on
+ * the accessible name — one such control per row, and the name is all that
+ * tells them apart. The id and not the title, because an unresolved row has no
+ * title, and two issues can share one.
  */
 function Group({
   title,
@@ -151,6 +156,7 @@ function Group({
           <RelatedRow key={item.id} {...item}>
             <ConfirmButton
               label="Remove"
+              ariaLabel={`Remove ${item.id}`}
               question="Remove this dependency?"
               disabled={disabled}
               onConfirm={() => onRemove(depIdFor(item.id))}
