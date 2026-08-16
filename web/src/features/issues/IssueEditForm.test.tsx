@@ -293,6 +293,30 @@ describe('IssueEditForm', () => {
     await waitFor(() => expect(body).toEqual({ parent_id: 'td-epic01' }))
   })
 
+  // The parent picker reads the same index as the dependency picker, and td
+  // withholds closed issues from an unfiltered list — so a finished epic was
+  // unreachable here. Answering the request the way td serve does is what
+  // makes this test say anything: a stub that ignores the status filter
+  // would pass either way.
+  it('offers a closed epic as a parent', async () => {
+    server.use(http.get('/v1/issues', ({ request }) => {
+      const wantsClosed = new URL(request.url).searchParams.getAll('status').includes('closed')
+      const issues = wantsClosed
+        ? [{ ...issue, id: 'td-epic01', title: 'The finished epic', type: 'epic' as const, status: 'closed' as const }]
+        : []
+      return HttpResponse.json({
+        ok: true,
+        data: { issues, limit: 1000, offset: 0, total: issues.length, has_more: false },
+      })
+    }))
+    renderForm()
+
+    await userEvent.click(screen.getByLabelText('Parent'))
+
+    const listbox = await screen.findByRole('listbox')
+    expect(within(listbox).getByRole('option')).toHaveTextContent('The finished epic')
+  })
+
   // An issue cannot be its own parent, so it is not on offer.
   it('does not offer the issue itself as its own parent', async () => {
     server.use(http.get('/v1/issues', () => HttpResponse.json({

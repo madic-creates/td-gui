@@ -163,6 +163,63 @@ func TestListContract(t *testing.T) {
 	}
 }
 
+// TestListClosedContract pins that td reads an absent status filter as
+// everything *except* closed, and hands closed issues over only when asked
+// for them by name.
+//
+// useIssueIndex fires a second, status=closed request for exactly this
+// reason: without it the issue index holds no closed issue, so the pickers
+// cannot offer one as a dependency or a parent, and a blocker that is already
+// finished renders as a bare id under "Depends on" rather than under
+// "Resolved". If td ever starts including closed issues in the unfiltered
+// list, this test is where that shows up — the second request then becomes
+// redundant rather than load-bearing.
+func TestListClosedContract(t *testing.T) {
+	front, id := newProject(t)
+
+	// One session drives every call here, so the approval has to declare
+	// itself a self-review — td's policy refuses to let an implementer
+	// approve their own work otherwise.
+	if code := post(t, front+"/v1/issues/"+id+"/start", `{}`); code != http.StatusOK {
+		t.Fatalf("start: status = %d", code)
+	}
+	if code := post(t, front+"/v1/issues/"+id+"/review", `{}`); code != http.StatusOK {
+		t.Fatalf("review: status = %d", code)
+	}
+	if code := post(t, front+"/v1/issues/"+id+"/approve",
+		`{"self_review":true,"reason":"pinning the closed-list shape"}`); code != http.StatusOK {
+		t.Fatalf("approve: status = %d", code)
+	}
+
+	ids := func(url string) []string {
+		t.Helper()
+		var body struct {
+			Data struct {
+				Issues []struct {
+					ID     string `json:"id"`
+					Status string `json:"status"`
+				} `json:"issues"`
+			} `json:"data"`
+		}
+		getJSON(t, url, &body)
+		var out []string
+		for _, issue := range body.Data.Issues {
+			out = append(out, issue.ID)
+		}
+		return out
+	}
+
+	// Asked for by name, it is there — so the failure below is "the filter is
+	// gone", never "the issue never closed".
+	if closed := ids(front + "/v1/issues?limit=1000&status=closed"); !slices.Contains(closed, id) {
+		t.Fatalf("status=closed = %v, want the closed issue %s", closed, id)
+	}
+	if unfiltered := ids(front + "/v1/issues?limit=1000"); slices.Contains(unfiltered, id) {
+		t.Errorf("unfiltered list = %v, which now includes the closed issue %s — "+
+			"useIssueIndex's second status=closed request exists because it did not", unfiltered, id)
+	}
+}
+
 // TestDetailContract pins every field web/src/api/types.ts relies on. A rename
 // in td must fail here rather than surface as undefined in the UI.
 func TestDetailContract(t *testing.T) {

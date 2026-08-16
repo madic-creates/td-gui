@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
 import { delay, http, HttpResponse } from 'msw'
 import DependencyPanel from './DependencyPanel'
-import type { Dependency } from '../../api/types'
+import type { Dependency, Issue } from '../../api/types'
 import { makeIssue } from './issue.fixture'
 
 const server = setupServer(
@@ -331,5 +331,55 @@ describe('DependencyPanel', () => {
 
     expect(await screen.findByRole('option')).toHaveTextContent('Still linkable')
     expect(screen.getAllByRole('option')).toHaveLength(1)
+  })
+
+  // The two tests below answer the list the way td serve does, rather than
+  // handing every request the same rows: td reads an absent status filter as
+  // everything *except* closed, so a closed issue reaches the panel only if it
+  // asks for one. A stub that ignores the filter hides exactly that.
+  describe('against a list that withholds closed issues unless asked', () => {
+    function stubTdList(open: Issue[], closed: Issue[]) {
+      server.use(http.get('/v1/issues', ({ request }) => {
+        const wantsClosed = new URL(request.url).searchParams.getAll('status').includes('closed')
+        const issues = wantsClosed ? closed : open
+        return HttpResponse.json({
+          ok: true,
+          data: { issues, limit: 1000, offset: 0, total: issues.length, has_more: false },
+        })
+      }))
+    }
+
+    // Work often depends on something already finished, and td accepts that
+    // edge — so the picker has to be able to name it.
+    it('offers a closed issue, marked closed and after the open ones', async () => {
+      stubTdList(
+        [makeIssue({ id: 'td-open', title: 'Still open' })],
+        [makeIssue({ id: 'td-done', title: 'Long finished', status: 'closed' })],
+      )
+      renderPanel([])
+
+      await userEvent.click(screen.getByLabelText('Depends on'))
+
+      await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(2))
+      const options = screen.getAllByRole('option')
+      expect(options[0]).toHaveTextContent('Still open')
+      expect(options[1]).toHaveTextContent('Long finished')
+      expect(options[1]).toHaveTextContent('closed')
+    })
+
+    // The Resolved group reads the blocker's status off the same index, so
+    // without the closed half every finished blocker sat under "Depends on",
+    // reading as something still in the way — and with no title.
+    it('files a closed blocker under Resolved, with its title', async () => {
+      stubTdList([], [makeIssue({ id: 'td-done', title: 'Long finished', status: 'closed' })])
+      renderPanel([{
+        dep_id: 'dep_1', issue_id: 'td-6a0883',
+        depends_on_id: 'td-done', relation_type: 'depends_on',
+      }])
+
+      expect(await screen.findByText('Resolved (1)')).toBeInTheDocument()
+      expect(screen.getByText('Long finished')).toBeInTheDocument()
+      expect(screen.queryByText('Depends on (1)')).not.toBeInTheDocument()
+    })
   })
 })
