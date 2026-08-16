@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -69,6 +69,14 @@ export default function TransitionBar({ issueId, available }: Props) {
   // See IssueActions and DependencyPanel for the same pattern.
   const [lastAction, setLastAction] = useState<'transition' | 'record' | null>(null)
 
+  // submit()'s button disables on `busy` (mutation.isPending), but dispatching
+  // `submit` on the form bypasses that: two submits landing before a render
+  // commits both read busy as false and both mutate. A ref isn't tied to
+  // render timing, so it closes that gap. Same fix as IssueForm/IssueEditForm/
+  // CommentForm. (The plain action buttons above don't need this: a disabled
+  // <button> blocks its own next click natively, so there's no window there.)
+  const submitting = useRef(false)
+
   if (!available?.length) return null
 
   const busy = transition.isPending || record.isPending
@@ -114,17 +122,22 @@ export default function TransitionBar({ issueId, available }: Props) {
   }
 
   const submit = () => {
+    if (submitting.current) return
+    submitting.current = true
     const note = reason.trim()
     if (recordOnly) {
       // td requires the summary here and says so itself if it is missing.
       setLastAction('record')
-      record.mutate({ summary: note, ...attribution() }, { onSuccess: close })
+      record.mutate(
+        { summary: note, ...attribution() },
+        { onSuccess: close, onSettled: () => { submitting.current = false } },
+      )
       return
     }
     setLastAction('transition')
     transition.mutate(
       { action: pending!, ...(note ? { reason: note } : {}), ...attribution() },
-      { onSuccess: close },
+      { onSuccess: close, onSettled: () => { submitting.current = false } },
     )
   }
 

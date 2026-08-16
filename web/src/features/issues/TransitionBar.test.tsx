@@ -1,9 +1,9 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import TransitionBar from './TransitionBar'
 import type { Transition } from '../../api/types'
 
@@ -82,6 +82,32 @@ describe('TransitionBar reasons', () => {
 
     await expect.poll(() => seen.body).toEqual({})
     expect(screen.queryByLabelText('Reason')).not.toBeInTheDocument()
+  })
+})
+
+describe('TransitionBar double submit', () => {
+  // The Confirm button disables on `busy` (mutation.isPending), but that
+  // reads from state and doesn't stop the form's native submit event — two
+  // submits landing before a render commits both read busy as false and
+  // both mutate, same shape already fixed in IssueForm/IssueEditForm/
+  // CommentForm.
+  it('sends only one reject when the reason form is submitted twice in a row', async () => {
+    let count = 0
+    server.use(http.post('/v1/issues/td-6a0883/reject', async () => {
+      count += 1
+      await delay(20)
+      return HttpResponse.json({ ok: true, data: {} })
+    }))
+
+    renderBar(['reject'])
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'needs work')
+    const form = screen.getByRole('button', { name: 'Confirm reject' }).closest('form')!
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await expect.poll(() => count).toBe(1)
   })
 })
 
