@@ -3,6 +3,7 @@ import IssueList from './features/issues/IssueList'
 import IssueDetail from './features/issues/IssueDetail'
 import IssueForm from './features/issues/IssueForm'
 import AppShell from './components/AppShell'
+import NotFound from './components/NotFound'
 import { useLiveUpdates } from './api/useLiveUpdates'
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/" element={<IssueList />} />
         <Route path="/new" element={<IssueForm />} />
         <Route path="/issues/:id" element={<IssueDetail />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </AppShell>
   )
