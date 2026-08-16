@@ -35,11 +35,7 @@ function renderForm(onDone = vi.fn()) {
   })
   const tree = (next: Issue, editing: boolean) => (
     <QueryClientProvider client={qc}>
-      <IssueEditForm issue={next} editing={editing} onDone={onDone}>
-        {/* Stands in for the tag row and action bar the detail view nests
-            between the title and the fields. */}
-        <p>action bar stand-in</p>
-      </IssueEditForm>
+      <IssueEditForm issue={next} editing={editing} onDone={onDone} />
     </QueryClientProvider>
   )
   const { rerender } = render(tree(issue, true))
@@ -211,8 +207,9 @@ describe('IssueEditForm', () => {
     expect(await screen.findByText('minor cannot be set on an epic')).toBeInTheDocument()
   })
 
-  // Closed, the form is just the heading: it stays mounted only so that the
-  // action bar it wraps keeps its position in the tree.
+  // Closed, the form is just the heading. It stays mounted so that the title
+  // is edited where it is read, and so the draft state below survives a
+  // close-and-reopen rather than being seeded twice from a stale issue.
   it('renders the title as a heading while the editor is closed', () => {
     const { setEditing } = renderForm()
 

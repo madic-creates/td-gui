@@ -2,6 +2,8 @@ import { Children, type ReactNode } from 'react'
 import { Link, type To } from 'react-router'
 import { relativeTime, shortSession } from '../../lib/format'
 import type { Issue } from '../../api/types'
+import PriorityTag from '../../components/PriorityTag'
+import StatusTag from '../../components/StatusTag'
 
 /**
  * One label/value line. Rendering is the caller's decision: `Row` is only
@@ -19,10 +21,12 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
-  // Every Row inside is conditional, so a Block can end up with no rendered
-  // children (e.g. a plain issue with no metadata set). Children.toArray
-  // drops null/undefined/false but keeps '' (the falsy value a `sprint &&`
-  // guard yields), so filter(Boolean) is still needed on top of it.
+  // Sessions and Timeline are built entirely from conditional Rows, so either
+  // can end up with no rendered children (a plain issue with nothing set).
+  // Children.toArray drops null/undefined/false but keeps '' (the falsy value
+  // a `sprint &&` guard yields), so filter(Boolean) is still needed on top of
+  // it. Metadata always has its type/priority/status rows and so always
+  // renders; this guard is for the other two.
   if (Children.toArray(children).filter(Boolean).length === 0) return null
 
   return (
@@ -39,14 +43,22 @@ const linkTo = (id: string): To => `/issues/${id}`
  * The facts about an issue that would interrupt the reading flow if they sat
  * between the description and the activity log.
  *
- * Every row is conditional. An unset field renders nothing at all rather than
- * a placeholder: td distinguishes "no sprint" from "sprint unknown" only by
+ * Type, priority and status are always present and open the list. Every other
+ * row is conditional, and an unset field renders nothing at all rather than a
+ * placeholder: td distinguishes "no sprint" from "sprint unknown" only by
  * absence, and a dash in the value column claims more than we know.
  */
 export default function MetaPanel({ issue }: { issue: Issue }) {
   return (
     <div className="rounded-md border border-line bg-surface-raised px-3">
       <Block title="Metadata">
+        {/* The three unconditional rows, and the reason this Block can no
+            longer render empty. They used to be tag chips beside the title;
+            they read better as the first facts in the list of facts, and the
+            header is left with the title and one row of controls. */}
+        <Row label="Type"><span className="font-mono">{issue.type}</span></Row>
+        <Row label="Priority"><PriorityTag priority={issue.priority} /></Row>
+        <Row label="Status"><StatusTag status={issue.status} /></Row>
         {issue.points > 0 && <Row label="Points">{issue.points}</Row>}
         {issue.labels.length > 0 && <Row label="Labels">{issue.labels.join(', ')}</Row>}
         {issue.sprint && <Row label="Sprint">{issue.sprint}</Row>}

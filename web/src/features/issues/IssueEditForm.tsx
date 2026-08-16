@@ -19,12 +19,6 @@ const titleClass = 'mt-0.5 mb-2 text-xl font-semibold leading-snug tracking-tigh
 interface Props {
   issue: Issue
   editing: boolean
-  /**
-   * Rendered between the title and the fields — the issue's tag row and
-   * action bar. They sit inside the form because the title is the form's
-   * first field and they belong below it on screen.
-   */
-  children: React.ReactNode
   onDone: () => void
 }
 
@@ -34,13 +28,20 @@ interface Props {
  * The dates use type="date" because it emits td's YYYY-MM-DD exactly.
  *
  * Mounted whether or not the editor is open, rendering the title as a heading
- * while it is closed. That is what lets the title be edited where it is read,
- * without the action bar in `children` changing position when the editor
- * opens: a move is a remount, and react-query stops calling a mutation's
- * mutate-level callbacks the moment its observer loses its listeners — a
- * delete in flight would lose the navigate('/') that follows it.
+ * while it is closed. That is what lets the title be edited where it is read.
+ *
+ * This form used to host the action bar in a `children` slot, so that opening
+ * the editor could not move it — a move is a remount, and react-query stops
+ * calling a mutation's mutate-level callbacks the moment its observer loses
+ * its listeners, so a delete in flight would lose the navigate('/') that
+ * follows it. IssueActions is now a sibling instead, at a position that does
+ * not depend on `editing` at all, which satisfies the same constraint without
+ * a slot: the editor hides it with the `hidden` attribute rather than
+ * unmounting it. That also lets it share a row with TransitionBar, which was
+ * impossible while it lived in here — TransitionBar renders its own <form>
+ * for the reason, and nesting forms is invalid HTML.
  */
-export default function IssueEditForm({ issue, editing, children, onDone }: Props) {
+export default function IssueEditForm({ issue, editing, onDone }: Props) {
   // Seeded when the editor opens, not on mount, since the component outlives
   // a single editing session. Not re-synced while it is open: useLiveUpdates
   // invalidates the detail query on every SSE event, and re-seeding would
@@ -128,8 +129,6 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
       ) : (
         <h1 className={titleClass}>{issue.title}</h1>
       )}
-
-      {children}
 
       {editing && (
         <div className="mt-4 space-y-4 border-t border-line-subtle pt-4">

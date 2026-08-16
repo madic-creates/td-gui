@@ -125,6 +125,57 @@ describe('IssueDetail', () => {
     expect(header?.parentElement).not.toBe(descriptionSection?.parentElement)
   })
 
+  // Both control groups on one line: what td offers to do with the issue, and
+  // what this GUI offers. They sat on separate rows for as long as
+  // IssueActions lived inside IssueEditForm — TransitionBar renders its own
+  // <form> for a transition's reason, and nesting forms is invalid HTML.
+  it('puts the transition buttons and the action buttons on one row', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const edit = await screen.findByRole('button', { name: 'Edit' })
+    const row = edit.parentElement?.parentElement
+
+    expect(row).toBeTruthy()
+    expect(row).toContainElement(screen.getByRole('button', { name: 'Request review' }))
+  })
+
+  // Hidden rather than unmounted: react-query stops calling a mutation's
+  // mutate-level callbacks once its observer loses its listeners, so
+  // unmounting this mid-delete would lose the navigate('/') that follows it.
+  it('hides the control row while the editor is open without unmounting it', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const edit = await screen.findByRole('button', { name: 'Edit' })
+    const row = edit.parentElement?.parentElement
+    expect(row).not.toHaveAttribute('hidden')
+
+    await userEvent.click(edit)
+
+    expect(row).toHaveAttribute('hidden')
+    expect(row).toBeInTheDocument()
+  })
+
+  // They were tag chips under the title until the header was cut back to the
+  // title and one row of controls. They did not disappear — MetaPanel lists
+  // them — but nothing in the header carries them any more.
+  it('leaves the type, priority and status to the metadata panel', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    const title = await screen.findByRole('heading', { name: 'Probe issue for API shape' })
+    const header = title.closest('header')
+
+    expect(header).not.toBeNull()
+    expect(header?.textContent).not.toMatch(/feature|P1|in_progress/)
+    expect(screen.getByText('feature')).toBeInTheDocument()
+    expect(screen.getByText('in_progress')).toBeInTheDocument()
+  })
+
   // The editor has always been able to write them, so a view that never shows
   // them hides a field the user just filled in.
   it('renders the acceptance criteria', async () => {
@@ -135,13 +186,6 @@ describe('IssueDetail', () => {
     renderDetail()
     expect(await screen.findByText('Acceptance criteria')).toBeInTheDocument()
     expect(screen.getByText('- The panel collapses past ten items')).toBeInTheDocument()
-
-    // Acceptance criteria is what a person wrote about the issue, same as the
-    // description right above it — it belongs in the prose column, not the
-    // structure column, so the two sections must share a parent.
-    const descriptionColumn = screen.getByText('A description').closest('section')?.parentElement
-    const acceptanceColumn = screen.getByText('Acceptance criteria').closest('section')?.parentElement
-    expect(acceptanceColumn).toBe(descriptionColumn)
   })
 
   it('omits the acceptance section when the issue has none', async () => {
@@ -628,32 +672,27 @@ describe('IssueDetail', () => {
     expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
   })
 
-  // Prose and machine record are separate columns from 1280px up, so what a
-  // person wrote about the issue and what happened to it can be read side by
-  // side. Asserting on the grouping rather than the breakpoint: the columns are
-  // the same two elements at every width, and only the track count changes.
-  it('groups the prose apart from the activity log', async () => {
+  // The body is one content column plus the metadata sidebar, and nothing
+  // else. An earlier revision split the content column again at xl, prose
+  // against relations-and-log; it read badly, because most issues have a long
+  // description and almost no relations, so the second column sat near-empty
+  // while the prose was squeezed beside it. This pins the sections back
+  // together so the split cannot creep back in unnoticed.
+  it('keeps every content section in one column', async () => {
     server.use(http.get('/v1/issues/td-6a0883', () =>
       HttpResponse.json({ ok: true, data: detail })))
 
     renderDetail()
-    const description = await screen.findByText('A description')
-    const proseColumn = description.closest('section')?.parentElement
-    const structureColumn = screen.getByText('Activity').closest('section')?.parentElement
+    const column = (await screen.findByText('A description')).closest('section')?.parentElement
 
-    expect(proseColumn).toBeTruthy()
-    expect(proseColumn).not.toBe(structureColumn)
-    expect(proseColumn?.parentElement).toBe(structureColumn?.parentElement)
-
-    // Without this, Comments could drift into the structure column with
-    // every assertion above still green — it is the other half of what a
-    // person wrote about the issue, so it belongs with the description.
-    const commentsColumn = screen.getByText('Comments').closest('section')?.parentElement
-    expect(commentsColumn).toBe(proseColumn)
+    expect(column).toBeTruthy()
+    for (const heading of ['Activity', 'Comments', 'Latest handoff']) {
+      expect(screen.getByText(heading).closest('section')?.parentElement).toBe(column)
+    }
   })
 
-  // The comment form travels with the comments, into the prose column — it is
-  // the other half of what a person writes about an issue.
+  // The comment form travels with the comments — it is the other half of what
+  // a person writes about an issue.
   it('keeps the comment form with the comments', async () => {
     server.use(http.get('/v1/issues/td-6a0883', () =>
       HttpResponse.json({ ok: true, data: detail })))

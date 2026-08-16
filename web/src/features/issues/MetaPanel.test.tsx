@@ -27,10 +27,24 @@ describe('MetaPanel', () => {
     expect(screen.getByText('self-reviewable')).toBeInTheDocument()
   })
 
+  // These three used to be tag chips beside the title and are rows here now,
+  // which is what leaves the header as the title and one row of controls.
+  it('opens with the type, priority and status the header used to carry', () => {
+    show(makeIssue({ type: 'bug', priority: 'P1', status: 'in_progress' }))
+
+    expect(screen.getByText('Type')).toBeInTheDocument()
+    expect(screen.getByText('bug')).toBeInTheDocument()
+    expect(screen.getByText('Priority')).toBeInTheDocument()
+    expect(screen.getByText('P1')).toBeInTheDocument()
+    expect(screen.getByText('Status')).toBeInTheDocument()
+    expect(screen.getByText('in_progress')).toBeInTheDocument()
+  })
+
   // No placeholder rows: an unset field is absent, not an em-dash. A row that
   // says nothing still costs the reader a line to scan. A Block with no set
-  // fields must not render its heading either — an empty "Metadata" section
-  // is the same lie as an empty row.
+  // fields must not render its heading either — an empty "Sessions" section is
+  // the same lie as an empty row. Metadata is the exception now: its type,
+  // priority and status rows are always there, so it always renders.
   it('omits every field the issue does not set, and the section headings that would be empty', () => {
     show(makeIssue({
       points: 0, labels: [], sprint: '', due_date: null,
@@ -43,9 +57,10 @@ describe('MetaPanel', () => {
     for (const label of ['Points', 'Labels', 'Sprint', 'Due', 'Deferred', 'Defers', 'Branch', 'Parent', 'Minor']) {
       expect(screen.queryByText(label)).not.toBeInTheDocument()
     }
-    expect(screen.queryByText('Metadata')).not.toBeInTheDocument()
     expect(screen.queryByText('Sessions')).not.toBeInTheDocument()
-    // Timeline always has Created/Updated, so it still renders.
+    // Metadata keeps its three unconditional rows and Timeline always has
+    // Created/Updated, so both still render.
+    expect(screen.getByText('Metadata')).toBeInTheDocument()
     expect(screen.getByText('Timeline')).toBeInTheDocument()
   })
 

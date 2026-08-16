@@ -73,10 +73,10 @@ export default function BoardTransitionPanel({ issueId, droppedOn, onClose }: Pr
           // buttons from the "Dropped on" row above. TransitionBar dropped
           // it — there it is the fourth row of the issue detail header, not
           // a section — but this panel still needs the separation, so it
-          // moves here. pt-2, not pt-4: padding blocks margin collapse, and
-          // TransitionBar's own wrapper already carries mt-2 — pt-4 here
-          // would stack to a 24px gap where 16px is the rest of the app's rhythm.
-          <div className="mt-4 border-t border-line-subtle pt-2">
+          // moves here. The full pt-4: TransitionBar's own wrapper carries no
+          // margin, so this padding is the whole 16px gap between the rule and
+          // the buttons, which is the rest of the app's rhythm.
+          <div className="mt-4 border-t border-line-subtle pt-4">
             <TransitionBar
               issueId={issueId}
               available={data.issue.available_transitions}

@@ -163,12 +163,13 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   }
 
   return (
-    /* No rule above the buttons: mt-2 is a small gap from whatever the host
-       puts above this bar, not a section boundary. A rule here would split
-       one control bar into two; each host explains what sits above and
-       carries its own separator if it wants one — see IssueDetail's header
-       band and BoardTransitionPanel's wrapper. */
-    <div className="mt-2">
+    /* No margin and no rule of its own. Both are the host's to decide, and
+       the hosts want different things: IssueDetail sits this bar in a grid
+       cell beside its own action buttons, where any margin here would drop
+       the two rows out of alignment, while BoardTransitionPanel wants a
+       separator above it. A rule here would also split one control bar into
+       two. See IssueDetail's action row and BoardTransitionPanel's wrapper. */
+    <div>
       <div className="flex flex-wrap gap-1.5">
         {available.map(action => (
           <button
