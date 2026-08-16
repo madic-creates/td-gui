@@ -136,4 +136,15 @@ describe('IssueActions', () => {
 
     expect(screen.queryByText('cannot set focus')).not.toBeInTheDocument()
   })
+
+  // td phrases action rejections precisely and the GUI shows them unchanged,
+  // which includes giving them room to be read. This component renders no root
+  // element of its own so its host can put the buttons in one grid cell while
+  // the rejection panel spans a full row underneath them.
+  it('renders no wrapper element of its own', async () => {
+    const { container } = renderActions()
+    const edit = await screen.findByRole('button', { name: 'Edit' })
+
+    expect(edit.parentElement?.parentElement).toBe(container)
+  })
 })
