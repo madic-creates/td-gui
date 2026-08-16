@@ -51,6 +51,16 @@ describe('LabelInput', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('removes only the clicked chip when a label is duplicated', async () => {
+    const onChange = renderInput(['dup', 'dup', 'other'])
+
+    const chips = screen.getAllByRole('button', { name: 'Remove label dup' })
+    expect(chips).toHaveLength(2)
+    await userEvent.click(chips[0])
+
+    expect(onChange).toHaveBeenCalledWith(['dup', 'other'])
+  })
+
   it('offers the project labels as suggestions', async () => {
     renderInput([])
 

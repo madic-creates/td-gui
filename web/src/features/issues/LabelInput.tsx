@@ -30,13 +30,17 @@ export default function LabelInput({ value, onChange }: Props) {
 
       {value.length > 0 && (
         <ul className="mb-1.5 flex flex-wrap gap-1.5">
-          {value.map(label => (
-            <li key={label} className="flex items-center gap-1 rounded-sm border border-line px-1.5 py-0.5 font-mono text-[11px]">
+          {value.map((label, index) => (
+            // Removal is by index, not by value: td doesn't dedup labels on
+            // its write path, so a caller outside this widget (the CLI, a
+            // script) can leave an issue with a literal duplicate. Filtering
+            // by value would drop every occurrence on a single click.
+            <li key={`${label}-${index}`} className="flex items-center gap-1 rounded-sm border border-line px-1.5 py-0.5 font-mono text-[11px]">
               <span>{label}</span>
               <button
                 type="button"
                 aria-label={`Remove label ${label}`}
-                onClick={() => onChange(value.filter(l => l !== label))}
+                onClick={() => onChange(value.filter((_, i) => i !== index))}
                 className="text-ink-faint"
               >
                 ×
