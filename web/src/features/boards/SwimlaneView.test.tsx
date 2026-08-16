@@ -84,4 +84,50 @@ describe('SwimlaneView', () => {
     fireEvent.drop(screen.getByRole('region', { name: 'Open' }), { dataTransfer: dt })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  // TransitionBar's reason/attribution state is local to the component
+  // instance, not keyed to the issue it was opened for. Dropping a second
+  // card while a form is still open for the first must remount the panel —
+  // else, once the second card's issue is already cached (e.g. an earlier
+  // drop already fetched it), the swap happens with no loading gap to force
+  // a remount, and the leftover text would submit against the wrong issue.
+  it('does not leak a half-filled form from one card to the next drop', async () => {
+    server.use(http.get('/v1/issues/:id', ({ params }) => HttpResponse.json({
+      ok: true,
+      data: {
+        issue: makeIssue({ id: params.id as string, available_transitions: ['block'] }),
+        logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null,
+      },
+    })))
+    renderSwimlanes([
+      makeCard({ id: 'td-aaa', status: 'open' }),
+      makeCard({ id: 'td-bbb', status: 'in_progress' }),
+    ])
+
+    // Warm the cache for td-bbb first, so the later drop onto it resolves
+    // from cache with no intervening loading state.
+    const dtWarm = dataTransfer('td-bbb')
+    fireEvent.dragStart(screen.getByText('td-bbb').closest('li')!, { dataTransfer: dtWarm })
+    fireEvent.drop(screen.getByRole('region', { name: 'Blocked' }), { dataTransfer: dtWarm })
+    await screen.findByRole('dialog', { name: 'Move td-bbb' })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    const dtA = dataTransfer('td-aaa')
+    fireEvent.dragStart(screen.getByText('td-aaa').closest('li')!, { dataTransfer: dtA })
+    fireEvent.drop(screen.getByRole('region', { name: 'In review' }), { dataTransfer: dtA })
+    expect(await screen.findByRole('dialog', { name: 'Move td-aaa' })).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Block' }))
+    const reasonBox = await screen.findByLabelText('Reason')
+    fireEvent.change(reasonBox, { target: { value: 'leftover reason meant for td-aaa' } })
+    expect(reasonBox).toHaveValue('leftover reason meant for td-aaa')
+
+    const dtB = dataTransfer('td-bbb')
+    fireEvent.dragStart(screen.getByText('td-bbb').closest('li')!, { dataTransfer: dtB })
+    fireEvent.drop(screen.getByRole('region', { name: 'Blocked' }), { dataTransfer: dtB })
+
+    expect(await screen.findByRole('dialog', { name: 'Move td-bbb' })).toBeInTheDocument()
+    expect(screen.queryByDisplayValue('leftover reason meant for td-aaa')).not.toBeInTheDocument()
+  })
 })

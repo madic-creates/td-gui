@@ -74,6 +74,11 @@ export default function SwimlaneView({ cards }: { cards: Card[] }) {
 
       {pending && (
         <BoardTransitionPanel
+          // A drop while a form for a different card is still open must not
+          // reuse that instance: TransitionBar's reason/attribution state is
+          // local and keyed to nothing, so without a remount it would survive
+          // the switch and submit against the wrong issue.
+          key={pending.issueId}
           issueId={pending.issueId}
           droppedOn={pending.status}
           onClose={() => setPending(null)}
