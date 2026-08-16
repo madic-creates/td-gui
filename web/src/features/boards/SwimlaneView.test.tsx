@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
@@ -112,6 +112,117 @@ describe('SwimlaneView', () => {
     fireEvent.dragStart(screen.getByText('td-aaa').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByRole('region', { name: 'Open' }), { dataTransfer: dt })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  /** Every column's data-state, in the order the board renders them. */
+  const columnStates = () =>
+    screen.getAllByRole('region').map(column => column.getAttribute('data-state'))
+
+  const OPEN_CARD = [
+    makeCard({ id: 'td-aaa', status: 'open' }),
+    makeCard({ id: 'td-bbb', status: 'in_progress' }),
+  ]
+
+  /** Renders, picks td-aaa up, and hands back its dataTransfer. */
+  function pickUpOpenCard() {
+    renderSwimlanes(OPEN_CARD)
+    const dt = dataTransfer('td-aaa')
+    fireEvent.dragStart(screen.getByText('td-aaa').closest('li')!, { dataTransfer: dt })
+    return dt
+  }
+
+  it('marks no column while nothing is being dragged', () => {
+    renderSwimlanes(OPEN_CARD)
+    expect(columnStates()).toEqual(['idle', 'idle', 'idle', 'idle', 'idle'])
+  })
+
+  // Which columns would take the card has to be legible before the cursor
+  // reaches one of them, the way the backlog arms every gap on pick-up.
+  it('arms every column a drop would change once a card is picked up', () => {
+    pickUpOpenCard()
+    expect(columnStates()).toEqual(['origin', 'armed', 'armed', 'armed', 'armed'])
+  })
+
+  it('marks the column under the cursor', () => {
+    const dt = pickUpOpenCard()
+    fireEvent.dragOver(screen.getByRole('region', { name: 'In review' }), { dataTransfer: dt })
+    expect(columnStates()).toEqual(['origin', 'armed', 'armed', 'active', 'armed'])
+    expect(dt.dropEffect).toBe('move')
+  })
+
+  // A drop there is a deliberate no-op, so the column must not light up as if
+  // it would take the card, and the cursor should say the same.
+  it('leaves the card own column neutral under the cursor', () => {
+    const dt = pickUpOpenCard()
+    fireEvent.dragOver(screen.getByRole('region', { name: 'Open' }), { dataTransfer: dt })
+    expect(columnStates()).toEqual(['origin', 'armed', 'armed', 'armed', 'armed'])
+    expect(dt.dropEffect).toBe('none')
+  })
+
+  it('moves the mark from one column to the next', () => {
+    const dt = pickUpOpenCard()
+    fireEvent.dragOver(screen.getByRole('region', { name: 'Blocked' }), { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('region', { name: 'Closed' }), { dataTransfer: dt })
+    expect(columnStates()).toEqual(['origin', 'armed', 'armed', 'armed', 'active'])
+  })
+
+  /**
+   * jsdom implements no DragEvent, so Testing Library builds a plain Event and
+   * drops `relatedTarget` from the init — passing it to fireEvent.dragLeave
+   * looks right and measures nothing. It has to be defined on the event.
+   */
+  function leave(column: HTMLElement, relatedTarget: HTMLElement | null) {
+    const event = createEvent.dragLeave(column)
+    Object.defineProperty(event, 'relatedTarget', { value: relatedTarget })
+    fireEvent(column, event)
+  }
+
+  /**
+   * dragleave bubbles out of the cards inside a column too. Clearing on every
+   * one of them would unmark the column the very dragover about to follow is
+   * going to mark again — a flicker on each card the cursor crosses.
+   */
+  it('keeps the mark while the cursor crosses the cards inside the column', () => {
+    const dt = pickUpOpenCard()
+    const column = screen.getByRole('region', { name: 'In progress' })
+    fireEvent.dragOver(column, { dataTransfer: dt })
+    leave(column, screen.getByText('td-bbb'))
+    expect(columnStates()).toEqual(['origin', 'active', 'armed', 'armed', 'armed'])
+  })
+
+  // relatedTarget is null when the drag leaves the window altogether.
+  it('clears the mark when the cursor leaves the column', () => {
+    const dt = pickUpOpenCard()
+    const column = screen.getByRole('region', { name: 'In progress' })
+    fireEvent.dragOver(column, { dataTransfer: dt })
+    leave(column, null)
+    expect(columnStates()).toEqual(['origin', 'armed', 'armed', 'armed', 'armed'])
+  })
+
+  it('clears every mark when the drag is abandoned', () => {
+    const dt = pickUpOpenCard()
+    fireEvent.dragOver(screen.getByRole('region', { name: 'Blocked' }), { dataTransfer: dt })
+    fireEvent.dragEnd(screen.getByText('td-aaa').closest('li')!)
+    expect(columnStates()).toEqual(['idle', 'idle', 'idle', 'idle', 'idle'])
+  })
+
+  it('clears every mark after a drop', async () => {
+    const dt = pickUpOpenCard()
+    fireEvent.drop(screen.getByRole('region', { name: 'In review' }), { dataTransfer: dt })
+    await screen.findByRole('dialog', { name: 'Move td-aaa' })
+    expect(columnStates()).toEqual(['idle', 'idle', 'idle', 'idle', 'idle'])
+  })
+
+  /**
+   * A drag no card here started leaves `dragging` null, and `dropOn` discards
+   * its payload without a word. Arming the columns would advertise a drop that
+   * never happens — the same refusal the backlog gaps make by staying dark.
+   */
+  it('lights nothing for a drag that started outside the board', () => {
+    renderSwimlanes(OPEN_CARD)
+    const foreign = dataTransfer('https://example.com/')
+    fireEvent.dragOver(screen.getByRole('region', { name: 'Blocked' }), { dataTransfer: foreign })
+    expect(columnStates()).toEqual(['idle', 'idle', 'idle', 'idle', 'idle'])
   })
 
   // TransitionBar's reason/attribution state is local to the component
