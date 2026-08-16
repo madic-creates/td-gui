@@ -31,6 +31,19 @@ alignment is close rather than pixel-exact.
 `SwimlaneView` already scrolls horizontally (`overflow-x-auto`), so a narrower
 container makes it scroll sooner rather than break.
 
+The cap is app-wide, so it also reaches the `border-b` toolbars inside
+`<main>` — `IssueFilters` above the issue list and the board-name bar in
+`BoardView` — which used to span the window and now stop at 1440px like
+everything else in the column. That was considered and accepted rather than
+carved out as an exception. The alternative, a `w-screen` /
+`mx-[calc(50%-50vw)]` breakout to push those two bars back to the window
+edges, was tried and reverted: `vw` units include the scrollbar's width while
+a percentage margin resolves against the content box, so on any window with a
+classic (non-overlay) vertical scrollbar the breakout overhangs the right edge
+by half a scrollbar width and produces real horizontal scroll. That is not a
+narrow edge case — the issue list is the app's home page and scrolls
+vertically as soon as a project has more than a screenful of issues.
+
 ### 2. The header condenses from seven rows to four
 
 | Row | Content |
