@@ -353,6 +353,49 @@ describe('IssueDetail', () => {
     expect(screen.getByLabelText('Title')).toHaveValue('Probe issue for API shape')
   })
 
+  // The editor is for the fields it can save. The activity log and the
+  // comments are neither editable nor part of what Save writes, and a
+  // new-comment box under an open form invites a write nobody asked the
+  // editor for — the comment would post on its own while the edits sit
+  // unsaved above it.
+  it('hides the activity log and the comments while editing', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.queryByText('Activity')).not.toBeInTheDocument()
+    expect(screen.queryByText('Comments')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add comment' })).not.toBeInTheDocument()
+    expect(screen.queryByText(
+      'The handoff panel should collapse past ten items per group.')).not.toBeInTheDocument()
+  })
+
+  // Hidden by the editor, not by the visit: closing it brings both back.
+  it('restores the activity log and the comments when editing is cancelled', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.getByText('Activity')).toBeInTheDocument()
+    expect(screen.getByText('Comments')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add comment' })).toBeInTheDocument()
+  })
+
+  // The dependency panel is the one thing under the form that the editor can
+  // still change, so it stays — hiding the read-only sections must not take
+  // it with them.
+  it('keeps the dependency panel while editing', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+
+    expect(screen.getByRole('button', { name: 'Add dependency' })).toBeInTheDocument()
+  })
+
   // Opening the editor must not remount IssueActions. react-query stops
   // calling a mutation's mutate-level callbacks as soon as its observer loses
   // its listeners, so an unmount mid-delete strands the navigate('/') that

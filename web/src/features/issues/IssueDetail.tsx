@@ -171,72 +171,88 @@ function IssueDetailView({ id }: { id: string }) {
           <RelatedIssues title="Blocks" items={blocks} />
           <RelatedIssues title="Tasks" items={tasks} />
 
-          <section className="mt-6">
-            <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
-            {logs.length === 0 && <EmptyLine>No activity yet.</EmptyLine>}
-            <ul>
-              {logs.map(log => (
-                <li
-                  key={log.id}
-                  className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
-                >
-                  <span className="w-[66px] shrink-0 font-mono text-[11px] tracking-wide text-ink-muted">
-                    {log.type}
-                  </span>
-                  <span className="flex-1">{log.message}</span>
-                  <span className="shrink-0 font-mono text-[11px] text-ink-faint">
-                    {relativeTime(log.timestamp)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          {/* Both sections gone while the editor is open, like the description
+              and the acceptance criteria above. Neither is editable, and the
+              comment box in particular does not belong under an open form: it
+              posts on its own, so a person who types into it and then presses
+              Save has written two unrelated things and only knows about one.
+              What is left below the form is the dependency panel, which the
+              editor can actually change.
 
-          <section className="mt-6">
-            <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
-            {comments.length === 0 && <EmptyLine>No comments yet.</EmptyLine>}
-            <ul>
-              {comments.map(comment => (
-                <li
-                  key={comment.id}
-                  className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
-                >
-                  <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
-                    <span>session {shortSession(comment.session_id)}</span>
-                    <span>·</span>
-                    <span>{relativeTime(comment.created_at)}</span>
-                    <span className="ml-auto">
-                      <ConfirmButton
-                        label="Delete comment"
-                        question="Delete this comment?"
-                        disabled={deleteComment.isPending}
-                        onConfirm={() => deleteComment.mutate(comment.id)}
-                      />
+              Unmounted rather than `hidden`, unlike the control row above.
+              That row uses `hidden` because IssueActions holds a delete whose
+              mutate-level callback navigates away and would be dropped by an
+              unmount mid-flight; the delete here is a comment delete, and
+              react-query still runs the useMutation-level onSuccess that
+              invalidates the query after its observer goes away. */}
+          {!editing && (<>
+            <section className="mt-6">
+              <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
+              {logs.length === 0 && <EmptyLine>No activity yet.</EmptyLine>}
+              <ul>
+                {logs.map(log => (
+                  <li
+                    key={log.id}
+                    className="flex items-baseline gap-2.5 border-b border-line-subtle py-1.5 last:border-b-0"
+                  >
+                    <span className="w-[66px] shrink-0 font-mono text-[11px] tracking-wide text-ink-muted">
+                      {log.type}
                     </span>
-                  </div>
-                  <p className="whitespace-pre-wrap leading-relaxed">
-                    {comment.text}
-                  </p>
-                </li>
-              ))}
-            </ul>
-            {/* deleteComment is one shared mutation for every comment in the
-                list, so its error is not scoped to a single row — surfacing it
-                once here (rather than per-row, which would wrongly imply every
-                comment failed) still puts td's message where it can be read,
-                instead of dropping it. */}
-            {deleteComment.error && (
-              <div className="mt-3">
-                <ErrorPanel
-                  label="Delete failed"
-                  message={deleteComment.error instanceof ApiError
-                    ? deleteComment.error.message
-                    : String(deleteComment.error)}
-                />
-              </div>
-            )}
-            <CommentForm issueId={issue.id} />
-          </section>
+                    <span className="flex-1">{log.message}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-faint">
+                      {relativeTime(log.timestamp)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className="mt-6">
+              <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
+              {comments.length === 0 && <EmptyLine>No comments yet.</EmptyLine>}
+              <ul>
+                {comments.map(comment => (
+                  <li
+                    key={comment.id}
+                    className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
+                  >
+                    <div className="mb-1.5 flex items-center gap-2 font-mono text-[11px] text-ink-faint">
+                      <span>session {shortSession(comment.session_id)}</span>
+                      <span>·</span>
+                      <span>{relativeTime(comment.created_at)}</span>
+                      <span className="ml-auto">
+                        <ConfirmButton
+                          label="Delete comment"
+                          question="Delete this comment?"
+                          disabled={deleteComment.isPending}
+                          onConfirm={() => deleteComment.mutate(comment.id)}
+                        />
+                      </span>
+                    </div>
+                    <p className="whitespace-pre-wrap leading-relaxed">
+                      {comment.text}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {/* deleteComment is one shared mutation for every comment in the
+                  list, so its error is not scoped to a single row — surfacing it
+                  once here (rather than per-row, which would wrongly imply every
+                  comment failed) still puts td's message where it can be read,
+                  instead of dropping it. */}
+              {deleteComment.error && (
+                <div className="mt-3">
+                  <ErrorPanel
+                    label="Delete failed"
+                    message={deleteComment.error instanceof ApiError
+                      ? deleteComment.error.message
+                      : String(deleteComment.error)}
+                  />
+                </div>
+              )}
+              <CommentForm issueId={issue.id} />
+            </section>
+          </>)}
         </div>
 
         <aside>
