@@ -266,6 +266,19 @@ jobs:
       # Splitting dry-run from publish is what lets the binary carry the tag:
       # the version has to be known before `make build`, but the tag must not
       # exist until the artifact it points at has been built.
+      #
+      # github_use_compare_commits is not optional here. By default the GitHub
+      # provider lists commits from HEAD in *date* order and stops at the
+      # previous release's SHA. Work that lands by merging a side branch is
+      # older than the tag it merges past, so the walk hits the tag first and
+      # sees only the merge commits — which carry no conventional-commit type,
+      # so it reports "no change". That is how v0.2.6 shipped and then 61
+      # commits, several of them feat, sat unreleased behind it. The compare
+      # API resolves the merge base instead of trusting timestamps.
+      #
+      # Both semantic-release steps need the flag: they recompute the version
+      # independently, and a publish that disagrees with the dry run would tag
+      # a version the binary was not stamped with.
       - name: Determine next version (dry-run)
         id: semrel-dry
         if: steps.guard.outputs.proceed == 'true'
@@ -276,6 +289,7 @@ jobs:
           dry: true
           allow-initial-development-versions: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-arguments: --provider-opt github_use_compare_commits=true
 
       # Everything below is skipped when the commits since the last tag warrant
       # no release, so a docs-only push installs no toolchain at all.
@@ -309,6 +323,7 @@ jobs:
           bin: /tmp/semantic-release
           allow-initial-development-versions: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          custom-arguments: --provider-opt github_use_compare_commits=true
 
       - name: Rename binary + checksum for release
         if: steps.semrel-dry.outputs.version != ''
