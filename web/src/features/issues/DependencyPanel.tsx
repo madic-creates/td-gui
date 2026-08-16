@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { unboundMessage } from '../../api/client'
 import { useAddDependency, useRemoveDependency } from '../../api/mutations'
 import type { Dependency } from '../../api/types'
@@ -30,6 +30,13 @@ export default function DependencyPanel({ issueId, dependencies, blockedBy }: Pr
   const [lastAction, setLastAction] = useState<'add' | 'remove' | null>(null)
   const error = lastAction === 'add' ? add.error : lastAction === 'remove' ? remove.error : null
   const panelError = unboundMessage(error)
+
+  // The submit button disables on add.isPending, but that reads from state
+  // and doesn't stop the form's native submit event: two submits landing
+  // before a render commits both read isPending as false and each add the
+  // dependency. A ref isn't tied to render timing, so it closes that gap —
+  // same fix as IssueForm/IssueEditForm/CommentForm/TransitionBar's form.
+  const submitting = useRef(false)
 
   // Dependencies carry only id triples; titles come from the shared index.
   const { index, issues } = useIssueIndex()
@@ -71,10 +78,15 @@ export default function DependencyPanel({ issueId, dependencies, blockedBy }: Pr
         className="flex gap-1.5"
         onSubmit={event => {
           event.preventDefault()
+          if (submitting.current) return
           const id = entry.trim()
           if (!id) return
+          submitting.current = true
           setLastAction('add')
-          add.mutate(id, { onSuccess: () => setEntry('') })
+          add.mutate(id, {
+            onSuccess: () => setEntry(''),
+            onSettled: () => { submitting.current = false },
+          })
         }}
       >
         <label htmlFor="dependency-entry" className="sr-only">Depends on</label>

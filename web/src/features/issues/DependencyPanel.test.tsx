@@ -1,10 +1,10 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import DependencyPanel from './DependencyPanel'
 import type { Dependency } from '../../api/types'
 import { makeIssue } from './issue.fixture'
@@ -145,6 +145,28 @@ describe('DependencyPanel', () => {
   it('renders nothing but the add control when there are no dependencies', () => {
     renderPanel([])
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+  })
+
+  // The Add dependency button disables on add.isPending, but that reads from
+  // state and doesn't stop the form's native submit event — two submits
+  // landing before a render commits both read isPending as false and each
+  // add the dependency. Same shape as IssueForm.tsx had.
+  it('adds only one dependency when the form is submitted twice in a row', async () => {
+    let count = 0
+    server.use(http.post('/v1/issues/td-6a0883/dependencies', async () => {
+      count += 1
+      await delay(20)
+      return HttpResponse.json({ ok: true, data: { dependency } })
+    }))
+    renderPanel([])
+
+    await userEvent.type(screen.getByLabelText('Depends on'), 'td-ffe762')
+    const form = screen.getByRole('button', { name: 'Add dependency' }).closest('form')!
+
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await expect.poll(() => count).toBe(1)
   })
 
   it('fires no request for a whitespace-only entry', async () => {
