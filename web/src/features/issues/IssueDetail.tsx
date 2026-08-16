@@ -135,6 +135,7 @@ function IssueDetailView({ id }: { id: string }) {
 
           <section className="mt-6">
             <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Activity</h2>
+            {logs.length === 0 && <EmptyLine>No activity yet.</EmptyLine>}
             <ul>
               {logs.map(log => (
                 <li
@@ -155,6 +156,7 @@ function IssueDetailView({ id }: { id: string }) {
 
           <section className="mt-6">
             <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
+            {comments.length === 0 && <EmptyLine>No comments yet.</EmptyLine>}
             <ul>
               {comments.map(comment => (
                 <li
@@ -186,7 +188,7 @@ function IssueDetailView({ id }: { id: string }) {
                 comment failed) still puts td's message where it can be read,
                 instead of dropping it. */}
             {deleteComment.error && (
-              <div className="mb-3">
+              <div className="mt-3">
                 <ErrorPanel
                   label="Delete failed"
                   message={deleteComment.error instanceof ApiError
@@ -205,6 +207,18 @@ function IssueDetailView({ id }: { id: string }) {
       </div>
     </div>
   )
+}
+
+/**
+ * What a section says when it has nothing to list. Not the boxed `EmptyState`
+ * the board and list views use: those own a whole viewport, while these sit in
+ * a dense column of sections and a centred block per empty one would shout
+ * over the issue itself. One muted line keeps each section the same shape
+ * whether or not it has rows — a heading with a void under it reads as a view
+ * that failed to load, and it collapses the rhythm between the headings.
+ */
+function EmptyLine({ children }: { children: string }) {
+  return <p className="text-ink-muted">{children}</p>
 }
 
 const handoffTone: Record<string, string> = {

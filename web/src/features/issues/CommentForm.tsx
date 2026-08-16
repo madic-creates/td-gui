@@ -18,7 +18,10 @@ export default function CommentForm({ issueId }: { issueId: string }) {
 
   return (
     <form
-      className="mt-3"
+      // Its label is styled exactly like the section headings above it, so it
+      // reads as one of them and has to sit the same distance below whatever
+      // precedes it — `mt-6`, the gap every section opens with.
+      className="mt-6"
       onSubmit={e => {
         e.preventDefault()
         if (submitting.current) return

@@ -476,6 +476,35 @@ describe('IssueDetail', () => {
     expect(seen?.searchParams.get('with')).toBe('reviews')
   })
 
+  // An empty section used to render as a heading with nothing under it, which
+  // reads as a view that failed to load its rows rather than an issue that has
+  // none — and left the headings sitting at uneven distances from each other.
+  it('says so when the issue has no activity', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: { ...detail, logs: [] } })))
+
+    renderDetail()
+    expect(await screen.findByText('No activity yet.')).toBeInTheDocument()
+  })
+
+  it('says so when the issue has no comments', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: { ...detail, comments: [] } })))
+
+    renderDetail()
+    expect(await screen.findByText('No comments yet.')).toBeInTheDocument()
+  })
+
+  it('drops both empty states once the sections have rows', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+    await screen.findByText('Started work')
+    expect(screen.queryByText('No activity yet.')).not.toBeInTheDocument()
+    expect(screen.queryByText('No comments yet.')).not.toBeInTheDocument()
+  })
+
   it('deletes a comment after confirming', async () => {
     let deleted = ''
     server.use(
