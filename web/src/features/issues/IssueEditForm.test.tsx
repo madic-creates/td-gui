@@ -261,6 +261,35 @@ describe('IssueEditForm', () => {
       expect(screen.queryByText('title too short (2 chars, min 15)')).not.toBeInTheDocument())
   })
 
+  // Resetting a still-pending mutation on close detaches its onSettled
+  // callback, which is what clears `submitting` after a save. Without also
+  // clearing the ref directly on close, this left Save permanently inert:
+  // the next click would see a stale `submitting.current === true` and
+  // silently do nothing, forever.
+  it('lets Save fire again after the editor is closed while a save is still pending', async () => {
+    let count = 0
+    server.use(http.patch('/v1/issues/td-6a0883', async () => {
+      count += 1
+      await delay(50)
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    const { setEditing } = renderForm()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    // The PATCH above is still in flight when the editor closes and reopens.
+    setEditing(false)
+    setEditing(true)
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A second edit after reopening')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(count).toBe(2))
+  })
+
   it('cancels without sending anything', async () => {
     const { onDone } = renderForm()
 
