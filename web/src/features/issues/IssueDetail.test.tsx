@@ -396,6 +396,84 @@ describe('IssueDetail', () => {
     expect(screen.getByRole('button', { name: 'Add dependency' })).toBeInTheDocument()
   })
 
+  // The commit controls close the editor, so they come after everything the
+  // editor can change — and the dependency panel is part of that, even though
+  // it saves itself rather than through the patch. Asserting on document
+  // order rather than on a parent: the buttons are portalled out of the form
+  // into a slot down there, and only the resulting order is the point.
+  it('puts Save changes and Cancel after the dependency panel', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })))
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    const addDependency = screen.getByRole('button', { name: 'Add dependency' })
+
+    for (const name of ['Save changes', 'Cancel']) {
+      const position = addDependency.compareDocumentPosition(screen.getByRole('button', { name }))
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+  })
+
+  // Moving the buttons out of the <form> must not cost them the submit: they
+  // are portalled, so they still sit in the form's React tree and drive the
+  // same handler.
+  it('saves from the moved button row', async () => {
+    let patched: unknown = null
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
+      http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+        patched = await request.json()
+        return HttpResponse.json({ ok: true, data: detail.issue })
+      }),
+    )
+    renderDetail()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.type(screen.getByLabelText('Title'), ' revised')
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(patched).toEqual({ title: 'Probe issue for API shape revised' }))
+    expect(await screen.findByRole('heading', { name: 'Probe issue for API shape' }))
+      .toBeInTheDocument()
+  })
+
+  // Nothing read-only survives the open editor, so the buttons really are the
+  // last thing on the page. The handoff, the blocks and the tasks go the same
+  // way the activity log and the comments did.
+  it('hides the handoff and the relation sections while editing', async () => {
+    server.use(
+      // An epic, so the Tasks group has something to render; blocked_by gives
+      // Blocks one. Both drop out at zero items, and an assertion that a group
+      // is gone proves nothing about a group that was never there.
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true,
+        data: {
+          ...detail,
+          issue: { ...detail.issue, type: 'epic' },
+          blocked_by: [{ dep_id: 'dp-1', issue_id: 'td-blocked', depends_on_id: 'td-6a0883' }],
+        },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' })],
+          limit: 1000, offset: 0, total: 1, has_more: false,
+        },
+      })),
+    )
+    renderDetail()
+    await screen.findByText('Latest handoff')
+    expect(screen.getByText(/^Blocks/)).toBeInTheDocument()
+    expect(screen.getByText(/^Tasks/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+    expect(screen.queryByText('Latest handoff')).not.toBeInTheDocument()
+    expect(screen.queryByText('done bits')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Blocks/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
+  })
+
   // Opening the editor must not remount IssueActions. react-query stops
   // calling a mutation's mutate-level callbacks as soon as its observer loses
   // its listeners, so an unmount mid-delete strands the navigate('/') that
