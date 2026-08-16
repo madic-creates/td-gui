@@ -44,9 +44,9 @@ describe('AppShell', () => {
   })
 
   // The rule under the header has to reach both window edges while the logo
-  // lines up with the body below it, so <header> stays full-bleed and only an
-  // inner wrapper is capped. A cap on <header> itself would stop the border
-  // short and turn the header into a boxed panel.
+  // lines up closely with the body below it, so <header> stays full-bleed and
+  // only an inner wrapper is capped. A cap on <header> itself would stop the
+  // border short and turn the header into a boxed panel.
   it('caps the header contents in a wrapper rather than capping the header', () => {
     renderShell(true)
     const header = screen.getByRole('banner')
