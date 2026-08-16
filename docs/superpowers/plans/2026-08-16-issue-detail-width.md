@@ -391,6 +391,7 @@ Everything from the old line 105 (`{!editing && issue.description && (`) onward 
 In `web/src/features/issues/TransitionBar.tsx`, change line 159 from:
 
 ```tsx
+  return (
     <div className="mt-4 border-t border-line-subtle pt-4">
 ```
 
@@ -523,7 +524,7 @@ In `web/src/features/issues/IssueDetail.tsx`, replace the body grid's first cell
             the sidebar under the first column. The prose track takes exactly
             its 68ch measure and the log column takes the remainder, so neither
             carries slack. Row gaps stay with the sections' own mt-6. */}
-        <div className="grid content-start gap-x-6 xl:grid-cols-[minmax(0,68ch)_minmax(0,1fr)]">
+        <div className="grid gap-x-6 xl:grid-cols-[minmax(0,68ch)_minmax(0,1fr)]">
           <div>
             {!editing && issue.description && (
               <section className="mt-6">
