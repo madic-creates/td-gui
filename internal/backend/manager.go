@@ -136,7 +136,20 @@ func (m *Manager) spawn(ctx context.Context) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start td serve: %w", err)
 	}
+	// Supervise's restart calls this after a crash, racing a concurrent Stop
+	// (e.g. the process exiting on SIGTERM at the same moment). Stop reads
+	// m.cmd once and returns immediately if it is nil at that instant, so a
+	// Stop that lands between the crash and this line would see nothing to
+	// kill — and unless spawn also checks m.stopping here, the process
+	// started above would register successfully and outlive the program that
+	// spawned it. Re-checking under the same lock that guards m.stopping
+	// closes that window.
 	m.mu.Lock()
+	if m.stopping {
+		m.mu.Unlock()
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("stop requested while starting td serve")
+	}
 	m.cmd = cmd
 	m.mu.Unlock()
 
@@ -155,6 +168,11 @@ func (m *Manager) spawn(ctx context.Context) error {
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
 					m.mu.Lock()
+					if m.stopping {
+						m.mu.Unlock()
+						_ = cmd.Process.Kill()
+						return fmt.Errorf("stop requested while starting td serve")
+					}
 					m.baseURL, m.token = url, token
 					m.mu.Unlock()
 					m.watchChild(cmd)
