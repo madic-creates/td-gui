@@ -152,6 +152,34 @@ describe('BoardView', () => {
     expect(screen.queryByText(/This board has no query/)).not.toBeInTheDocument()
   })
 
+  // Every other swimlane test drives SwimlaneView directly, and every BoardView
+  // test that selects swimlanes hands it no cards — so the empty-state branch
+  // runs and the wiring between the two never does. This is the only place the
+  // cards actually reach the columns.
+  it('renders the cards as status columns in swimlane mode', async () => {
+    renderBoard(makeBoard({ view_mode: 'swimlanes' }), [
+      makeCard({ id: 'td-aaa', status: 'open' }),
+      makeCard({ id: 'td-bbb', status: 'in_progress' }),
+    ])
+    expect(await screen.findByRole('region', { name: 'Open' })).toHaveTextContent('td-aaa')
+    expect(screen.getByRole('region', { name: 'In progress' })).toHaveTextContent('td-bbb')
+    expect(screen.queryByRole('list', { name: 'Pinned' })).not.toBeInTheDocument()
+  })
+
+  // `includeClosed` is BoardView's state, and SwimlaneView only uses it to
+  // decide what an empty Closed column means. Passing a constant would go
+  // unnoticed everywhere else.
+  it('tells the swimlanes whether closed issues were asked for', async () => {
+    renderBoard(makeBoard({ view_mode: 'swimlanes' }), [makeCard({ id: 'td-aaa', status: 'open' })])
+    expect(await screen.findByRole('region', { name: 'Closed' }))
+      .toHaveTextContent('Closed issues are hidden unless you include them.')
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Include closed' }))
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'Closed' }))
+        .not.toHaveTextContent('Closed issues are hidden'))
+  })
+
   it("shows td's message when the query fails to execute", async () => {
     server.use(http.get('/v1/boards/:id', () => HttpResponse.json({
       ok: false,
