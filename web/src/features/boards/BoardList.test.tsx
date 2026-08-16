@@ -58,8 +58,21 @@ describe('BoardList', () => {
   it('deletes a board after confirmation', async () => {
     renderList([makeBoard()])
     await userEvent.click(await screen.findByRole('button', { name: 'Delete Sprint 1' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete Sprint 1' }))
     expect(deleted).toEqual(['bd-sprint1'])
+  })
+
+  // Arming one row does not disarm the others, so the confirm and cancel a
+  // row swaps in have to carry the same board name its trigger did.
+  it('keeps the armed controls of two rows apart', async () => {
+    renderList([makeBoard(), makeBoard({ id: 'bd-hotfix', name: 'Hotfix' })])
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete Sprint 1' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Hotfix' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete Hotfix' }))
+
+    expect(deleted).toEqual(['bd-hotfix'])
+    expect(screen.getByRole('button', { name: 'Cancel delete Sprint 1' })).toBeInTheDocument()
   })
 
   // The controls repeat per row, so their accessible names carry the board;

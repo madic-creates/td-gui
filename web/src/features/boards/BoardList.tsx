@@ -85,7 +85,6 @@ export default function BoardList() {
                     label="Delete"
                     ariaLabel={`Delete ${board.name}`}
                     question="Delete this board?"
-                    confirmLabel="Confirm delete"
                     disabled={remove.isPending}
                     onConfirm={() => remove.mutate(board.id)}
                   />

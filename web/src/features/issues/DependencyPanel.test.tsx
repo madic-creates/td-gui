@@ -172,9 +172,30 @@ describe('DependencyPanel', () => {
     renderPanel([dependency])
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove td-ffe762' }))
 
     await waitFor(() => expect(removed).toBe('dep_f7585e15'))
+  })
+
+  // Arming one row does not disarm the others, so the confirm and cancel a
+  // row swaps in have to carry the same blocker id its trigger did.
+  it('keeps the armed controls of two rows apart', async () => {
+    let removed = ''
+    server.use(http.delete('/v1/issues/td-6a0883/dependencies/:depId', ({ params }) => {
+      removed = String(params.depId)
+      return HttpResponse.json({ ok: true, data: { removed: true } })
+    }))
+    renderPanel([
+      dependency,
+      { dep_id: 'dep_second', issue_id: 'td-6a0883', depends_on_id: 'td-9c11', relation_type: 'depends_on' },
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-9c11' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove td-9c11' }))
+
+    await waitFor(() => expect(removed).toBe('dep_second'))
+    expect(screen.getByRole('button', { name: 'Cancel remove td-ffe762' })).toBeInTheDocument()
   })
 
   it('renders nothing but the add control when there are no dependencies', () => {
@@ -234,7 +255,7 @@ describe('DependencyPanel', () => {
       HttpResponse.json({ ok: true, data: { removed: true } })))
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove td-ffe762' }))
 
     await waitFor(() => expect(
       screen.queryByText('cannot add dependency: would create circular dependency'),
@@ -260,7 +281,7 @@ describe('DependencyPanel', () => {
       }, { status: 404 })))
 
     await userEvent.click(screen.getByRole('button', { name: 'Remove td-ffe762' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove td-ffe762' }))
 
     expect(await screen.findByText('dependency not found: dep_f7585e15')).toBeInTheDocument()
     expect(screen.queryByText('cannot add dependency: would create circular dependency')).not.toBeInTheDocument()
