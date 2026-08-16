@@ -41,6 +41,82 @@ describe('ConfirmButton', () => {
     expect(trigger.textContent).toBe('Delete')
   })
 
+  // Each ConfirmButton owns its armed state, so a list can hold two armed at
+  // once. Naming only the trigger leaves the pair it swaps in ambiguous.
+  it('names the armed confirm after the row it belongs to', async () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    render(
+      <>
+        <ConfirmButton
+          label="Remove" ariaLabel="Remove td-a1b2"
+          question="Remove this dependency?" onConfirm={first}
+        />
+        <ConfirmButton
+          label="Remove" ariaLabel="Remove td-c3d4"
+          question="Remove this dependency?" onConfirm={second}
+        />
+      </>,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-a1b2' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-c3d4' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm remove td-c3d4' }))
+
+    expect(second).toHaveBeenCalledOnce()
+    expect(first).not.toHaveBeenCalled()
+  })
+
+  it('names the armed cancel after the row it belongs to', async () => {
+    render(
+      <>
+        <ConfirmButton
+          label="Remove" ariaLabel="Remove td-a1b2"
+          question="Remove this dependency?" onConfirm={vi.fn()}
+        />
+        <ConfirmButton
+          label="Remove" ariaLabel="Remove td-c3d4"
+          question="Remove this dependency?" onConfirm={vi.fn()}
+        />
+      </>,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-a1b2' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove td-c3d4' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel remove td-a1b2' }))
+
+    expect(screen.getByRole('button', { name: 'Remove td-a1b2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Confirm remove td-c3d4' })).toBeInTheDocument()
+  })
+
+  // ariaLabel carries user data — a board is named by whoever created it —
+  // so only the verb is lowered, never the whole string.
+  it('leaves the case of the name itself alone', async () => {
+    render(
+      <ConfirmButton
+        label="Delete" ariaLabel="Delete Sprint 1"
+        question="Delete this board?" onConfirm={vi.fn()}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Sprint 1' }))
+
+    expect(screen.getByRole('button', { name: 'Confirm delete Sprint 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel delete Sprint 1' })).toBeInTheDocument()
+  })
+
+  // Callers with one control on the page pass no ariaLabel, and the visible
+  // text is already an unambiguous name. Overriding it would only get in the
+  // way of a user reading the screen and hearing something else.
+  it('leaves the armed controls unnamed when the trigger takes no ariaLabel', async () => {
+    render(<ConfirmButton label="Delete" question="Delete this issue?" onConfirm={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(screen.getByRole('button', { name: 'Confirm delete' })).not.toHaveAttribute('aria-label')
+    expect(screen.getByRole('button', { name: 'Cancel' })).not.toHaveAttribute('aria-label')
+  })
+
   it('restores the trigger on cancel without firing', async () => {
     const onConfirm = vi.fn()
     render(<ConfirmButton label="Delete" question="Delete this issue?" onConfirm={onConfirm} />)

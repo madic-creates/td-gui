@@ -8,7 +8,7 @@ interface Props {
    */
   ariaLabel?: string
   question: string
-  /** Accessible name of the confirm control. Defaults to `Confirm <label>`. */
+  /** Visible text of the confirm control. Defaults to `Confirm <label>`. */
   confirmLabel?: string
   onConfirm: () => void
   disabled?: boolean
@@ -25,6 +25,15 @@ export default function ConfirmButton({
   label, ariaLabel, question, confirmLabel, onConfirm, disabled, className = '',
 }: Props) {
   const [armed, setArmed] = useState(false)
+
+  // The trigger's name says which row this is; the pair that replaces it has
+  // to keep saying so, or two rows armed at once expose two controls both
+  // named "Confirm remove". Derived here rather than per call site, because a
+  // call site that forgets is silently ambiguous again. Only the verb is
+  // lowered — ariaLabel carries user data, and lowering the lot would turn
+  // "Delete Sprint 1" into "confirm delete sprint 1".
+  const armedName = (verb: string) =>
+    ariaLabel && `${verb} ${ariaLabel[0].toLowerCase()}${ariaLabel.slice(1)}`
 
   if (!armed) {
     return (
@@ -45,6 +54,7 @@ export default function ConfirmButton({
       <span className="text-[11px] text-ink-muted">{question}</span>
       <button
         type="button"
+        aria-label={armedName('Confirm')}
         disabled={disabled}
         onClick={() => {
           setArmed(false)
@@ -56,6 +66,7 @@ export default function ConfirmButton({
       </button>
       <button
         type="button"
+        aria-label={armedName('Cancel')}
         onClick={() => setArmed(false)}
         className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
       >
