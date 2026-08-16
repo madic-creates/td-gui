@@ -39,6 +39,16 @@ describe('insertSlot', () => {
     expect(insertSlot(1, 2)).toBe(2)
   })
 
+  // "Move up" on index 0 computes gap -1, and gap + 1 would be slot 0 — not a
+  // 1-based slot at all. Only a disabled attribute two files away keeps that
+  // request unsent today. This function is documented as the owner of the
+  // conversion, so it refuses the gap itself.
+  it('reports a no-op for a gap before the start of the block', () => {
+    expect(insertSlot(-1, 0)).toBeNull()
+    expect(insertSlot(-1, null)).toBeNull()
+    expect(insertSlot(-2, 3)).toBeNull()
+  })
+
   // The asymmetry that makes this function worth having: moving down by one is
   // gap = index + 2, because the card still occupies index + 1's left edge.
   it('moves a card down by one with the gap two below it', () => {
