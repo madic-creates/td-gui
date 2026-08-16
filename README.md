@@ -13,7 +13,7 @@ the CLI command.
 ## Requirements
 
 - `td` **v0.57.0** or newer on your PATH
-- Go 1.25 and Node 20+ to build
+- Go 1.25 and Node 24 to build (22.22+ also works; CI runs 24)
 
 ## Install
 
