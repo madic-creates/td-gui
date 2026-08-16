@@ -3,6 +3,7 @@ package backend
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -78,5 +79,18 @@ func TestPIDAliveImplausible(t *testing.T) {
 	// PID 0 is never a real user process to signal.
 	if PIDAlive(0) {
 		t.Error("PIDAlive(0) = true, want false")
+	}
+}
+
+func TestPIDAliveDeadProcess(t *testing.T) {
+	// A PID that was real but has already exited must report false, not
+	// just an implausible one like 0 — this is the case that reuse
+	// detection in Manager.Start actually depends on.
+	cmd := exec.Command("go", "version")
+	if err := cmd.Run(); err != nil {
+		t.Skipf("cannot run a short-lived process to test against: %v", err)
+	}
+	if PIDAlive(cmd.Process.Pid) {
+		t.Error("PIDAlive(dead pid) = true, want false")
 	}
 }

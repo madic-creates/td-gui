@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 )
 
@@ -46,19 +45,4 @@ func ReadPortFile(baseDir string) (*PortInfo, error) {
 		return nil, fmt.Errorf("port file has invalid port %d", info.Port)
 	}
 	return &info, nil
-}
-
-// PIDAlive reports whether a process with the given PID exists. Signal 0
-// performs the permission and existence check without delivering a signal.
-func PIDAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	err = proc.Signal(syscall.Signal(0))
-	// EPERM means the process exists but belongs to another user.
-	return err == nil || errors.Is(err, os.ErrPermission)
 }
