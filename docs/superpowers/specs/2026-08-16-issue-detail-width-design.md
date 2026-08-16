@@ -42,6 +42,22 @@ The header also moves out of the first grid cell and becomes a full-width band
 above the columns. That is what gives the open editor — whose field grid is
 `sm:grid-cols-4` — the whole width instead of a 544px column.
 
+Row 3 puts two things on one line that today own a row each. `IssueActions`
+renders a button row *and*, below it, the panel carrying td's rejection message
+— so making its root a flex item would squeeze that message into a column the
+width of three buttons. Instead its root element goes away entirely: it returns
+a fragment, and the header row is a two-column grid, so the button row takes the
+right-hand cell while the error panel takes a `col-span-full` row of its own
+underneath. td's wording keeps the whole width, which is the point of showing it
+unchanged.
+
+This does move `IssueActions` one level deeper in the tree, and
+`IssueEditForm`'s documented constraint is that a move is a remount. The
+constraint is about a remount *within* a session, triggered by `editing`
+toggling — the new structure is identical in both states, so nothing remounts
+while the page is open. `IssueDetail.test.tsx:251` already asserts exactly this
+and is the guard on the change.
+
 **Rows 3 and 4 cannot merge.** `TransitionBar` renders its own `<form>` for the
 reason on reject, block, close and approve, and `IssueEditForm` is a `<form>`
 too; nesting them is invalid HTML. Moving `IssueActions` out of the edit form
@@ -71,9 +87,12 @@ exactly as it is today and subdivides its `1fr` track only at `xl`.
 Below 1280px the inner grid is single-column, which is the stacking order the
 view already has — so narrow windows are unaffected.
 
-At a 1440px window: roughly 545px of prose (68ch, whatever that resolves to in
-the body font), about as much again for structure and log, and 260px of
-metadata. Activity sits beside the description instead of under the fold.
+At a 1440px window the prose track takes exactly its 68ch measure — around
+460px, since the body font is 13px — the sidebar takes 260px, and everything
+left over (roughly 630px) goes to structure and log. No track has slack, which
+is the point: the log column is sized by subtraction, so there is no width left
+over to sit empty. Activity ends up beside the description instead of under the
+fold.
 
 The division is by kind, not by length: column 1 is what a person wrote about
 the issue, column 2 is what the issue is connected to and what happened to it.
@@ -83,6 +102,13 @@ never reshuffles the layout.
 `max-w-[68ch]` stays on the prose paragraphs even though the `xl` track already
 caps them — at `lg` and below the track is wide and the cap is what keeps the
 line length readable.
+
+**One consequence on narrow windows.** Stacked, the columns read in order, so
+Comments moves from last to just after the handoff, ahead of the dependency and
+activity sections. That is the cost of putting Comments in the prose column, and
+it is accepted rather than worked around: comments are the other half of what a
+person wrote about the issue, and reading them next to the description is at
+least as defensible as reading them after the machine log.
 
 ## What is not touched
 
@@ -96,8 +122,11 @@ and behaviour, not on DOM structure, so they should stay green as written; if
 one breaks it means a structural change moved something a test legitimately
 depends on, and that is worth knowing.
 
-No new tests are added. A test asserting "these two elements share a row" would
-assert on Tailwind class names, not on behaviour — it would pass on a layout
-that renders wrongly and fail on a refactor that renders identically.
-Verification is `make test` green plus the running app checked in a browser at
-a wide and a narrow window.
+The new tests assert **DOM relationships**, never class names. "These two
+elements share a parent" and "this component has no root element of its own"
+are structural facts a restructure can genuinely break; `className` contains
+`xl:grid-cols-…` is not — it would pass on a layout that renders wrongly and
+fail on a refactor that renders identically. Whether the result reads well at a
+given width is beyond what jsdom can answer, so it is checked in a browser at
+1700px, 1200px and 900px, in both themes, with the editor open and with a
+rejected transition on screen.
