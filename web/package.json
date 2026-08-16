@@ -30,7 +30,7 @@
     "msw": "^2.15.0",
     "oxlint": "^1.75.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "~6.0.2",
+    "typescript": "~7.0.0",
     "vite": "^8.2.0",
     "vitest": "^4.1.10"
   }
