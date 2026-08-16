@@ -164,6 +164,23 @@
     background-color: var(--color-surface-hover);
   }
 
+  /* Buttons were the one clickable thing in the app still showing the arrow.
+     No rule here caused that: <a href> gets cursor: pointer from the UA
+     stylesheet and <button> gets cursor: default, and Tailwind v4 dropped the
+     preflight override v3 had, so the browser default stood. It only became
+     visible once the hover rule above made buttons and the button-styled links
+     look identical.
+
+     The hand is already this app's convention for anything clickable —
+     IssueFilters chips, IssueCombobox options and the ReviewPanel summary all
+     set cursor-pointer by hand — so this brings buttons in line rather than
+     introducing anything. Same :not(:disabled) boundary as the hover rule:
+     a control that refuses the click keeps the arrow. */
+  button:not(:disabled),
+  a[data-button] {
+    cursor: pointer;
+  }
+
   /* On the base selector, not inside :hover — there it would fade in and snap
      back out. */
   @media (prefers-reduced-motion: reduce) {
