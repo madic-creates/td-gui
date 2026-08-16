@@ -90,7 +90,7 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
 
         <button
           type="button"
-          disabled={focus.isPending}
+          disabled={busy}
           onClick={handleFocus}
           className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted disabled:opacity-40"
         >
@@ -104,7 +104,7 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
         <ConfirmButton
           label="Delete"
           question="Delete this issue?"
-          disabled={remove.isPending}
+          disabled={busy}
           onConfirm={handleDelete}
         />
       </div>
