@@ -32,13 +32,16 @@ type Config struct {
 // Manager discovers a reusable td serve instance or spawns its own, and owns
 // the lifecycle of any instance it spawned.
 type Manager struct {
-	cfg     Config
-	client  *http.Client
-	baseURL string
-	token   string
-	cmd     *exec.Cmd
+	cfg    Config
+	client *http.Client
+	cmd    *exec.Cmd
 
+	// baseURL and token are written from Supervise's goroutine on a restart
+	// and read from callers on the main goroutine (e.g. startup logging), so
+	// both are guarded by mu like the rest of the mutable state below.
 	mu        sync.Mutex
+	baseURL   string
+	token     string
 	waitCh    chan struct{}
 	stopping  bool
 	restarted bool
@@ -65,11 +68,19 @@ func GenerateToken() (string, error) {
 }
 
 // BaseURL is the origin of the td serve instance, valid after Start.
-func (m *Manager) BaseURL() string { return m.baseURL }
+func (m *Manager) BaseURL() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.baseURL
+}
 
 // Token is the bearer token to inject, empty when reusing an instance that
 // does not require one.
-func (m *Manager) Token() string { return m.token }
+func (m *Manager) Token() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.token
+}
 
 // Owned reports whether this process spawned the td serve instance.
 func (m *Manager) Owned() bool { return m.cmd != nil }
@@ -85,8 +96,9 @@ func (m *Manager) Start(ctx context.Context) error {
 		url := fmt.Sprintf("http://127.0.0.1:%d", info.Port)
 		switch Probe(ctx, m.client, url) {
 		case ProbeUsable:
-			m.baseURL = url
-			m.token = ""
+			m.mu.Lock()
+			m.baseURL, m.token = url, ""
+			m.mu.Unlock()
 			return nil
 		case ProbeUnauthorized:
 			return fmt.Errorf("a td serve instance is already running on port %d with a bearer token td-gui does not know; stop it, or start td-gui against a different project", info.Port)
@@ -134,8 +146,9 @@ func (m *Manager) spawn(ctx context.Context) error {
 			if resp, err := m.client.Do(req); err == nil {
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
-					m.baseURL = url
-					m.token = token
+					m.mu.Lock()
+					m.baseURL, m.token = url, token
+					m.mu.Unlock()
 					m.watchChild(cmd)
 					return nil
 				}

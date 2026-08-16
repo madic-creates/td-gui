@@ -130,3 +130,56 @@ func TestSuperviseDoesNotRestartTwice(t *testing.T) {
 	case <-time.After(5 * time.Second):
 	}
 }
+
+// TestBaseURLAndTokenSafeDuringRestart exercises BaseURL/Token from another
+// goroutine while Supervise's own goroutine writes them on restart. Both
+// accessors and their writers now share m.mu, so this must run clean under
+// go test -race; it also pins the observable contract that a caller never
+// sees baseURL paired with a token from a different generation.
+func TestBaseURLAndTokenSafeDuringRestart(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(base+"/.todos", 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTd(t), StartTimeout: 10 * time.Second})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := m.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	stopPolling := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stopPolling:
+				return
+			default:
+				_ = m.BaseURL()
+				_ = m.Token()
+			}
+		}
+	}()
+
+	restarted := make(chan string, 1)
+	m.Supervise(ctx, func(baseURL, token string) { restarted <- baseURL })
+	m.killChildForTest()
+
+	select {
+	case <-restarted:
+	case <-time.After(20 * time.Second):
+		t.Fatal("supervisor did not restart the backend")
+	}
+
+	close(stopPolling)
+	<-done
+
+	if m.BaseURL() == "" || m.Token() == "" {
+		t.Error("BaseURL/Token empty after restart")
+	}
+}
