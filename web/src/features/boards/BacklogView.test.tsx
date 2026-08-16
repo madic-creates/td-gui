@@ -118,6 +118,36 @@ describe('BacklogView', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('issue not found: td-aaa')
   })
 
+  // The panel shows whichever write the user last asked for, so both of them
+  // have to be able to reach it.
+  it("shows td's message when an unpin is rejected", async () => {
+    server.use(http.delete('/v1/boards/:id/issues/:issueId', () => HttpResponse.json({
+      ok: false, error: { code: 'not_found', message: 'issue not found: td-bbb' },
+    }, { status: 404 })))
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Unpin td-bbb' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('issue not found: td-bbb')
+  })
+
+  /**
+   * React Query keeps a mutation's error until that same mutation runs again,
+   * so a rejected move outlives an unpin that succeeded. The panel would then
+   * be describing a card that has already left the pinned block, in the user's
+   * own words: "the move failed" — while the thing they just did worked.
+   */
+  it('drops a rejected move from the panel once the next write succeeds', async () => {
+    server.use(http.post('/v1/boards/:id/issues', () => HttpResponse.json({
+      ok: false, error: { code: 'not_found', message: 'issue not found: td-aaa' },
+    }, { status: 404 })))
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('issue not found: td-aaa')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unpin td-bbb' }))
+    await waitFor(() => expect(cleared).toEqual(['td-bbb']))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   /**
    * jsdom implements neither DataTransfer nor the drag lifecycle, so the
    * exchange is stubbed. That is the whole contract the component relies on:

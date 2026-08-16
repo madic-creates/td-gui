@@ -28,12 +28,31 @@ export default function BacklogView({ boardId, cards }: Props) {
   const setPosition = useSetCardPosition(boardId)
   const clearPosition = useClearCardPosition(boardId)
   const busy = setPosition.isPending || clearPosition.isPending
-  const message = unboundMessage(setPosition.error ?? clearPosition.error)
+
+  // Which of the two mutations owns the panel. React Query holds a mutation's
+  // error until that same mutation runs again, so without this an unpin that
+  // succeeded would leave a rejected move on screen describing a card that has
+  // already left the pinned block. Selecting the outcome rather than reset()ing
+  // the sibling matters: MutationObserver.reset() detaches the observer from a
+  // *pending* mutation, so td's answer never arrives. Same pattern as
+  // TransitionBar and DependencyPanel.
+  const [lastAction, setLastAction] = useState<'set' | 'clear' | null>(null)
+  const error =
+    lastAction === 'set' ? setPosition.error
+    : lastAction === 'clear' ? clearPosition.error
+    : null
+  const message = unboundMessage(error)
 
   /** No optimistic move: td computes the sort key and may respace the board. */
   const move = (issueId: string, slot: number | null) => {
     if (slot === null) return
+    setLastAction('set')
     setPosition.mutate({ issueId, slot })
+  }
+
+  const unpin = (issueId: string) => {
+    setLastAction('clear')
+    clearPosition.mutate(issueId)
   }
 
   /**
@@ -173,7 +192,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                     type="button"
                     aria-label={`Unpin ${card.issue.id}`}
                     disabled={busy}
-                    onClick={() => clearPosition.mutate(card.issue.id)}
+                    onClick={() => unpin(card.issue.id)}
                     className="rounded-sm border border-line px-2 py-1 text-[11px] text-ink-muted disabled:opacity-40"
                   >
                     Unpin
