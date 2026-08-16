@@ -58,6 +58,33 @@
       ],
       groupName: 'web dependencies',
     },
+    {
+      // These two files sit outside ci.yaml's `paths` allowlist, so a PR that
+      // touches only them starts no CI run and carries no status checks at
+      // all. Renovate's default is to wait for a *passing* check before it
+      // automerges, so without this the PR would sit open forever — the exact
+      // stall `automergeType: 'pr'` above was chosen to avoid, re-entering
+      // through the path filter instead.
+      //
+      // Opting them out of the gate is the right half of the trade, not
+      // widening the allowlist: ci.yaml deliberately lists only files that can
+      // affect a build, a test or a release artifact, and neither of these
+      // can. Adding them would spend the full suite on a hook bump and, worse,
+      // cut a patch release for it — `chore(deps)` is a patch rule in
+      // .semrelrc — shipping a binary that is behaviourally identical.
+      //
+      // What still guards these: majors stay manual (`major.automerge` is
+      // false), so only minor/patch land unattended, and `minimumReleaseAge`
+      // gives every one of them a 5-day soak first. Blast radius is small in
+      // both directions — a bad hook rev breaks local `pre-commit run` (no CI
+      // job runs it), and a bad action bump breaks this workflow, which is
+      // self-announcing.
+      matchFileNames: [
+        '.pre-commit-config.yaml',
+        '.github/workflows/renovate.yaml',
+      ],
+      ignoreTests: true,
+    },
   ],
   minimumReleaseAge: '5 days',
   // Apply the age check only when the datasource provides a release timestamp.

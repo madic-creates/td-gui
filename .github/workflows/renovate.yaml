@@ -85,7 +85,12 @@ jobs:
           # https://docs.github.com/en/enterprise-cloud@latest/actions/writing-workflows/workflow-syntax-for-github-actions#onworkflow_dispatchinputs
           RENOVATE_DRY_RUN: ${{ github.event.inputs.dryRun || 'false' }}
           RENOVATE_REPOSITORY_CACHE: ${{ github.event.inputs.repoCache || 'enabled' }}
+      # Same guard as the download and upload steps: with repoCache=disabled
+      # Renovate writes no repository cache, so $cache_dir never exists and
+      # `ls` would fail the job under `bash -e` — after Renovate has already
+      # done all of its real work.
       - name: Compress renovate cache
+        if: github.event.inputs.repoCache != 'disabled'
         run: |
           ls $cache_dir
           tar -czvf $cache_archive -C $cache_dir .
@@ -95,4 +100,8 @@ jobs:
         with:
           name: ${{ env.cache_key }}
           path: ${{ env.cache_archive }}
-          retention-days: 1
+          # Two days, not one: the cron runs daily, so a 1-day retention puts
+          # expiry on the same boundary as the next run and the cache is a
+          # coin flip. Losing it only costs a cold run, but there is no reason
+          # to race for it.
+          retention-days: 2
