@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import SwimlaneView from './SwimlaneView'
-import { makeCard } from './board.fixture'
+import { dataTransfer, makeCard } from './board.fixture'
 import { makeIssue } from '../issues/issue.fixture'
 import type { BoardCard } from '../../api/types'
 
@@ -21,15 +21,6 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
-
-function dataTransfer(id: string) {
-  const store: Record<string, string> = { 'text/plain': id }
-  return {
-    dropEffect: '', effectAllowed: '',
-    setData: (type: string, value: string) => { store[type] = value },
-    getData: (type: string) => store[type] ?? '',
-  }
-}
 
 function renderSwimlanes(cards: BoardCard[], includeClosed = false) {
   const qc = new QueryClient({
