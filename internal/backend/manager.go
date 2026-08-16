@@ -34,12 +34,12 @@ type Config struct {
 type Manager struct {
 	cfg    Config
 	client *http.Client
-	cmd    *exec.Cmd
 
-	// baseURL and token are written from Supervise's goroutine on a restart
-	// and read from callers on the main goroutine (e.g. startup logging), so
-	// both are guarded by mu like the rest of the mutable state below.
+	// cmd, baseURL and token are written from Supervise's goroutine on a
+	// restart and read from callers on the main goroutine (e.g. startup
+	// logging), so all of Manager's mutable state is guarded by mu.
 	mu        sync.Mutex
+	cmd       *exec.Cmd
 	baseURL   string
 	token     string
 	waitCh    chan struct{}
@@ -83,7 +83,11 @@ func (m *Manager) Token() string {
 }
 
 // Owned reports whether this process spawned the td serve instance.
-func (m *Manager) Owned() bool { return m.cmd != nil }
+func (m *Manager) Owned() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cmd != nil
+}
 
 // Start reuses a healthy instance or spawns a new one. It fails if BaseDir is
 // not a td project.

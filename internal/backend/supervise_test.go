@@ -131,11 +131,12 @@ func TestSuperviseDoesNotRestartTwice(t *testing.T) {
 	}
 }
 
-// TestBaseURLAndTokenSafeDuringRestart exercises BaseURL/Token from another
-// goroutine while Supervise's own goroutine writes them on restart. Both
-// accessors and their writers now share m.mu, so this must run clean under
-// go test -race; it also pins the observable contract that a caller never
-// sees baseURL paired with a token from a different generation.
+// TestBaseURLAndTokenSafeDuringRestart exercises BaseURL/Token/Owned from
+// another goroutine while Supervise's own goroutine writes cmd/baseURL/token
+// on restart. All three accessors and their writers now share m.mu, so this
+// must run clean under go test -race; it also pins the observable contract
+// that a caller never sees baseURL paired with a token from a different
+// generation.
 func TestBaseURLAndTokenSafeDuringRestart(t *testing.T) {
 	base := t.TempDir()
 	if err := os.MkdirAll(base+"/.todos", 0o755); err != nil {
@@ -162,6 +163,7 @@ func TestBaseURLAndTokenSafeDuringRestart(t *testing.T) {
 			default:
 				_ = m.BaseURL()
 				_ = m.Token()
+				_ = m.Owned()
 			}
 		}
 	}()
@@ -181,5 +183,8 @@ func TestBaseURLAndTokenSafeDuringRestart(t *testing.T) {
 
 	if m.BaseURL() == "" || m.Token() == "" {
 		t.Error("BaseURL/Token empty after restart")
+	}
+	if !m.Owned() {
+		t.Error("Owned = false after restart, want true (the respawned process is still ours)")
 	}
 }
