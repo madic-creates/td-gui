@@ -142,6 +142,27 @@ describe('TransitionBar approve attribution', () => {
     await expect.poll(() => seen.body).toEqual({ reviewed_by: 'reviewer sub-agent' })
   })
 
+  // td only rejects reviewed_by when it trims to empty from non-empty input
+  // (whitespace-only); a field left untouched arrives as "" and passes that
+  // check, so without a client-side guard "Reviewed by someone else" with a
+  // blank name would silently record an unattributed approval.
+  it('disables confirm when "Reviewed by someone else" is chosen but left blank', async () => {
+    const { seen, handler } = captureBody('post', '/v1/issues/td-6a0883/approve')
+    server.use(handler)
+
+    await openApprove()
+    await userEvent.click(screen.getByRole('radio', { name: 'Reviewed by someone else' }))
+    expect(screen.getByRole('button', { name: 'Confirm approve' })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm approve' }))
+    expect(seen.body).toBeUndefined()
+
+    await userEvent.type(screen.getByLabelText('Reviewer'), 'reviewer sub-agent')
+    expect(screen.getByRole('button', { name: 'Confirm approve' })).not.toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm approve' }))
+    await expect.poll(() => seen.body).toEqual({ reviewed_by: 'reviewer sub-agent' })
+  })
+
   it('sends self_review with its required reason', async () => {
     const { seen, handler } = captureBody('post', '/v1/issues/td-6a0883/approve')
     server.use(handler)
@@ -213,6 +234,21 @@ describe('TransitionBar record-only review', () => {
       summary: 'Looks right',
       reviewed_by: 'reviewer sub-agent',
     })
+  })
+
+  it('disables record review too when the attribution name is left blank', async () => {
+    const { seen, handler } = captureBody('post', '/v1/issues/td-6a0883/reviews')
+    server.use(handler)
+
+    renderBar(['approve'])
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Record only, do not close' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Reviewed by someone else' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'Looks right')
+
+    expect(screen.getByRole('button', { name: 'Record review' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Record review' }))
+    expect(seen.body).toBeUndefined()
   })
 
   it('offers record-only for approve alone', async () => {

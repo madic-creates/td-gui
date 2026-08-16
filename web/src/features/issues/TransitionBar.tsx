@@ -87,6 +87,13 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   if (!available?.length) return null
 
   const busy = transition.isPending || record.isPending
+  // td only rejects a whitespace-only reviewed_by (trims to empty but arrives
+  // non-empty); a genuinely empty string passes its validation and is
+  // recorded as an unattributed review — silently not what "Reviewed by
+  // someone else" promised. Block that here rather than let it round-trip
+  // into a mislabeled approval.
+  const attributionIncomplete =
+    pending === 'approve' && mode === 'attributed' && !reviewedBy.trim()
   const error =
     lastAction === 'transition' ? transition.error
     : lastAction === 'record' ? record.error
@@ -136,7 +143,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   }
 
   const submit = () => {
-    if (submitting.current) return
+    if (submitting.current || attributionIncomplete) return
     submitting.current = true
     const note = reason.trim()
     if (recordOnly) {
@@ -258,7 +265,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
           <div className="mt-2 flex gap-1.5">
             <button
               type="submit"
-              disabled={busy}
+              disabled={busy || attributionIncomplete}
               className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40"
             >
               {recordOnly ? 'Record review' : `Confirm ${pending}`}
