@@ -1345,6 +1345,14 @@ describe('BoardView', () => {
     expect(await screen.findByText('No issues on this board.')).toBeInTheDocument()
   })
 
+  // A query-less board is not necessarily empty: it shows whatever was pinned
+  // by hand. The explanation belongs to the empty case only.
+  it('renders cards on a board that has no query', async () => {
+    renderBoard(makeBoard({ query: '' }), [makeCard({ id: 'td-aaa' })])
+    expect(await screen.findByText('td-aaa')).toBeInTheDocument()
+    expect(screen.queryByText(/This board has no query/)).not.toBeInTheDocument()
+  })
+
   it('shows td's message when the query fails to execute', async () => {
     server.use(http.get('/v1/boards/:id', () => HttpResponse.json({
       ok: false,
@@ -1435,16 +1443,21 @@ export default function BoardView() {
         <ViewToggle view={view} onChange={setView} />
       </div>
 
-      {board.query === '' ? (
-        <EmptyState
-          message="This board has no query."
-          hint="It shows only issues positioned on it by hand — drag issues here or use td board move."
-        />
-      ) : issues.length === 0 ? (
-        <EmptyState
-          message="No issues on this board."
-          hint="Nothing matches its query right now. Closed issues are hidden unless you include them."
-        />
+      {/* Emptiness is decided first. A query-less board is not necessarily
+          empty — it shows whatever was pinned by hand — so its explanation
+          belongs to the empty case only. */}
+      {issues.length === 0 ? (
+        board.query === '' ? (
+          <EmptyState
+            message="This board has no query."
+            hint="It shows only issues positioned on it by hand — drag issues here or use td board move."
+          />
+        ) : (
+          <EmptyState
+            message="No issues on this board."
+            hint="Nothing matches its query right now. Closed issues are hidden unless you include them."
+          />
+        )
       ) : (
         <ul className="space-y-1.5 p-4">
           {issues.map(card => (
@@ -1491,7 +1504,7 @@ unreachable on such a board and Task 7's test pins the corrected order.
 - [ ] **Step 8: Run test to verify it passes**
 
 Run: `cd web && npm test -- --run src/features/boards/BoardView.test.tsx`
-Expected: PASS, 7 tests.
+Expected: PASS, 8 tests.
 
 - [ ] **Step 9: Add the route**
 
@@ -1765,27 +1778,15 @@ Expected: PASS, 8 tests.
 
 - [ ] **Step 5: Wire it into BoardView**
 
-In `web/src/features/boards/BoardView.tsx`, replace the placeholder `<ul>` and
-reorder the empty-state branches so a hand-positioned card on a query-less
-board is still reachable:
+In `web/src/features/boards/BoardView.tsx`, replace only the placeholder `<ul>`
+in the non-empty branch. The empty-state branch order is already correct from
+Task 6 and must not change:
 
 ```tsx
 import BacklogView from './BacklogView'
 ```
 
 ```tsx
-      {issues.length === 0 ? (
-        board.query === '' ? (
-          <EmptyState
-            message="This board has no query."
-            hint="It shows only issues positioned on it by hand — drag issues here or use td board move."
-          />
-        ) : (
-          <EmptyState
-            message="No issues on this board."
-            hint="Nothing matches its query right now. Closed issues are hidden unless you include them."
-          />
-        )
       ) : view === 'backlog' ? (
         <BacklogView boardId={board.id} cards={issues} />
       ) : (
@@ -1793,28 +1794,15 @@ import BacklogView from './BacklogView'
       )}
 ```
 
-- [ ] **Step 6: Pin the corrected branch order**
+`BoardCard` is no longer used directly by `BoardView` — drop that import.
 
-Add to `web/src/features/boards/BoardView.test.tsx`:
-
-```tsx
-  // A query-less board is not necessarily empty: it shows whatever was pinned
-  // by hand. The explanation belongs to the empty case only.
-  it('renders pinned cards on a board that has no query', async () => {
-    renderBoard(makeBoard({ query: '' }), [makeCard({ id: 'td-aaa' })])
-    expect(await screen.findByText('td-aaa')).toBeInTheDocument()
-    expect(screen.queryByText(/This board has no query/)).not.toBeInTheDocument()
-  })
-```
-
-Add `makeCard` to that file's import from `./board.fixture`.
-
-- [ ] **Step 7: Run both suites**
+- [ ] **Step 6: Run both suites**
 
 Run: `cd web && npm test -- --run src/features/boards/`
-Expected: PASS.
+Expected: PASS. `BoardView.test.tsx`'s existing "renders cards on a board that
+has no query" case now exercises `BacklogView` and must stay green.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add web/src/features/boards/BacklogView.tsx web/src/features/boards/BacklogView.test.tsx web/src/features/boards/BoardView.tsx web/src/features/boards/BoardView.test.tsx
