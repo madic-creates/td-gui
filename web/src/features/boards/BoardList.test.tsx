@@ -67,8 +67,9 @@ describe('BoardList', () => {
     expect(await screen.findByText('No boards yet.')).toBeInTheDocument()
   })
 
-  // A board with no query shows only hand-positioned issues, so saying "all"
-  // where td shows nothing would be the GUI inventing a second truth.
+  // "no query" states the field, not what it matches. The row is a link to the
+  // board; the board itself is where the reader learns an empty query matches
+  // everything, and it says so only when there is nothing to show.
   it('marks a board that has no query', async () => {
     renderList([makeBoard({ query: '' })])
     expect(await screen.findByText('no query')).toBeInTheDocument()

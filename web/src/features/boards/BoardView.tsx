@@ -60,14 +60,14 @@ export default function BoardView() {
         <ViewToggle view={view} onChange={setView} />
       </div>
 
-      {/* Emptiness is decided first. A query-less board is not necessarily
-          empty — it shows whatever was pinned by hand — so its explanation
-          belongs to the empty case only. */}
+      {/* Emptiness is decided first. A query-less board matches every issue,
+          so reaching this branch means the project itself has nothing to show
+          — pointing at the query would send the user to fix the wrong thing. */}
       {issues.length === 0 ? (
         board.query === '' ? (
           <EmptyState
-            message="This board has no query."
-            hint="It shows only issues positioned on it by hand. Run td board move to put the first one here — the GUI can reorder cards on a board, but it has no drag source outside one."
+            message="No issues yet."
+            hint="This board has no query, so it shows every issue in the project. Closed issues are hidden unless you include them."
           />
         ) : (
           <EmptyState

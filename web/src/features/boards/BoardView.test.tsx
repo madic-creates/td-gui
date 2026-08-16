@@ -89,18 +89,17 @@ describe('BoardView', () => {
     expect(urls).toContain('/v1/boards/bd-sprint1?include_closed=true')
   })
 
-  // td takes the GetBoardIssues path for an empty query and returns only
-  // hand-positioned issues — td board show is equally empty. Saying "no
+  // An empty query matches every issue — verified against td v0.57.0, where
+  // both a hand-made query-less board and the built-in "All Issues" return the
+  // whole project. So an empty one means the project is empty, and saying "no
   // issues match" would suggest a query that does not exist.
   it('explains a board that has no query', async () => {
     renderBoard(makeBoard({ query: '' }), [])
-    expect(await screen.findByText(/This board has no query/)).toBeInTheDocument()
-    // The CLI is the only way to pin the first card. There is no drag source
-    // outside a board, so on an empty one there is nothing to pick up and no
-    // drop target rendered — telling the user to drag would be a dead end on
-    // the one screen where it cannot work.
-    expect(screen.getByText(/td board move/)).toBeInTheDocument()
-    expect(screen.queryByText(/drag issues here/i)).not.toBeInTheDocument()
+    expect(await screen.findByText('No issues yet.')).toBeInTheDocument()
+    // Nothing here is the query's doing, so the hint must not send the user to
+    // edit it — nor to td board move, which pins a card rather than making one.
+    expect(screen.getByText(/every issue in the project/)).toBeInTheDocument()
+    expect(screen.queryByText(/td board move/)).not.toBeInTheDocument()
   })
 
   it('offers the closed filter when a board with a query matches nothing', async () => {

@@ -221,8 +221,9 @@ export interface Board {
  * the value POST /v1/boards/{id}/issues expects — that one is a 1-based slot.
  * Sort by it; never render it and never send it back.
  *
- * `issue` arrives without description and acceptance (td's slimForBoard) and
- * without available_transitions, which only GET /v1/issues/{id} carries.
+ * `issue` arrives without available_transitions, which only GET /v1/issues/{id}
+ * carries. Description and acceptance are present, contrary to what the name
+ * slimForBoard suggests — but nothing on a card renders them.
  */
 export interface BoardCard {
   issue: Issue

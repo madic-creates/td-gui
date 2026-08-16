@@ -82,7 +82,8 @@ function Body({ board }: { board: Board | null }) {
           Query
         </label>
         {/* No client-side TDQ parsing: td owns the grammar and phrases the
-            failure. An empty query is legal and means "hand-positioned only". */}
+            failure. An empty query is legal and matches every issue — that is
+            what the built-in "All Issues" board is. */}
         <input
           id="board-query" value={query} onChange={e => setQuery(e.target.value)}
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
@@ -90,7 +91,7 @@ function Body({ board }: { board: Board | null }) {
         <FieldError error={mutation.error} field="query" />
         <p className="mt-1.5 text-[11px] text-ink-faint">
           TDQ, for example <span className="font-mono">priority &lt;= P1 AND type = bug</span>.
-          Leave empty to show only hand-positioned issues.
+          Leave empty to match every issue.
         </p>
       </div>
 

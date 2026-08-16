@@ -59,14 +59,18 @@ transitions field is only ever set on `GET /v1/issues/{id}`. Per the project
 invariant the UI renders exactly the transitions td reports and none when the
 field is absent, so a board card cannot offer a transition on its own.
 
-### The built-in board is empty by design
+### An empty query matches every issue
 
-`bd-all-issues` ships with `is_builtin = 1` and an empty query. With an empty
-query td takes the `GetBoardIssues` path, which returns only explicitly
-positioned issues — so the board named "All Issues" returns nothing until
-someone positions an issue on it. `cmd/board.go:229` takes the same branch, so
-`td board show` is equally empty. This is td's semantics, not an API artifact,
-and the GUI reproduces it rather than inventing a second truth.
+`bd-all-issues` ships with `is_builtin = 1` and an empty query, and it lives up
+to its name: verified against td v0.57.0, `GET /v1/boards/bd-all-issues`
+returns every issue in the project, each with `has_position: false`. A
+hand-made board saved with an empty query behaves identically — there is
+nothing special about the built-in one.
+
+So an empty query is the widest board, not the narrowest. A query-less board
+that renders nothing means the project itself is empty (or everything in it is
+closed and the closed filter is off), and its empty state has to say that
+rather than blame the query.
 
 ## Design
 
