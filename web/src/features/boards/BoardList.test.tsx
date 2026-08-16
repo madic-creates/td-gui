@@ -40,7 +40,7 @@ function renderList(boards: Board[]) {
 describe('BoardList', () => {
   it('links each board and shows its query', async () => {
     renderList([makeBoard()])
-    // Exact name: the row also holds an "Edit Sprint 1" link, and a regex
+    // Exact name: the row's edit link is named "Edit Sprint 1", and a regex
     // would match both and throw on the ambiguity.
     const link = await screen.findByRole('link', { name: 'Sprint 1' })
     expect(link).toHaveAttribute('href', '/boards/bd-sprint1')
@@ -60,6 +60,16 @@ describe('BoardList', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Delete Sprint 1' }))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
     expect(deleted).toEqual(['bd-sprint1'])
+  })
+
+  // The controls repeat per row, so their accessible names carry the board;
+  // on screen they stay as short as everywhere else in the app.
+  it('names the row controls for their board without printing it', async () => {
+    renderList([makeBoard()])
+    const edit = await screen.findByRole('link', { name: 'Edit Sprint 1' })
+    expect(edit.textContent).toBe('Edit')
+    expect(screen.getByRole('button', { name: 'Delete Sprint 1' }).textContent)
+      .toBe('Delete')
   })
 
   it('invites creating a board when there are none', async () => {

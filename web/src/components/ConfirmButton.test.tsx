@@ -24,6 +24,23 @@ describe('ConfirmButton', () => {
     expect(onConfirm).toHaveBeenCalledOnce()
   })
 
+  // A list of rows repeats the same control, so the caller needs a way to say
+  // which row this one belongs to without spelling it out on screen.
+  it('lets the caller name the trigger beyond its visible label', async () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmButton
+        label="Delete"
+        ariaLabel="Delete Sprint 1"
+        question="Delete this board?"
+        onConfirm={onConfirm}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Delete Sprint 1' })
+    expect(trigger.textContent).toBe('Delete')
+  })
+
   it('restores the trigger on cancel without firing', async () => {
     const onConfirm = vi.fn()
     render(<ConfirmButton label="Delete" question="Delete this issue?" onConfirm={onConfirm} />)

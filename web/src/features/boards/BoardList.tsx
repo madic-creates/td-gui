@@ -68,15 +68,22 @@ export default function BoardList() {
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5">
+                  {/*
+                    Both controls read as short as their counterparts on an
+                    issue; the board name rides on the accessible name, which
+                    is where it earns its keep — one of these pairs per row.
+                  */}
                   <Link
                     to={`/boards/${board.id}/edit`}
+                    aria-label={`Edit ${board.name}`}
                     data-button
                     className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
                   >
-                    Edit {board.name}
+                    Edit
                   </Link>
                   <ConfirmButton
-                    label={`Delete ${board.name}`}
+                    label="Delete"
+                    ariaLabel={`Delete ${board.name}`}
                     question="Delete this board?"
                     confirmLabel="Confirm delete"
                     disabled={remove.isPending}

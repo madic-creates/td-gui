@@ -2,6 +2,11 @@ import { useState } from 'react'
 
 interface Props {
   label: string
+  /**
+   * Accessible name of the trigger, when the visible label alone would not say
+   * which of several identical controls this is. Defaults to `label`.
+   */
+  ariaLabel?: string
   question: string
   /** Accessible name of the confirm control. Defaults to `Confirm <label>`. */
   confirmLabel?: string
@@ -17,7 +22,7 @@ interface Props {
  * the same inline pattern TransitionBar uses for actions needing extra input.
  */
 export default function ConfirmButton({
-  label, question, confirmLabel, onConfirm, disabled, className = '',
+  label, ariaLabel, question, confirmLabel, onConfirm, disabled, className = '',
 }: Props) {
   const [armed, setArmed] = useState(false)
 
@@ -25,6 +30,7 @@ export default function ConfirmButton({
     return (
       <button
         type="button"
+        aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setArmed(true)}
         className={`rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted disabled:opacity-40 ${className}`}
