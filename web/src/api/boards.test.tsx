@@ -5,7 +5,9 @@ import type { ReactNode } from 'react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { useBoard, useBoards } from './boards'
-import { useSetCardPosition, useClearCardPosition, useCreateBoard } from './mutations'
+import {
+  useCreateBoard, useCreateIssue, useClearCardPosition, useSetCardPosition, useTransition,
+} from './mutations'
 
 const requests: string[] = []
 const bodies: unknown[] = []
@@ -91,5 +93,60 @@ describe('board mutations', () => {
     result.current.mutate('td-a1b2')
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(requests).toContain('/v1/boards/bd-1/issues/td-a1b2')
+  })
+})
+
+/**
+ * A board is a projection of issues, so a mutation that changes issue data
+ * leaves the board cache stale unless it invalidates boardKeys as well. Only
+ * useLiveUpdates' blanket invalidation on td's SSE refresh would repair it
+ * otherwise, and that stream is not guaranteed — AppShell renders a
+ * "disconnected" banner precisely because it can drop.
+ */
+describe('issue mutations and the board cache', () => {
+  /** One client for the whole test, so the mounted board query is invalidated. */
+  function sharedWrapper() {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    )
+  }
+
+  const boardFetches = () => requests.filter(r => r === '/v1/boards/bd-1').length
+
+  async function withMountedBoard() {
+    const wrap = sharedWrapper()
+    const board = renderHook(() => useBoard('bd-1'), { wrapper: wrap })
+    await waitFor(() => expect(board.result.current.isSuccess).toBe(true))
+    expect(boardFetches()).toBe(1)
+    return wrap
+  }
+
+  // The user drops a card on "In review" and confirms: without this the card
+  // sits in its old column until something else refetches the board.
+  it('refetches the board after a transition', async () => {
+    server.use(http.post('/v1/issues/:id/start', () =>
+      HttpResponse.json({ ok: true, data: {} })))
+    const wrap = await withMountedBoard()
+
+    const { result } = renderHook(() => useTransition('td-a1b2'), { wrapper: wrap })
+    result.current.mutate({ action: 'start' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    await waitFor(() => expect(boardFetches()).toBe(2))
+  })
+
+  // A create changes which issues the board query matches, so the board is
+  // stale for the same reason even though no existing card changed.
+  it('refetches the board after an issue is created', async () => {
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } }, { status: 201 })))
+    const wrap = await withMountedBoard()
+
+    const { result } = renderHook(() => useCreateIssue(), { wrapper: wrap })
+    result.current.mutate({ title: 'A new issue with a sufficiently long title' })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    await waitFor(() => expect(boardFetches()).toBe(2))
   })
 })

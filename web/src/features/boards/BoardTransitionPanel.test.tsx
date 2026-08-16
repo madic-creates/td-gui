@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
@@ -57,6 +58,19 @@ describe('BoardTransitionPanel', () => {
   it('says so when td omits the field entirely', async () => {
     renderPanel(undefined)
     expect(await screen.findByText(/no transitions available/i)).toBeInTheDocument()
+  })
+
+  // The panel is a proposal: once td has accepted the transition there is
+  // nothing left to choose, and leaving it open is the only acknowledgement
+  // the user would get.
+  it('closes once td accepts the transition', async () => {
+    server.use(http.post('/v1/issues/:id/review', () =>
+      HttpResponse.json({ ok: true, data: {} })))
+    let closed = false
+    renderPanel(['review'], () => { closed = true })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Request review' }))
+    await waitFor(() => expect(closed).toBe(true))
   })
 
   // A drop does not move DOM focus itself, so Escape only reaches the panel

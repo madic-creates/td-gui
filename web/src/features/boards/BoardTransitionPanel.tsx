@@ -66,7 +66,14 @@ export default function BoardTransitionPanel({ issueId, droppedOn, onClose }: Pr
       {error && <ErrorPanel message={unboundMessage(error) ?? 'Request failed'} />}
       {data && (
         data.issue.available_transitions?.length ? (
-          <TransitionBar issueId={issueId} available={data.issue.available_transitions} />
+          <TransitionBar
+            issueId={issueId}
+            available={data.issue.available_transitions}
+            // The panel exists to ask one question. Once td has answered it,
+            // there is nothing left to choose here — and closing is the
+            // acknowledgement the user would otherwise never get.
+            onDone={onClose}
+          />
         ) : (
           <p className="mt-2 text-[11px] text-ink-faint">
             td reports no transitions available for {issueId}.

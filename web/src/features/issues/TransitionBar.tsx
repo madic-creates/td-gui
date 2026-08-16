@@ -51,9 +51,16 @@ interface Props {
   issueId: string
   /** Absent means td did not tell us — render nothing rather than guess. */
   available?: Transition[]
+  /**
+   * Fires once td has accepted a transition or recorded a review. For a host
+   * that exists only to ask the question — the board's transition panel —
+   * that is the cue to dismiss itself. The issue detail page has no such cue
+   * to take and leaves it absent.
+   */
+  onDone?: () => void
 }
 
-export default function TransitionBar({ issueId, available }: Props) {
+export default function TransitionBar({ issueId, available, onDone }: Props) {
   const transition = useTransition(issueId)
   const record = useRecordReview(issueId)
   const [pending, setPending] = useState<Transition | null>(null)
@@ -113,6 +120,13 @@ export default function TransitionBar({ issueId, available }: Props) {
     setPending(null)
   }
 
+  /** What td accepting an action means here: the form goes, and the host — if
+   *  it asked to be told — learns the question has been answered. */
+  const done = () => {
+    close()
+    onDone?.()
+  }
+
   /** Only ever sets one of reviewed_by / self_review — never both. */
   const attribution = (): Omit<Attribution, 'reason'> => {
     if (pending !== 'approve') return {}
@@ -130,14 +144,14 @@ export default function TransitionBar({ issueId, available }: Props) {
       setLastAction('record')
       record.mutate(
         { summary: note, ...attribution() },
-        { onSuccess: close, onSettled: () => { submitting.current = false } },
+        { onSuccess: done, onSettled: () => { submitting.current = false } },
       )
       return
     }
     setLastAction('transition')
     transition.mutate(
       { action: pending!, ...(note ? { reason: note } : {}), ...attribution() },
-      { onSuccess: close, onSettled: () => { submitting.current = false } },
+      { onSuccess: done, onSettled: () => { submitting.current = false } },
     )
   }
 
@@ -161,7 +175,7 @@ export default function TransitionBar({ issueId, available }: Props) {
               // the panel is staked after close(), which clears it.
               close()
               setLastAction('transition')
-              transition.mutate({ action })
+              transition.mutate({ action }, { onSuccess: () => onDone?.() })
             }}
           >
             {labels[action] ?? action}

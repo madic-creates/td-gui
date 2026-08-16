@@ -1,10 +1,32 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { apiSend } from './client'
 import { issueKeys } from './queries'
 import { boardKeys } from './boards'
 import type {
   BoardCreateResponse, IssueCreateResponse, IssueType, IssuePatch, Priority, Transition,
 } from './types'
+
+/**
+ * What every mutation that touches issue data invalidates.
+ *
+ * The rule, for the next mutation added here: a board is a projection of
+ * issues — its cards ARE issues and its membership is a query over them — so
+ * anything that changes an issue's fields, or which issues match a query,
+ * leaves the board cache stale too. Invalidating only issueKeys leaves the
+ * repair to useLiveUpdates' blanket invalidation on td's SSE refresh, and that
+ * stream is not guaranteed; AppShell renders a "disconnected" banner precisely
+ * because it can drop.
+ *
+ * Comment mutations are the exception and scope to issueKeys.detail: no board
+ * card renders a comment. Board mutations are the mirror image and invalidate
+ * boardKeys alone — none of them changes an issue.
+ */
+function invalidateIssueData(qc: QueryClient) {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: issueKeys.all }),
+    qc.invalidateQueries({ queryKey: boardKeys.all }),
+  ])
+}
 
 /**
  * Review attribution, as td models it: `reviewed_by` names who actually
@@ -31,7 +53,7 @@ export function useTransition(id: string) {
   return useMutation({
     mutationFn: ({ action, ...body }: TransitionInput) =>
       apiSend('POST', `/v1/issues/${id}/${action}`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -49,7 +71,7 @@ export function useRecordReview(id: string) {
         summary,
         ...rest,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -74,7 +96,7 @@ export function useCreateIssue() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: IssueInput) => apiSend<IssueCreateResponse>('POST', '/v1/issues', input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -86,7 +108,7 @@ export function useUpdateIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (patch: IssuePatch) => apiSend('PATCH', `/v1/issues/${id}`, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -95,7 +117,7 @@ export function useDeleteIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => apiSend('DELETE', `/v1/issues/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -118,7 +140,7 @@ export function useAddDependency(issueId: string) {
   return useMutation({
     mutationFn: (dependsOn: string) =>
       apiSend('POST', `/v1/issues/${issueId}/dependencies`, { depends_on: dependsOn }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
@@ -127,7 +149,7 @@ export function useRemoveDependency(issueId: string) {
   return useMutation({
     mutationFn: (depId: string) =>
       apiSend('DELETE', `/v1/issues/${issueId}/dependencies/${depId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.all }),
+    onSuccess: () => invalidateIssueData(qc),
   })
 }
 
