@@ -6,7 +6,7 @@ import ErrorPanel from '../../components/ErrorPanel'
 import IssueCombobox from '../../components/IssueCombobox'
 import LabelInput from './LabelInput'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
-import { candidatesFor } from './issueIndex'
+import { candidatesFor, childrenOf } from './issueIndex'
 import { useIssueIndex } from './useIssueIndex'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
@@ -174,7 +174,12 @@ export default function IssueEditForm({ issue, editing, children, onDone }: Prop
               <label htmlFor="edit-parent" className={legendClass}>Parent</label>
               <IssueCombobox id="edit-parent" value={draft.parent_id}
                 onChange={next => set('parent_id', next)}
-                candidates={candidatesFor(issues, [issue.id])}
+                // Excludes the issue itself (it cannot be its own parent) and
+                // its own children — picking one would only earn a rejection
+                // from td, since the child's existing parent_id already makes
+                // that edge a cycle. Longer cycles through a grandchild stay
+                // td's to catch, same as DependencyPanel's dependency picker.
+                candidates={candidatesFor(issues, [issue.id, ...childrenOf(issues, issue.id).map(c => c.id)])}
                 placeholder="td-…" className={fieldClass} />
               <FieldError error={update.error} field="parent_id" />
             </div>

@@ -291,6 +291,29 @@ describe('IssueEditForm', () => {
     expect(within(listbox).getAllByRole('option')).toHaveLength(1)
   })
 
+  // An issue's own child cannot become its parent either — that edge is a
+  // cycle just as direct as the self-parent case above, and offering it would
+  // only earn a rejection from td.
+  it('does not offer the issue\'s own child as its parent', async () => {
+    server.use(http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: {
+        issues: [
+          { ...issue, id: 'td-child01', title: 'A child of this issue', parent_id: issue.id },
+          { ...issue, id: 'td-other', title: 'Some other issue' },
+        ],
+        limit: 1000, offset: 0, total: 2, has_more: false,
+      },
+    })))
+    renderForm()
+
+    await userEvent.click(screen.getByLabelText('Parent'))
+
+    const listbox = await screen.findByRole('listbox')
+    expect(within(listbox).getByRole('option')).toHaveTextContent('Some other issue')
+    expect(within(listbox).getAllByRole('option')).toHaveLength(1)
+  })
+
   it('still clears the parent when the field is emptied', async () => {
     let body: unknown
     server.use(http.patch('/v1/issues/td-6a0883', async ({ request }) => {
