@@ -60,12 +60,13 @@ export interface Issue {
   defer_until: string | null
   due_date: string | null
   defer_count: number
-  /**
-   * Present on the board and list paths only. td also sends `category` there,
-   * but nothing in its codebase ever assigns it, so it is always "" and is
-   * deliberately not typed here.
-   */
+  /** Present on the board and list paths only. */
   dependency_summary?: DependencySummary
+  /*
+   * `category` is missing on purpose. td sends it on those same two paths, but
+   * nothing in its codebase ever assigns it, so it is always "". Declaring it
+   * would invite a reader to branch on a value that is never anything else.
+   */
   /** Present on GET /v1/issues/{id} only. Absent means "unknown". */
   available_transitions?: Transition[]
   /**

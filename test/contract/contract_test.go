@@ -329,15 +329,11 @@ func TestRecordReviewContract(t *testing.T) {
 }
 
 // post sends a JSON body and returns the status code, for the calls whose
-// response shape does not matter to the assertion.
+// response shape does not matter to the assertion. postJSON already skips the
+// decode on a nil target, so this is that call with the target named.
 func post(t *testing.T, url, body string) int {
 	t.Helper()
-	resp, err := http.Post(url, "application/json", jsonBody(body))
-	if err != nil {
-		t.Fatalf("POST %s: %v", url, err)
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode
+	return postJSON(t, url, body, nil)
 }
 
 // otherIssue returns the id of an issue in the project that is not notID. It

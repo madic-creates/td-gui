@@ -18,9 +18,12 @@ describe('insertSlot', () => {
     expect(insertSlot(3, null)).toBe(4)
   })
 
+  // A card arriving from the auto block has no place in the pinned order yet,
+  // so no gap can be "its own place" and every gap is a real move — including
+  // the ones that are refused for a card already sitting at that index.
   it('treats an unpinned card as having no index of its own', () => {
-    // Gap 0 must stay a real move for a card arriving from the auto block.
-    expect(insertSlot(0, null)).toBe(1)
+    expect(insertSlot(2, 2)).toBeNull()
+    expect(insertSlot(2, null)).toBe(3)
   })
 
   // Dropping a card immediately before or immediately after itself leaves the
