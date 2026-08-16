@@ -44,7 +44,7 @@ Add both tests to `web/src/components/AppShell.test.tsx`, inside the existing `d
 
 ```tsx
   // The rule under the header has to reach both window edges while the logo
-  // lines up with the body below it, so <header> stays full-bleed and only an
+  // lines up closely with the body below it, so <header> stays full-bleed and only an
   // inner wrapper is capped. A cap on <header> itself would stop the border
   // short and turn the header into a boxed panel.
   it('caps the header contents in a wrapper rather than capping the header', () => {
@@ -293,6 +293,9 @@ Add both to `web/src/features/issues/IssueDetail.test.tsx`, inside the existing 
   // parent, not on classes: a class assertion passes on a layout that renders
   // stacked anyway.
   it('puts the back link and the issue id on one row', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
     renderDetail()
     const back = await screen.findByRole('link', { name: '← back to list' })
 
@@ -303,6 +306,9 @@ Add both to `web/src/features/issues/IssueDetail.test.tsx`, inside the existing 
   // The open editor's field grid is sm:grid-cols-4 and needs the page width,
   // not the 68ch prose column Task 4 introduces.
   it('lifts the header out of the body column', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
     renderDetail()
     const title = await screen.findByRole('heading', { name: 'Probe issue for API shape' })
     const header = title.closest('header')
@@ -391,11 +397,20 @@ In `web/src/features/issues/TransitionBar.tsx`, change line 159 from:
 to:
 
 ```tsx
-    {/* No rule above the buttons: they are the fourth row of the issue's
-        header band, not a section of their own, and a separator between the
-        actions and the transitions split one control bar into two. */}
+  return (
+    /* No rule above the buttons: mt-2 is a small gap from whatever the host
+       puts above this bar, not a section boundary. A rule here would split
+       one control bar into two; each host explains what sits above and
+       carries its own separator if it wants one — see IssueDetail's header
+       band and BoardTransitionPanel's wrapper. */
     <div className="mt-2">
 ```
+
+A plain `/* … */` block comment, not a JSX `{/* … */}` one: this sits directly
+inside `return (`, in expression position rather than JSX-children position,
+so a curly-braced comment there would parse as an empty object literal
+followed by a second, unrelated expression — two children in a return, a
+syntax error.
 
 `TransitionBar` is also mounted by `BoardTransitionPanel`. Check what that host gives it:
 
@@ -460,6 +475,9 @@ Add both to `web/src/features/issues/IssueDetail.test.tsx`, inside the existing 
   // side. Asserting on the grouping rather than the breakpoint: the columns are
   // the same two elements at every width, and only the track count changes.
   it('groups the prose apart from the activity log', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
     renderDetail()
     const description = await screen.findByText('A description')
     const proseColumn = description.closest('section')?.parentElement
@@ -473,6 +491,9 @@ Add both to `web/src/features/issues/IssueDetail.test.tsx`, inside the existing 
   // The comment form travels with the comments, into the prose column — it is
   // the other half of what a person writes about an issue.
   it('keeps the comment form with the comments', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
     renderDetail()
     const comment = await screen.findByText(
       'The handoff panel should collapse past ten items per group.')
@@ -660,7 +681,7 @@ make build && ./td-gui
 
 If the binary name or invocation differs, read the `Makefile` for the real target rather than guessing. The server binds `127.0.0.1` only.
 
-- [ ] **Step 2: Check a content-rich issue at roughly 1700px**
+- [ ] **Step 2: Check a content-rich issue at roughly 1600px**
 
 Open an issue that has a description, dependencies, activity and at least one comment — `td list` will name candidates. Confirm:
 
@@ -675,7 +696,7 @@ Resize to roughly 1200px (below `xl`): the body falls back to one main column pl
 
 - [ ] **Step 4: Check the open editor**
 
-Click `Edit`. The field grid — `sm:grid-cols-4`, type, priority, points, and the rest — must lay out across the page width, not inside a 460px column. Close the editor without saving.
+Click `Edit`. The field grid — `sm:grid-cols-4`, type, priority, points, and the rest — must lay out across the page width, not inside a ~506px column. Close the editor without saving.
 
 - [ ] **Step 5: Check an error path at width**
 
@@ -688,7 +709,7 @@ Toggle the theme. Nothing here touches colour tokens, so this checks that no har
 - [ ] **Step 7: Record the outcome**
 
 ```bash
-td log "Verified the new issue detail layout in the browser at 1700, 1200 and 900px, both themes, editor open, with a rejected transition and a rejected dependency on screen"
+td log "Verified the new issue detail layout in the browser at 1600, 1200 and 900px, both themes, editor open, with a rejected transition and a rejected dependency on screen"
 ```
 
 If any step failed, fix it, add a test that would have caught it where one honestly can, and commit before moving on.

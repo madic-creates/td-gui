@@ -24,7 +24,9 @@ Three changes, all structural. No mutation, query, or error path is touched.
 
 `AppShell` centres its content at `max-w-[1440px]`. The header's bottom border
 stays full-bleed across the window; only its contents centre, so the logo lines
-up with the body below it.
+up closely with the body below it — each view sets its own inner padding
+(`p-4` on the list and board views, `px-5` on the issue detail page), so the
+alignment is close rather than pixel-exact.
 
 `SwimlaneView` already scrolls horizontally (`overflow-x-auto`), so a narrower
 container makes it scroll sooner rather than break.
@@ -35,7 +37,7 @@ container makes it scroll sooner rather than break.
 | --- | --- |
 | 1 | `← back to list` · the mono issue id, on one baseline |
 | 2 | The title |
-| 3 | The tag row left, `Edit Focus Delete` right (`justify-between`) |
+| 3 | The tag row left, `Edit Focus Delete` right |
 | 4 | The transition buttons, with no rule above them |
 
 The header also moves out of the first grid cell and becomes a full-width band
@@ -87,9 +89,9 @@ exactly as it is today and subdivides its `1fr` track only at `xl`.
 Below 1280px the inner grid is single-column, which is the stacking order the
 view already has — so narrow windows are unaffected.
 
-At a 1440px window the prose track takes exactly its 68ch measure — around
-460px, since the body font is 13px — the sidebar takes 260px, and everything
-left over (roughly 630px) goes to structure and log. No track has slack, which
+At a 1440px window the prose track takes exactly its 68ch measure — 505.6px,
+since the body font is 13px — the sidebar takes 260px, and everything
+left over (586.4px) goes to structure and log. No track has slack, which
 is the point: the log column is sized by subtraction, so there is no width left
 over to sit empty. Activity ends up beside the description instead of under the
 fold.
@@ -128,5 +130,5 @@ are structural facts a restructure can genuinely break; `className` contains
 `xl:grid-cols-…` is not — it would pass on a layout that renders wrongly and
 fail on a refactor that renders identically. Whether the result reads well at a
 given width is beyond what jsdom can answer, so it is checked in a browser at
-1700px, 1200px and 900px, in both themes, with the editor open and with a
+1600px, 1200px and 900px, in both themes, with the editor open and with a
 rejected transition on screen.
