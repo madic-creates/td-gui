@@ -1,0 +1,69 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  onboarding: false,
+  requireConfig: 'ignored',
+  extends: [
+    'config:recommended',
+  ],
+  'pre-commit': {
+    enabled: true,
+  },
+  assignees: [
+    'madic-creates',
+  ],
+  repositories: [
+    'madic-creates/td-gui',
+  ],
+  gitAuthor: 'Renovate Bot <bot@renovateapp.com>',
+  semanticCommits: 'enabled',
+  semanticCommitType: 'chore',
+  semanticCommitScope: 'deps',
+  // Run `go mod tidy` as part of each Go update branch so the pushed go.sum is
+  // already canonical. Without this, Renovate only touches the bumped module's
+  // hashes and leaves stale entries behind — which the CI `tidy` job would then
+  // reject. Opt-in because tidy can touch lines unrelated to the bump; here
+  // that trade-off is exactly what we want.
+  postUpdateOptions: [
+    'gomodTidy',
+  ],
+  prConcurrentLimit: 0,
+  prHourlyLimit: 0,
+  platform: 'github',
+  automerge: true,
+  // PR, not branch: .github/workflows/ci.yaml only triggers on `pull_request`
+  // and on pushes to main. A branch-automerge push would run no checks at all,
+  // so the automerge would either stall forever or land untested code. With a
+  // PR, the full suite runs and Renovate merges once it is green.
+  automergeType: 'pr',
+  major: {
+    automerge: false,
+  },
+  minor: {
+    automerge: true,
+  },
+  patch: {
+    automerge: true,
+  },
+  packageRules: [
+    {
+      // web/ is a single frontend bundle: React, Vite, Vitest and their types
+      // move together and are all covered by the same CI job. One grouped PR
+      // per update round beats a dozen individual ones.
+      matchManagers: [
+        'npm',
+      ],
+      matchUpdateTypes: [
+        'minor',
+        'patch',
+      ],
+      groupName: 'web dependencies',
+    },
+  ],
+  minimumReleaseAge: '5 days',
+  // Apply the age check only when the datasource provides a release timestamp.
+  // Without this, sources that don't expose per-version timestamps get stuck
+  // with pendingChecks=true and are filtered out by internalChecksFilter:
+  // 'strict', so no update PR is ever opened.
+  minimumReleaseAgeBehaviour: 'timestamp-optional',
+  internalChecksFilter: 'strict',
+}
