@@ -17,6 +17,8 @@ import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import ErrorPanel from '../../components/ErrorPanel'
 import ConfirmButton from '../../components/ConfirmButton'
+import CopyButton from '../../components/CopyButton'
+import { TrashIcon } from '../../components/Icon'
 
 /**
  * Keyed on the id, which is load-bearing rather than cosmetic. The route
@@ -73,11 +75,17 @@ function IssueDetailView({ id }: { id: string }) {
   return (
     <div className="px-5 py-4 pb-6">
       {/* Row 1. The id is the page's other name for what the title says, so it
-          belongs on the navigation line rather than owning a row of its own. */}
+          belongs on the navigation line rather than owning a row of its own.
+
+          It is also the value most often carried back to a terminal — every
+          `td show`, `td start` and `td log` needs it — so it gets a copy
+          control, which is why the row is now the id's row and not only the
+          back link's. */}
       <div className="flex items-baseline gap-2 text-[11px]">
         <Link to="/" className="text-ink-muted">← back to list</Link>
         <span aria-hidden="true" className="text-ink-faint">·</span>
         <span className="font-mono text-ink-faint">{issue.id}</span>
+        <CopyButton value={issue.id} label="Copy issue id" />
       </div>
 
       {/* Row 2. The title, and while the editor is open every field with it.
@@ -239,8 +247,13 @@ function IssueDetailView({ id }: { id: string }) {
                       <span>·</span>
                       <span>{relativeTime(comment.created_at)}</span>
                       <span className="ml-auto">
+                        {/* An icon, because this row is metadata — a session
+                            and a time — and the word "Delete" was the only
+                            thing in it written to be read. Arming still puts
+                            the question and both answers in words. */}
                         <ConfirmButton
                           label="Delete comment"
+                          icon={<TrashIcon />}
                           question="Delete this comment?"
                           disabled={deleteComment.isPending}
                           onConfirm={() => deleteComment.mutate(comment.id)}
@@ -312,16 +325,18 @@ function HandoffPanel({ handoff }: { handoff: Handoff }) {
     <section className="mt-6">
       <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Latest handoff</h2>
       {/* @container: the two-column switch below has to key off this card's
-          own width, not the viewport's. The card lives in the 68ch prose
-          track from xl up, so a viewport breakpoint like sm would still see
-          a wide window and cut it to ~226px sub-columns — 30 characters at
-          this font size. */}
+          own width, not the viewport's. From lg up the card sits in the 1fr
+          content column, with the 260px sidebar and the gap taken out of the
+          window beside it, so it runs roughly 300px narrower than the
+          viewport — a viewport breakpoint would read a wide window and split
+          a card that is not wide. */}
       <div className="@container rounded-md border border-line bg-surface-raised px-4 py-3.5">
-        {/* @2xl (42rem/672px) rather than @sm (24rem/384px): the card's
-            content box is ~474px in the prose track, which @sm would still
-            call "wide enough" for two columns — the exact bug this fixes.
-            @2xl only fires once the card itself is wide, which happens below
-            xl where the main column is undivided. */}
+        {/* @2xl (42rem/672px) rather than @sm (24rem/384px): below lg the grid
+            collapses and the card does span the page, but a 640px window still
+            leaves it a ~566px content box, which @sm would call "wide enough"
+            and cut into two ~273px columns — the exact bug this fixes. @2xl
+            needs a window past ~1030px, where two columns are wide enough to
+            read. */}
         <div className="grid gap-x-5 gap-y-3.5 @2xl:grid-cols-2">
           {sections.filter(([, items]) => items.length > 0).map(([title, items]) => (
             <div key={title}>

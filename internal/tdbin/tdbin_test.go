@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -118,6 +119,26 @@ func TestLocateMissingFromPATH(t *testing.T) {
 	_, err := Locate("")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf(`Locate("") error = %v, want ErrNotFound`, err)
+	}
+}
+
+// TestVersionContextSurfacesStderr covers a broken install (bad shim, missing
+// shared library, wrong architecture): the failing process's own diagnostic on
+// stderr must reach the fatal startup message, not just "exit status 1".
+func TestVersionContextSurfacesStderr(t *testing.T) {
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "td")
+	script := "#!/bin/sh\necho 'td: error while loading shared libraries: libfoo.so.1' >&2\nexit 1\n"
+	if err := os.WriteFile(broken, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := VersionContext(context.Background(), broken, versionTimeout)
+	if err == nil {
+		t.Fatal("VersionContext with a broken binary: want error, got nil")
+	}
+	if !strings.Contains(err.Error(), "libfoo.so.1") {
+		t.Errorf("VersionContext error = %q, want it to contain the binary's stderr", err.Error())
 	}
 }
 
