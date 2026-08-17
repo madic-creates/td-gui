@@ -267,19 +267,18 @@ fieldErrorFor twice for one message."
 - [ ] **Step 1: Confirm one definition remains**
 
 ```
-grep -rn "text-\[11px\] text-danger" web/src
-grep -rn "function FieldError" web/src
+grep -rn "fieldErrorFor" web/src
 ```
 
-Expected, **if Task 2 ran**: the danger-text class string appears once outside
-test files, in `web/src/components/FieldError.tsx`. **If Task 2 was dropped**,
-it appears twice — the second in `CommentForm.tsx:41`, which is that task's
-whole subject. Either is a pass; a third occurrence is not.
+Expected: exactly three lines — the definition in `web/src/api/client.ts`,
+and the import plus the single call in `web/src/components/FieldError.tsx`. One
+caller of that helper in the entire app is what "one copy" means here.
 
-`function FieldError` should not appear at all: the component is now
-`export default function FieldError`, and the grep for the bare `function
-FieldError` form is there to catch a local copy surviving somewhere. Report
-exactly what both print rather than summarising them.
+The two earlier greps were replaced because their expected output did not match
+reality: the class string `text-[11px] text-danger` is shared by unrelated
+components (`ConfirmButton`, `BoardCard`, `CommentForm`), and the pattern
+`function FieldError` matches the component's own definition (`export default
+function FieldError`), making both impossible to verify correctly.
 
 - [ ] **Step 2: Full suite**
 

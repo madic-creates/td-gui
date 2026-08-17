@@ -16,7 +16,8 @@ interface Props {
  * wording is authoritative, the same rule ErrorPanel carries. Which messages
  * reach an input and which fall through to the panel is the caller's business:
  * see `unboundMessage` in api/client.ts and the `boundFields` list each form
- * hands it.
+ * hands it. This component renders one row of td's `details.fields` array —
+ * the `FieldError` interface in api/types.ts describes the wire shape.
  */
 export default function FieldError({ error, field }: Props) {
   const message = fieldErrorFor(error, field)
