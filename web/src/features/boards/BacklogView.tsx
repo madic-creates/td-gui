@@ -69,7 +69,13 @@ export default function BacklogView({ boardId, cards }: Props) {
       : null
 
   const [dragging, setDragging] = useState<string | null>(null)
-  const [overGap, setOverGap] = useState<number | null>(null)
+  /**
+   * Where a drop would land right now: a gap index for an exact slot, or
+   * `'section'` for the coarse fallback the pinned block as a whole offers.
+   * One state and not two, so the section and a gap can never both be lit and
+   * claim the same drop.
+   */
+  const [over, setOver] = useState<number | 'section' | null>(null)
 
   /**
    * A drag that a card on this board started, which a drop would accept. Foreign
@@ -81,7 +87,7 @@ export default function BacklogView({ boardId, cards }: Props) {
 
   const endDrag = () => {
     setDragging(null)
-    setOverGap(null)
+    setOver(null)
   }
 
   /** The dragged card's index in the pinned block, or null when unpinned. */
@@ -114,16 +120,48 @@ export default function BacklogView({ boardId, cards }: Props) {
 
   const gapProps = (gap: number) => ({
     gap,
-    state: (!armed ? 'idle' : overGap === gap ? 'active' : 'armed') as GapState,
+    state: (!armed ? 'idle' : over === gap ? 'active' : 'armed') as GapState,
     onDrop: dropAt(gap),
     // Set on dragover rather than dragenter: dragover repeats for as long as
     // the cursor is held over the gap, so a dragenter the browser skipped on a
     // 6px strip still resolves. Re-setting the same value is a no-op in React.
-    onDragOver: () => setOverGap(gap),
+    onDragOver: () => setOver(gap),
     // Only if it is still this gap's turn: the gap being left reports dragleave
     // after the gap being entered has already reported dragover.
-    onDragLeave: () => setOverGap(current => (current === gap ? null : current)),
+    onDragLeave: () => setOver(current => (current === gap ? null : current)),
   })
+
+  /**
+   * The pinned block as one drop target.
+   *
+   * A gap is 6px tall, and in the state that matters most — nothing pinned yet
+   * — the section is a heading, one line of prose telling the user to drag a
+   * card "up here", and a single transparent strip underneath. So the whole
+   * section takes the drop and resolves it to the end of the block, which for
+   * an empty block is its only slot. The gaps sit inside and keep their exact
+   * placement; this is the fallback for a drop that missed all of them.
+   */
+  const sectionState: GapState = !armed ? 'idle' : over === 'section' ? 'active' : 'armed'
+
+  const sectionProps = {
+    'data-testid': 'pinned-dropzone',
+    'data-state': sectionState,
+    onDragOver: (event: DragEvent) => {
+      // Without this the browser rejects the drop and no drop event fires.
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      setOver('section')
+    },
+    onDragLeave: (event: DragEvent) => {
+      // dragleave bubbles out of everything inside the section — every gap,
+      // every card — so clearing on each of them would unmark the section that
+      // the dragover about to follow immediately marks again, a flicker on
+      // every row the cursor crosses. Same guard as SwimlaneView's columns.
+      if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+      setOver(current => (current === 'section' ? null : current))
+    },
+    onDrop: dropAt(pinned.length),
+  }
 
   /** Dims the card a write is currently about. */
   const dim = (issueId: string) => (movingId === issueId ? 'opacity-40' : '')
@@ -132,7 +170,14 @@ export default function BacklogView({ boardId, cards }: Props) {
     <div className="space-y-4 p-4">
       {message && <ErrorPanel message={message} />}
 
-      <section>
+      {/* The padding is what gives the drop tint room to read as a region
+          rather than a box drawn tight around the words. Sideways it costs
+          nothing: `-mx-2` cancels it against the container's own `p-4`, so the
+          section's contents stay exactly where they were and only the painted
+          area grows. Vertically it is real, and permanent — which is the part
+          that matters, since a section that grew only while armed would reflow
+          the gaps out from under the cursor mid-drag. */}
+      <section {...sectionProps} className={`-mx-2 rounded-sm p-2 ${SECTION_STYLE[sectionState]}`}>
         <h2 className="mb-1.5 text-[11px] uppercase tracking-widest text-ink-muted">Pinned</h2>
         {pinned.length === 0 ? (
           <>
@@ -248,6 +293,21 @@ const GAP_STYLE: Record<GapState, string> = {
   active: 'bg-accent shadow-[0_0_0_4px_var(--color-accent-bg)]',
 }
 
+/**
+ * The pinned section under the same three states, and for the same reason
+ * painted with nothing that occupies space: only the background changes, so a
+ * region that lights up mid-drag cannot reflow the gaps inside it.
+ *
+ * The two vocabularies are SwimlaneView's — `bg-surface-inset` for a region
+ * that would take the drop, `bg-accent-bg` for the one it would land in — so
+ * the two board views say the same thing the same way.
+ */
+const SECTION_STYLE: Record<GapState, string> = {
+  idle: '',
+  armed: 'bg-surface-inset',
+  active: 'bg-accent-bg',
+}
+
 interface DropGapProps {
   gap: number
   state: GapState
@@ -260,6 +320,11 @@ interface DropGapProps {
  * A drop target between two pinned cards. Decorative for assistive tech — the
  * keyboard path is the Move up/down buttons, which are real controls with real
  * names — so it is aria-hidden and addressed by test id.
+ *
+ * Every handler stops the event here. The gap sits inside the section, which is
+ * a drop target of its own, and an unstopped drop would run both — appending
+ * the card the gap had just placed at an exact slot. The gap is the more
+ * specific answer, so it is the only one that gets to answer.
  */
 function DropGap({ gap, state, onDrop, onDragOver, onDragLeave }: DropGapProps) {
   return (
@@ -268,13 +333,20 @@ function DropGap({ gap, state, onDrop, onDragOver, onDragLeave }: DropGapProps) 
       data-testid={`drop-gap-${gap}`}
       data-state={state}
       onDragOver={e => {
+        e.stopPropagation()
         // Without this the browser rejects the drop and no drop event fires.
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
         onDragOver()
       }}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
+      onDragLeave={e => {
+        e.stopPropagation()
+        onDragLeave()
+      }}
+      onDrop={e => {
+        e.stopPropagation()
+        onDrop(e)
+      }}
       className={`h-1.5 rounded-sm ${GAP_STYLE[state]}`}
     />
   )
