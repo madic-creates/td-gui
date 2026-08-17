@@ -75,17 +75,17 @@ describe('IssueForm', () => {
     expect(await screen.findByText(message)).toBeInTheDocument()
   })
 
-  // This form binds title and description only, so a field error naming
-  // anything else has no input to render against and must reach the panel.
+  // This form binds every field it renders, so an error naming something
+  // else has no input to render against and must reach the panel.
   it('shows a field error this form does not bind', async () => {
-    const message = 'unknown type: epicc'
+    const message = 'unknown status: opne'
     server.use(http.post('/v1/issues', () =>
       HttpResponse.json({
         ok: false,
         error: {
           code: 'validation_error',
           message: 'Validation failed',
-          details: { fields: [{ field: 'type', rule: 'enum', value: 'epicc', expected: '', message }] },
+          details: { fields: [{ field: 'status', rule: 'enum', value: 'opne', expected: '', message }] },
         },
       }, { status: 400 })))
 
@@ -154,5 +154,55 @@ describe('IssueForm', () => {
     expect(received).toEqual({
       title: 'A sufficiently long issue title', type: 'task', priority: 'P2',
     })
+  })
+
+  it('sends acceptance, points and sprint in the create body', async () => {
+    let received: Record<string, unknown> | null = null
+    server.use(http.post('/v1/issues', async ({ request }) => {
+      received = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.type(screen.getByLabelText('Acceptance criteria'), 'it works')
+    await userEvent.type(screen.getByLabelText('Points'), '5')
+    await userEvent.type(screen.getByLabelText('Sprint'), 'sprint-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await screen.findByText('issue detail stand-in')
+    expect(received).toEqual(expect.objectContaining({
+      acceptance: 'it works', points: 5, sprint: 'sprint-1',
+    }))
+  })
+
+  // The accepted point values are per-project td config, and td names them in
+  // the error when it rejects one. A min or max here would eventually be wrong.
+  it('puts no bounds on the points input', () => {
+    renderForm()
+    const points = screen.getByLabelText('Points')
+    expect(points).not.toHaveAttribute('min')
+    expect(points).not.toHaveAttribute('max')
+  })
+
+  // A field with a FieldError of its own must render td's message there and
+  // not in the panel — the panel is for what nothing on screen has claimed.
+  it('renders a points error at the points input', async () => {
+    const message = 'invalid points: 4 (allowed: 1, 2, 3, 5, 8)'
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error',
+          message: 'Validation failed',
+          details: { fields: [{ field: 'points', rule: 'enum', value: 4, expected: '', message }] },
+        },
+      }, { status: 400 })))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findAllByText(message)).toHaveLength(1)
   })
 })

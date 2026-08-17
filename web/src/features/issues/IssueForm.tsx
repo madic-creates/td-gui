@@ -37,7 +37,7 @@ export default function IssueForm() {
   // so any hardcoded value here would eventually be wrong.
   return (
     <form
-      className="max-w-xl space-y-4 px-5 py-4"
+      className="max-w-3xl space-y-4 px-5 py-4"
       onSubmit={e => {
         e.preventDefault()
         if (submitting.current) return
@@ -53,42 +53,64 @@ export default function IssueForm() {
       }}
     >
       <div>
-        <label htmlFor="title" className={legendClass}>Title</label>
+        <label htmlFor="new-title" className={legendClass}>Title</label>
         <input
-          id="title" value={draft.title} onChange={e => set('title', e.target.value)}
+          id="new-title" value={draft.title} onChange={e => set('title', e.target.value)}
           className={fieldClass}
         />
         <FieldError error={create.error} field="title" />
       </div>
 
       <div>
-        <label htmlFor="description" className={legendClass}>Description</label>
+        <label htmlFor="new-description" className={legendClass}>Description</label>
         <textarea
-          id="description" rows={5} value={draft.description}
+          id="new-description" rows={5} value={draft.description}
           onChange={e => set('description', e.target.value)}
           className={fieldClass}
         />
         <FieldError error={create.error} field="description" />
       </div>
 
-      <div className="flex gap-4">
+      <div>
+        <label htmlFor="new-acceptance" className={legendClass}>Acceptance criteria</label>
+        <textarea
+          id="new-acceptance" rows={4} value={draft.acceptance}
+          onChange={e => set('acceptance', e.target.value)} className={fieldClass}
+        />
+        <FieldError error={create.error} field="acceptance" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-4">
         <div>
-          <label htmlFor="type" className={legendClass}>Type</label>
-          <select
-            id="type" value={draft.type} onChange={e => set('type', e.target.value as IssueType)}
-            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
-          >
+          <label htmlFor="new-type" className={legendClass}>Type</label>
+          <select id="new-type" value={draft.type}
+            onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
+          <FieldError error={create.error} field="type" />
         </div>
         <div>
-          <label htmlFor="priority" className={legendClass}>Priority</label>
-          <select
-            id="priority" value={draft.priority} onChange={e => set('priority', e.target.value as Priority)}
-            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
-          >
+          <label htmlFor="new-priority" className={legendClass}>Priority</label>
+          <select id="new-priority" value={draft.priority}
+            onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
             {priorities.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
+          <FieldError error={create.error} field="priority" />
+        </div>
+        <div>
+          {/* No min or max: the accepted values are td config, and it names
+              them in the error when a value is rejected. */}
+          <label htmlFor="new-points" className={legendClass}>Points</label>
+          <input id="new-points" type="number" value={draft.points ?? ''}
+            onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
+            className={fieldClass} />
+          <FieldError error={create.error} field="points" />
+        </div>
+        <div>
+          <label htmlFor="new-sprint" className={legendClass}>Sprint</label>
+          <input id="new-sprint" value={draft.sprint}
+            onChange={e => set('sprint', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="sprint" />
         </div>
       </div>
 
@@ -97,14 +119,14 @@ export default function IssueForm() {
         Create
       </button>
 
-      {/* This form binds title and description; anything else td names, and
+      {/* This form binds every field it renders; anything else td names, and
           any error carrying no field at all, belongs here. */}
       {panelError && <ErrorPanel message={panelError} />}
     </form>
   )
 }
 
-const boundFields = ['title', 'description']
+const boundFields = ['title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint']
 
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)
