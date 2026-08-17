@@ -30,8 +30,16 @@ var versionRe = regexp.MustCompile(`\bv?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)`)
 // used verbatim and must exist; otherwise td is looked up in PATH.
 func Locate(override string) (string, error) {
 	if override != "" {
-		if _, err := os.Stat(override); err != nil {
+		info, err := os.Stat(override)
+		if err != nil {
 			return "", fmt.Errorf("%w: %s: %w", ErrNotFound, override, err)
+		}
+		// os.Stat succeeds on a directory too. Left unchecked, a --td that
+		// points at one is accepted here and only fails later inside
+		// exec.CommandContext with a generic "is a directory" exec error
+		// that gives no hint the path itself, not td, is the problem.
+		if info.IsDir() {
+			return "", fmt.Errorf("%w: %s: is a directory", ErrNotFound, override)
 		}
 		return override, nil
 	}

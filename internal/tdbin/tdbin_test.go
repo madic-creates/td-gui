@@ -95,6 +95,18 @@ func TestLocateHonorsOverride(t *testing.T) {
 	}
 }
 
+// TestLocateRejectsDirectoryOverride guards against --td pointing at a
+// directory: os.Stat alone accepts it, and without this check Locate would
+// hand it to exec.CommandContext, which fails with a generic "is a
+// directory" error that never mentions --td.
+func TestLocateRejectsDirectoryOverride(t *testing.T) {
+	dir := t.TempDir()
+	_, err := Locate(dir)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Locate(%q) error = %v, want ErrNotFound", dir, err)
+	}
+}
+
 func TestLocateMissingOverride(t *testing.T) {
 	_, err := Locate(filepath.Join(t.TempDir(), "nope"))
 	if !errors.Is(err, ErrNotFound) {
