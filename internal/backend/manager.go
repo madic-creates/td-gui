@@ -156,6 +156,15 @@ func (m *Manager) spawn(ctx context.Context) error {
 	}
 	m.cmd = cmd
 	m.mu.Unlock()
+	// Registered the instant the process exists, not once it is healthy: a
+	// Stop landing during the poll below — an ordinary Ctrl+C right after
+	// launch — used to find m.waitCh still nil and return as soon as the
+	// signal call itself didn't error, without ever confirming the child
+	// reacted to it. A child that is slow to exit, or does not react to
+	// SIGINT at all, would then outlive td-gui as an orphan. watchChild only
+	// ever calls Wait once per cmd, so the later success path below must not
+	// call it again.
+	m.watchChild(cmd)
 
 	// td serve writes .todos/serve-port once it is listening. Poll for it,
 	// then confirm with a probe rather than trusting the file alone. The PID
@@ -179,7 +188,6 @@ func (m *Manager) spawn(ctx context.Context) error {
 					}
 					m.baseURL, m.token = url, token
 					m.mu.Unlock()
-					m.watchChild(cmd)
 					return nil
 				}
 			}

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -163,6 +164,108 @@ func TestSpawnAbortsIfStoppedConcurrently(t *testing.T) {
 	m.mu.Unlock()
 	if cmd != nil {
 		t.Error("spawn registered a process after Stop had already run; it would outlive td-gui as an orphan")
+	}
+}
+
+// fakeTdIgnoringSIGINT builds a stub "td" that ignores SIGINT and never
+// becomes healthy, so a Stop landing while it is still starting can only be
+// confirmed by actually watching it exit — a Signal call that merely didn't
+// error is not evidence the child reacted to it.
+func fakeTdIgnoringSIGINT(t *testing.T) string {
+	t.Helper()
+	src := `package main
+
+import (
+	"os/signal"
+	"syscall"
+	"time"
+)
+
+func main() {
+	signal.Ignore(syscall.SIGINT)
+	time.Sleep(time.Hour)
+}
+`
+	dir := t.TempDir()
+	srcPath := dir + "/main.go"
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := dir + "/fake-td-stubborn"
+	cmd := exec.Command("go", "build", "-o", bin, srcPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("cannot build fake td: %v\n%s", err, out)
+	}
+	return bin
+}
+
+// TestStopKillsChildStartedButNotYetHealthy pins that a Stop landing while
+// td serve is still starting — the ordinary shape of a Ctrl+C right after
+// launch — actually terminates the child instead of just sending a signal
+// and trusting it worked. watchChild used to run only after the health
+// check passed, so Stop found m.waitCh nil during the whole startup window
+// and returned the instant Signal() itself didn't error, regardless of
+// whether the child reacted; a slow or signal-ignoring child would then
+// outlive td-gui as an orphan.
+func TestStopKillsChildStartedButNotYetHealthy(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, ".todos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTdIgnoringSIGINT(t), StartTimeout: 10 * time.Second})
+
+	spawnErr := make(chan error, 1)
+	go func() { spawnErr <- m.spawn(context.Background()) }()
+
+	// Wait for the process to be registered. It never becomes healthy (it
+	// never writes a port file), so this can only observe the
+	// pre-health-check window this test targets.
+	var pid int
+	deadline := time.Now().Add(2 * time.Second)
+	for pid == 0 {
+		m.mu.Lock()
+		if m.cmd != nil && m.cmd.Process != nil {
+			pid = m.cmd.Process.Pid
+		}
+		m.mu.Unlock()
+		if time.Now().After(deadline) {
+			t.Fatal("spawn never registered a process")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		_ = m.Stop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(8 * time.Second):
+		t.Fatal("Stop did not return; a signal-ignoring child during startup can hang it forever")
+	}
+
+	// A Kill just issued leaves the process a zombie for a moment before it
+	// is reaped, and PIDAlive (signal 0) still sees a zombie as alive on
+	// Unix — so give reaping a brief window rather than asserting instantly.
+	reaped := false
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		if !PIDAlive(pid) {
+			reaped = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !reaped {
+		t.Error("child is still alive after Stop returned; it ignores SIGINT and nothing fell back to killing it")
+	}
+
+	select {
+	case <-spawnErr:
+	case <-time.After(5 * time.Second):
+		t.Error("spawn's poll loop never returned after its child was killed")
 	}
 }
 
