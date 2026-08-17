@@ -22,7 +22,19 @@ type Config struct {
 	BaseDir string
 	// TdPath is the td binary to spawn.
 	TdPath string
-	// Stderr receives the child process's stderr. Nil discards it.
+	// Stderr receives the child process's stderr, and the line Supervise logs
+	// when its one restart attempt fails — for any reason spawn reports, which
+	// is usually that the child never became reachable rather than that it
+	// failed to start at all. Nil discards both.
+	//
+	// More than one goroutine writes here: os/exec copies the child's stderr
+	// on a goroutine of its own whenever this is not an *os.File, and
+	// Supervise writes from its own. The writer has to tolerate that.
+	// os.Stderr does; a bare bytes.Buffer does not.
+	//
+	// Tolerating concurrent writes is not the same as receiving whole lines:
+	// the copier chunks on read boundaries, not newlines, so a child's output
+	// and Supervise's line can interleave mid-line. Nothing here prevents that.
 	Stderr io.Writer
 	// StartTimeout bounds how long Start waits for a spawned td serve to
 	// become reachable. Zero uses defaultStartTimeout.

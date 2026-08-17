@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -124,6 +125,38 @@ func main() {
 	return bin
 }
 
+// syncBuffer is a Stderr a test can read while the Manager is still running.
+//
+// A Manager's Stderr has more than one writer: Supervise logs a failed restart
+// from its own goroutine, and os/exec copies the child's stderr on a goroutine
+// of its own whenever the writer is not an *os.File. A bare bytes.Buffer is
+// unsafe for that, and unsafe again for a test goroutine reading it — which is
+// what the race detector caught here. It was not only a detector complaint:
+// io.Copy hands a *bytes.Buffer its own ReadFrom, which re-slices the buffer
+// around a blocking read, so a concurrent Write could have been truncated away
+// and failed the assertion for real.
+//
+// bytes.Buffer is a named field rather than embedded, and that is load-bearing:
+// embedding would promote Write, ReadFrom and the rest unguarded, and io.Copy
+// would then select the promoted ReadFrom and never reach the mutex at all —
+// leaving this exact race behind a type that reads as synchronised.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 // TestSuperviseLogsWhenRestartFails covers the gap where the one permitted
 // restart attempt itself fails to spawn: onRestart is correctly never called
 // (nothing to switch the proxy to), but that must not be the operator's only
@@ -135,7 +168,7 @@ func TestSuperviseLogsWhenRestartFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var stderr bytes.Buffer
+	var stderr syncBuffer
 	m := NewManager(Config{
 		BaseDir:      base,
 		TdPath:       fakeTdFailsOnRestart(t),
@@ -155,14 +188,25 @@ func TestSuperviseLogsWhenRestartFails(t *testing.T) {
 
 	m.killChildForTest()
 
+	// Wait for the line, not for a fixed interval. Supervise returns the
+	// moment it has logged, so the line appearing is what proves the restart
+	// was attempted, failed, and gave up — which is exactly the point at which
+	// onRestart can no longer be called. A timer can only assume that, and it
+	// spent five seconds per run assuming it.
+	deadline := time.Now().Add(10 * time.Second)
+	for !strings.Contains(stderr.String(), "restart failed") {
+		if time.Now().After(deadline) {
+			t.Fatalf("Stderr = %q, want it to mention the restart failure", stderr.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Now that the goroutine has given up, a non-blocking check is conclusive
+	// rather than merely hopeful.
 	select {
 	case url := <-restarted:
 		t.Fatalf("onRestart called with %q, want it never called when the restart itself fails", url)
-	case <-time.After(5 * time.Second):
-	}
-
-	if !strings.Contains(stderr.String(), "restart failed") {
-		t.Errorf("Stderr = %q, want it to mention the restart failure", stderr.String())
+	default:
 	}
 }
 
