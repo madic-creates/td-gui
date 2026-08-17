@@ -1,5 +1,5 @@
-import { fieldErrorFor } from '../../api/client'
 import type { Issue, IssueType, Priority } from '../../api/types'
+import FieldError from '../../components/FieldError'
 import IssueCombobox from '../../components/IssueCombobox'
 import LabelInput from './LabelInput'
 import type { IssueDraft } from './issueDiff'
@@ -162,14 +162,3 @@ export const boundFields = [
   'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
   'labels', 'parent_id', 'due_date', 'defer_until',
 ]
-
-/**
- * Exported because both forms render one for their own title input, which is
- * the field that is not in this block. No oxlint exemption above it: it is a
- * component, which is what that rule allows a component file to export.
- */
-export function FieldError({ error, field }: { error: unknown; field: string }) {
-  const message = fieldErrorFor(error, field)
-  if (!message) return null
-  return <p className="mt-1.5 text-[11px] text-danger">{message}</p>
-}

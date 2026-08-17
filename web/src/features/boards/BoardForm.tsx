@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { fieldErrorFor, unboundMessage } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useBoards } from '../../api/boards'
 import { useCreateBoard, useUpdateBoard } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
+import FieldError from '../../components/FieldError'
 import SkeletonRows from '../../components/SkeletonRows'
 import type { Board } from '../../api/types'
 
@@ -115,10 +116,4 @@ function Body({ board }: { board: Board | null }) {
       {panelError && <ErrorPanel message={panelError} />}
     </form>
   )
-}
-
-function FieldError({ error, field }: { error: unknown; field: string }) {
-  const message = fieldErrorFor(error, field)
-  if (!message) return null
-  return <p className="mt-1.5 text-[11px] text-danger">{message}</p>
 }
