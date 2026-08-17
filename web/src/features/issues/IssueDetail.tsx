@@ -319,16 +319,18 @@ function HandoffPanel({ handoff }: { handoff: Handoff }) {
     <section className="mt-6">
       <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Latest handoff</h2>
       {/* @container: the two-column switch below has to key off this card's
-          own width, not the viewport's. The card lives in the 68ch prose
-          track from xl up, so a viewport breakpoint like sm would still see
-          a wide window and cut it to ~226px sub-columns — 30 characters at
-          this font size. */}
+          own width, not the viewport's. From lg up the card sits in the 1fr
+          content column, with the 260px sidebar and the gap taken out of the
+          window beside it, so it runs roughly 300px narrower than the
+          viewport — a viewport breakpoint would read a wide window and split
+          a card that is not wide. */}
       <div className="@container rounded-md border border-line bg-surface-raised px-4 py-3.5">
-        {/* @2xl (42rem/672px) rather than @sm (24rem/384px): the card's
-            content box is ~474px in the prose track, which @sm would still
-            call "wide enough" for two columns — the exact bug this fixes.
-            @2xl only fires once the card itself is wide, which happens below
-            xl where the main column is undivided. */}
+        {/* @2xl (42rem/672px) rather than @sm (24rem/384px): below lg the grid
+            collapses and the card does span the page, but a 640px window still
+            leaves it a ~566px content box, which @sm would call "wide enough"
+            and cut into two ~273px columns — the exact bug this fixes. @2xl
+            needs a window past ~1030px, where two columns are wide enough to
+            read. */}
         <div className="grid gap-x-5 gap-y-3.5 @2xl:grid-cols-2">
           {sections.filter(([, items]) => items.length > 0).map(([title, items]) => (
             <div key={title}>
