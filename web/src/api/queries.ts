@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiGet } from './client'
+import { apiGet, encodeId } from './client'
 import type {
   IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority,
 } from './types'
@@ -46,7 +46,7 @@ export function useIssue(id: string) {
     queryKey: issueKeys.detail(id),
     // Review history always rides along: expanding it then needs no second
     // request, no extra loading state, and no second cache entry per issue.
-    queryFn: () => apiGet<IssueDetail>(`/v1/issues/${id}?with=reviews`),
+    queryFn: () => apiGet<IssueDetail>(`/v1/issues/${encodeId(id)}?with=reviews`),
     enabled: id !== '',
   })
 }

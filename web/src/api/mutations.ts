@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { apiSend } from './client'
+import { apiSend, encodeId } from './client'
 import { issueKeys } from './queries'
 import { boardKeys } from './boards'
 import type {
@@ -52,7 +52,7 @@ export function useTransition(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ action, ...body }: TransitionInput) =>
-      apiSend('POST', `/v1/issues/${id}/${action}`, body),
+      apiSend('POST', `/v1/issues/${encodeId(id)}/${action}`, body),
     onSuccess: () => invalidateIssueData(qc),
   })
 }
@@ -66,7 +66,7 @@ export function useRecordReview(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ summary, ...rest }: Omit<Attribution, 'reason'> & { summary: string }) =>
-      apiSend('POST', `/v1/issues/${id}/reviews`, {
+      apiSend('POST', `/v1/issues/${encodeId(id)}/reviews`, {
         decision: 'approved',
         summary,
         ...rest,
@@ -80,7 +80,7 @@ export function useAddComment(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ text }: { text: string }) =>
-      apiSend('POST', `/v1/issues/${id}/comments`, { text }),
+      apiSend('POST', `/v1/issues/${encodeId(id)}/comments`, { text }),
     onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.detail(id) }),
   })
 }
@@ -107,7 +107,7 @@ export function useCreateIssue() {
 export function useUpdateIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (patch: IssuePatch) => apiSend('PATCH', `/v1/issues/${id}`, patch),
+    mutationFn: (patch: IssuePatch) => apiSend('PATCH', `/v1/issues/${encodeId(id)}`, patch),
     onSuccess: () => invalidateIssueData(qc),
   })
 }
@@ -116,7 +116,7 @@ export function useUpdateIssue(id: string) {
 export function useDeleteIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => apiSend('DELETE', `/v1/issues/${id}`),
+    mutationFn: () => apiSend('DELETE', `/v1/issues/${encodeId(id)}`),
     onSuccess: () => invalidateIssueData(qc),
   })
 }
@@ -125,7 +125,7 @@ export function useDeleteComment(issueId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (commentId: string) =>
-      apiSend('DELETE', `/v1/issues/${issueId}/comments/${commentId}`),
+      apiSend('DELETE', `/v1/issues/${encodeId(issueId)}/comments/${encodeId(commentId)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: issueKeys.detail(issueId) }),
   })
 }
@@ -139,7 +139,7 @@ export function useAddDependency(issueId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (dependsOn: string) =>
-      apiSend('POST', `/v1/issues/${issueId}/dependencies`, { depends_on: dependsOn }),
+      apiSend('POST', `/v1/issues/${encodeId(issueId)}/dependencies`, { depends_on: dependsOn }),
     onSuccess: () => invalidateIssueData(qc),
   })
 }
@@ -148,7 +148,7 @@ export function useRemoveDependency(issueId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (depId: string) =>
-      apiSend('DELETE', `/v1/issues/${issueId}/dependencies/${depId}`),
+      apiSend('DELETE', `/v1/issues/${encodeId(issueId)}/dependencies/${encodeId(depId)}`),
     onSuccess: () => invalidateIssueData(qc),
   })
 }
@@ -183,7 +183,7 @@ export function useUpdateBoard(id: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (input: BoardInput) =>
-      apiSend<BoardCreateResponse>('PATCH', `/v1/boards/${id}`, input),
+      apiSend<BoardCreateResponse>('PATCH', `/v1/boards/${encodeId(id)}`, input),
     onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
   })
 }
@@ -191,7 +191,7 @@ export function useUpdateBoard(id: string) {
 export function useDeleteBoard() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => apiSend('DELETE', `/v1/boards/${id}`),
+    mutationFn: (id: string) => apiSend('DELETE', `/v1/boards/${encodeId(id)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
   })
 }
@@ -208,7 +208,7 @@ export function useSetCardPosition(boardId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ issueId, slot }: { issueId: string; slot: number }) =>
-      apiSend('POST', `/v1/boards/${boardId}/issues`, {
+      apiSend('POST', `/v1/boards/${encodeId(boardId)}/issues`, {
         issue_id: issueId,
         position: slot,
       }),
@@ -221,7 +221,7 @@ export function useClearCardPosition(boardId: string) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (issueId: string) =>
-      apiSend('DELETE', `/v1/boards/${boardId}/issues/${issueId}`),
+      apiSend('DELETE', `/v1/boards/${encodeId(boardId)}/issues/${encodeId(issueId)}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
   })
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeAll, afterAll, afterEach } from 'vitest'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
-import { ApiError, apiGet, apiSend, unboundMessage } from './client'
+import { ApiError, apiGet, apiSend, encodeId, unboundMessage } from './client'
 import type { IssueListResponse } from './types'
 
 const server = setupServer()
@@ -36,6 +36,25 @@ describe('request timeout', () => {
     } finally {
       vi.unstubAllGlobals()
     }
+  })
+})
+
+describe('encodeId', () => {
+  it('escapes a slash so an id cannot be mistaken for two path segments', () => {
+    expect(encodeId('td-1/x')).toBe('td-1%2Fx')
+  })
+
+  // useParams (route ids) and DependencyPanel's combobox entry (typed ids)
+  // both hand routes.ts/mutations.ts a decoded, unvalidated string. Without
+  // encoding, an id containing a slash would make the fetch hit a route with
+  // more segments than this call intends, rather than the single-segment
+  // resource it names.
+  it('keeps a slash-containing id inside the single path segment fetch actually requests', async () => {
+    server.use(http.get('/v1/issues/:id', ({ params }) =>
+      HttpResponse.json({ ok: true, data: { id: params.id } })))
+
+    const data = await apiGet<{ id: string }>(`/v1/issues/${encodeId('td-1/evil')}`)
+    expect(data.id).toBe('td-1/evil')
   })
 })
 

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiGet } from './client'
+import { apiGet, encodeId } from './client'
 import type { BoardListResponse, BoardResponse } from './types'
 
 export const boardKeys = {
@@ -33,7 +33,7 @@ export function useBoard(id: string, includeClosed = false) {
   return useQuery({
     queryKey: boardKeys.detail(id, includeClosed),
     queryFn: () => apiGet<BoardResponse>(
-      `/v1/boards/${id}${includeClosed ? '?include_closed=true' : ''}`,
+      `/v1/boards/${encodeId(id)}${includeClosed ? '?include_closed=true' : ''}`,
     ),
     enabled: id !== '',
     placeholderData: (previous, previousQuery) =>

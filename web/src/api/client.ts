@@ -90,6 +90,20 @@ export function apiSend<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: st
   return request<T>(method, path, body)
 }
 
+/**
+ * Encodes a value for use as a single path segment, e.g. an issue or board
+ * id interpolated into a `/v1/...` path.
+ *
+ * react-router's useParams returns route segments already decoded, and an id
+ * typed into a combobox (DependencyPanel's "depends on" entry) is raw user
+ * input — neither is safe to splice into a template string unescaped. A
+ * decoded `/` in either would change how many path segments the request
+ * carries, hitting a different route than the one this call intends.
+ */
+export function encodeId(id: string): string {
+  return encodeURIComponent(id)
+}
+
 /** Returns the server's message for a field, if the error carries one. */
 export function fieldErrorFor(error: unknown, field: string): string | undefined {
   if (!(error instanceof ApiError)) return undefined
