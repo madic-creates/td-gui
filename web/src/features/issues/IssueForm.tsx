@@ -4,8 +4,12 @@ import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
+import IssueCombobox from '../../components/IssueCombobox'
+import LabelInput from './LabelInput'
 import { blankDraft, createBodyFrom } from './issueCreate'
 import type { IssueDraft } from './issueDiff'
+import { candidatesFor } from './issueIndex'
+import { useIssueIndex } from './useIssueIndex'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
 const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
@@ -20,6 +24,10 @@ export default function IssueForm() {
   const create = useCreateIssue()
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
+
+  // The same query IssueList issues, so the parent picker is served from cache
+  // rather than costing a request of its own.
+  const { issues } = useIssueIndex()
 
   function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
     setDraft(current => ({ ...current, [key]: value }))
@@ -114,6 +122,43 @@ export default function IssueForm() {
         </div>
       </div>
 
+      <div>
+        <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
+        <FieldError error={create.error} field="labels" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="new-parent" className={legendClass}>Parent</label>
+          {/* Nothing to exclude: the issue does not exist yet, so it can be
+              neither its own parent nor its own child. candidatesFor still
+              earns its place by sorting closed issues last. */}
+          <IssueCombobox id="new-parent" value={draft.parent_id}
+            onChange={next => set('parent_id', next)}
+            candidates={candidatesFor(issues, [])}
+            placeholder="td-…" className={fieldClass} />
+          <FieldError error={create.error} field="parent_id" />
+        </div>
+        <div>
+          <label htmlFor="new-due" className={legendClass}>Due date</label>
+          <input id="new-due" type="date" value={draft.due_date}
+            onChange={e => set('due_date', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="due_date" />
+        </div>
+        <div>
+          <label htmlFor="new-defer" className={legendClass}>Defer until</label>
+          <input id="new-defer" type="date" value={draft.defer_until}
+            onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="defer_until" />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={draft.minor}
+          onChange={e => set('minor', e.target.checked)} />
+        <span>Minor — self-reviewable</span>
+      </label>
+
       <button type="submit" disabled={create.isPending}
         className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
         Create
@@ -126,7 +171,21 @@ export default function IssueForm() {
   )
 }
 
-const boundFields = ['title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint']
+/**
+ * Every field with a <FieldError> of its own above. `minor` is deliberately
+ * absent — it is the one field without one — so an error naming it, or naming
+ * anything td renames later, falls through to the panel instead of rendering
+ * nowhere.
+ *
+ * Exported so the suite can prove each entry really renders at an input: an
+ * omission here only duplicates a message, but a stale entry silences one.
+ * The same guard IssueEditForm.tsx carries, for the same reason.
+ */
+// oxlint-disable-next-line react/only-export-components
+export const boundFields = [
+  'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
+  'labels', 'parent_id', 'due_date', 'defer_until',
+]
 
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)

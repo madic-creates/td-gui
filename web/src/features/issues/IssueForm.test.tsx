@@ -7,7 +7,13 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
 import IssueForm from './IssueForm'
 
-const server = setupServer()
+const server = setupServer(
+  http.get('/v1/labels', () =>
+    HttpResponse.json({ ok: true, data: { default_workflow: 'standard', labels: ['alpha'] } })),
+  http.get('/v1/issues', () => HttpResponse.json({
+    ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+  })),
+)
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -204,5 +210,31 @@ describe('IssueForm', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(await screen.findAllByText(message)).toHaveLength(1)
+  })
+
+  it('sends labels, parent, both dates and minor in the create body', async () => {
+    let received: Record<string, unknown> | null = null
+    server.use(http.post('/v1/issues', async ({ request }) => {
+      received = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.type(screen.getByLabelText('Labels'), 'alpha')
+    await userEvent.click(screen.getByRole('button', { name: 'Add label' }))
+    await userEvent.type(screen.getByLabelText('Parent'), 'td-a1b2c3')
+    // fireEvent, not userEvent.type: a date input takes a whole value, and
+    // typing into one keystroke by keystroke does not produce a valid date.
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-09-01' } })
+    fireEvent.change(screen.getByLabelText('Defer until'), { target: { value: '2026-08-20' } })
+    await userEvent.click(screen.getByLabelText('Minor — self-reviewable'))
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await screen.findByText('issue detail stand-in')
+    expect(received).toEqual(expect.objectContaining({
+      labels: ['alpha'], parent_id: 'td-a1b2c3',
+      due_date: '2026-09-01', defer_until: '2026-08-20', minor: true,
+    }))
   })
 })
