@@ -539,4 +539,70 @@ describe('BacklogView', () => {
     expect(gapStates()).toEqual(['idle', 'idle', 'idle', 'idle'])
     release()
   })
+
+  /** The row of a pinned card, controls and all. */
+  const rowOf = (issueId: string) => screen.getByTestId(`card-${issueId}`).closest('li')!
+
+  /**
+   * The section is the coarse fallback for the chrome around the block — its
+   * heading, its prose, the space beside the cards. The card rows are most of
+   * its area and are not chrome: a row is where a card already is, so a drop
+   * there names no new place. Left to bubble, it would reach the section and
+   * append, which is the standard cancel gesture — pick a card up, put it back
+   * where it was — silently reordering the board.
+   */
+  it('refuses the drag over a pinned card row', () => {
+    renderBacklog()
+    const row = rowOf('td-bbb')
+    const event = createEvent.dragOver(row, { dataTransfer: dataTransfer('td-ddd') })
+    fireEvent(row, event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  // Picking a card up and putting it back down is how a drag is cancelled.
+  // Proof of the whole array, as in the gap self-drop test: a real move is
+  // issued last and awaited, so anything the no-op sent would be recorded too.
+  it('sends nothing when a pinned card is dropped on its own row', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-aaa')
+    fireEvent.dragStart(rowOf('td-aaa'), { dataTransfer: dt })
+    fireEvent.drop(rowOf('td-aaa'), { dataTransfer: dt })
+
+    const move = { issue_id: 'td-aaa', position: 3 }
+    fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  // A row is not a slot either: dropping on td-bbb says nothing about whether
+  // the card belongs above or below it, and appending to the end of the block
+  // is not what the gesture asked for.
+  it('sends nothing when a card is dropped on another pinned row', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(rowOf('td-ddd'), { dataTransfer: dt })
+    fireEvent.drop(rowOf('td-bbb'), { dataTransfer: dt })
+
+    const move = { issue_id: 'td-ddd', position: 1 }
+    fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  /**
+   * A row takes no drop, so nothing may read as "the card lands here" while the
+   * cursor is on one — least of all the section, whose accent paint would be
+   * promising an append the row is about to refuse.
+   */
+  it('marks nothing active while the cursor is on a card row', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(rowOf('td-ddd'), { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+    expect(sectionState()).toBe('active')
+
+    fireEvent.dragOver(rowOf('td-bbb'), { dataTransfer: dt })
+    expect(sectionState()).toBe('armed')
+    expect(gapStates()).toEqual(['armed', 'armed', 'armed', 'armed'])
+  })
 })

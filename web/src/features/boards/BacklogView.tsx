@@ -166,6 +166,33 @@ export default function BacklogView({ boardId, cards }: Props) {
     onDrop: dropAt(pinned.length),
   }
 
+  /**
+   * A pinned card's own row, made inert to the drag.
+   *
+   * The section takes the drop for the chrome around the block — its heading,
+   * its prose, the space beside the cards. The rows are not chrome: a row is
+   * where a card already is, so a drop on one names no new place, and left to
+   * bubble it would reach the section and append. That turns the standard
+   * cancel gesture — pick a card up, put it back down where it was — into a
+   * silent write that sends the card to the bottom of the block, defeating the
+   * guard `insertSlot` documents. So the row answers the drag the way it did
+   * before the section became a target: not at all.
+   *
+   * dragover is stopped without `preventDefault`, which is how a browser is
+   * told the drop is refused here — it then fires no drop event at all. `onDrop`
+   * stops it anyway, for the same reason `DropGap` does: it is the one place
+   * that decides, and a synthetic event must not reach past it either.
+   */
+  const inertRowProps = {
+    onDragOver: (event: DragEvent) => {
+      event.stopPropagation()
+      // The section is still armed — a drop is accepted in this block, just not
+      // on this row — but nothing may read as "the card lands here".
+      setOver(null)
+    },
+    onDrop: (event: DragEvent) => event.stopPropagation(),
+  }
+
   /** Dims the card a write is currently about. */
   const dim = (issueId: string) => (movingId === issueId ? 'opacity-40' : '')
 
@@ -198,6 +225,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                 <DropGap {...gapProps(index)} />
                 <li
                   {...dragSourceProps(card.issue.id, { setDragging, endDrag, enabled: !busy })}
+                  {...inertRowProps}
                   className="flex items-center gap-1.5"
                 >
                   {/* The dimming sits on the card, not the row: the controls
