@@ -131,7 +131,15 @@ func main() {
 // from its own goroutine, and os/exec copies the child's stderr on a goroutine
 // of its own whenever the writer is not an *os.File. A bare bytes.Buffer is
 // unsafe for that, and unsafe again for a test goroutine reading it — which is
-// what the race detector caught here.
+// what the race detector caught here. It was not only a detector complaint:
+// io.Copy hands a *bytes.Buffer its own ReadFrom, which re-slices the buffer
+// around a blocking read, so a concurrent Write could have been truncated away
+// and failed the assertion for real.
+//
+// bytes.Buffer is a named field rather than embedded, and that is load-bearing:
+// embedding would promote Write, ReadFrom and the rest unguarded, and io.Copy
+// would then select the promoted ReadFrom and never reach the mutex at all —
+// leaving this exact race behind a type that reads as synchronised.
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
