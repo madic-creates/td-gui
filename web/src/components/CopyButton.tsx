@@ -9,9 +9,8 @@ interface Props {
   /** The text written to the clipboard. */
   value: string
   /**
-   * Accessible name of the trigger. The visible label is the bare word
-   * `copy`, which does not say what would be copied once a page holds more
-   * than one of these.
+   * Accessible name of the trigger, and its tooltip. The icon says "copy" and
+   * nothing about what, so this has to: `Copy issue id`, not `Copy`.
    */
   label: string
   className?: string
@@ -20,10 +19,13 @@ interface Props {
 /**
  * Copies a short value to the clipboard and says whether it worked.
  *
- * The outcome sits in a live region beside the button rather than replacing
- * the button's own text: a control that renames itself mid-interaction is
- * announced as a different control, and its name has to keep saying what the
- * button does, not what just happened.
+ * The trigger is an icon, so `label` is the whole of its accessible name and
+ * its tooltip — there is no visible text to fall back on.
+ *
+ * The outcome sits in a live region beside the button rather than in the
+ * button itself: a control that relabels itself mid-interaction is announced
+ * as a different control, and its name has to keep saying what the button
+ * does, not what just happened.
  *
  * A failure here is ordinary rather than exceptional — `navigator.clipboard`
  * is absent outside a secure context, and `writeText` rejects when the
@@ -47,10 +49,11 @@ export default function CopyButton({ value, label, className = '' }: Props) {
   }
 
   return (
-    <span className={`inline-flex items-baseline gap-1.5 ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 ${className}`}>
       <button
         type="button"
         aria-label={label}
+        title={label}
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(value)
@@ -59,9 +62,26 @@ export default function CopyButton({ value, label, className = '' }: Props) {
             settle('failed')
           }
         }}
-        className="rounded-sm border border-line px-1.5 py-0.5 text-[11px] text-ink-muted"
+        className="inline-flex items-center rounded-sm border border-line p-1 text-ink-muted"
       >
-        copy
+        {/* Two sheets, the back one drawn as the L its front neighbour leaves
+            visible — the same 16-box line icon ThemeToggle uses, in
+            currentColor so it inherits whatever ink the row is written in.
+            aria-hidden: the button's name is the label, and an unnamed shape
+            announced beside it would only repeat it badly. */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="6" y="6" width="8" height="8" rx="1.5" />
+          <path d="M10 6V3.5A1 1 0 0 0 9 2.5H3.5a1 1 0 0 0-1 1V9a1 1 0 0 0 1 1H6" />
+        </svg>
       </button>
       {/* Mounted in every state and empty while idle. A live region that
           appears with its message already inside it is not reliably
