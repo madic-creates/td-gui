@@ -1,5 +1,5 @@
 import { Fragment, StrictMode } from 'react'
-import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
+import { describe, expect, it, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -22,7 +22,13 @@ const server = setupServer(
   })),
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  // jsdom has no clipboard; the copy test defines one. Removed here rather
+  // than at the end of that test, which a failed assertion would skip past
+  // and leave the stub standing for every test after it.
+  Reflect.deleteProperty(navigator, 'clipboard')
+})
 afterAll(() => server.close())
 
 const detail = {
@@ -107,6 +113,26 @@ describe('IssueDetail', () => {
     const back = await screen.findByRole('link', { name: '← back to list' })
 
     expect(back.parentElement).toBe(screen.getByText('td-6a0883').parentElement)
+  })
+
+  // The id is what gets carried back to a terminal, so it is copyable from
+  // the row it is displayed on. What matters here is the value handed to the
+  // clipboard — the bare id, with none of the row's punctuation around it.
+  // CopyButton's own states are covered in CopyButton.test.tsx.
+  it('copies the bare issue id from the id row', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+    // Stubbed after the user instance exists: user-event installs a clipboard
+    // stub of its own during setup, which would land on top of this spy.
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+    renderDetail()
+    await user.click(await screen.findByRole('button', { name: 'Copy issue id' }))
+
+    expect(writeText).toHaveBeenCalledExactlyOnceWith('td-6a0883')
+    expect(await screen.findByText('copied')).toBeInTheDocument()
   })
 
   // The header is a band above the body, not the body column's first child.

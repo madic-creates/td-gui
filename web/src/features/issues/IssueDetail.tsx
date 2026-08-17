@@ -17,6 +17,7 @@ import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import ErrorPanel from '../../components/ErrorPanel'
 import ConfirmButton from '../../components/ConfirmButton'
+import CopyButton from '../../components/CopyButton'
 
 /**
  * Keyed on the id, which is load-bearing rather than cosmetic. The route
@@ -73,11 +74,17 @@ function IssueDetailView({ id }: { id: string }) {
   return (
     <div className="px-5 py-4 pb-6">
       {/* Row 1. The id is the page's other name for what the title says, so it
-          belongs on the navigation line rather than owning a row of its own. */}
+          belongs on the navigation line rather than owning a row of its own.
+
+          It is also the value most often carried back to a terminal — every
+          `td show`, `td start` and `td log` needs it — so it gets a copy
+          control, which is why the row is now the id's row and not only the
+          back link's. */}
       <div className="flex items-baseline gap-2 text-[11px]">
         <Link to="/" className="text-ink-muted">← back to list</Link>
         <span aria-hidden="true" className="text-ink-faint">·</span>
         <span className="font-mono text-ink-faint">{issue.id}</span>
+        <CopyButton value={issue.id} label="Copy issue id" />
       </div>
 
       {/* Row 2. The title, and while the editor is open every field with it.
