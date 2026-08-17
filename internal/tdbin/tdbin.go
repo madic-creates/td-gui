@@ -60,6 +60,12 @@ func VersionContext(ctx context.Context, path string, timeout time.Duration) (st
 		if ctx.Err() != nil {
 			return "", fmt.Errorf("run %s --version: timed out after %s", path, timeout)
 		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if stderr := strings.TrimSpace(string(exitErr.Stderr)); stderr != "" {
+				return "", fmt.Errorf("run %s --version: %w: %s", path, err, stderr)
+			}
+		}
 		return "", fmt.Errorf("run %s --version: %w", path, err)
 	}
 	return ParseVersion(string(out))
