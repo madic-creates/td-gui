@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
-import IssueEditForm, { boundFields } from './IssueEditForm'
+import IssueEditForm from './IssueEditForm'
+import { boundFields } from './IssueFields'
 import type { Issue } from '../../api/types'
 
 const issue: Issue = {
