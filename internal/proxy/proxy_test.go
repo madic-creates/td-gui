@@ -3,6 +3,8 @@ package proxy
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -165,6 +167,50 @@ func TestProxyStreamsSSE(t *testing.T) {
 	}
 	if got := strings.TrimSpace(line); got != "id: 1" {
 		t.Errorf("first line = %q, want %q", got, "id: 1")
+	}
+}
+
+// TestProxyErrorHandlerReturnsBadGateway pins the response a browser sees
+// when the supervised td serve is unreachable (crashed, still starting up,
+// mid-restart): a structured JSON 502 that the frontend's fetch calls can
+// parse like any other API error, rather than a bare connection failure.
+func TestProxyErrorHandlerReturnsBadGateway(t *testing.T) {
+	// Reserve a port and immediately release it, so nothing is listening on
+	// it and the proxy's round trip to it fails deterministically.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreachable := "http://" + ln.Addr().String()
+	ln.Close()
+
+	p, err := New(unreachable, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	front := httptest.NewServer(p)
+	defer front.Close()
+
+	resp, err := front.Client().Get(front.URL + "/v1/issues")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadGateway)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want %q", ct, "application/json")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `{"ok":false,"error":{"code":"internal","message":"td serve is not reachable"}}`
+	if got := string(body); got != want {
+		t.Errorf("body = %q, want %q", got, want)
 	}
 }
 
