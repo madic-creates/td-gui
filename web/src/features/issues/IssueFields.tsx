@@ -9,13 +9,16 @@ const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
 
 // Exported because both forms style their own title input with them — the one
 // field that is not in here.
-// oxlint-disable-next-line react/only-export-components
 export const fieldClass = 'w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink'
-// oxlint-disable-next-line react/only-export-components
 export const legendClass = 'mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted'
 
 interface Props {
-  /** `new` or `edit`. Every id and htmlFor in the block is prefixed with it. */
+  /**
+   * `new` or `edit`. Prefixes every id and htmlFor this block owns — but
+   * `LabelInput`, rendered inside it, hardcodes its own `label-entry` and
+   * `label-suggestions` ids, which is what makes rendering this block twice
+   * on one page unsafe today.
+   */
   idPrefix: string
   /** The create or update mutation's error, which the FieldErrors read. */
   error: unknown
@@ -145,6 +148,9 @@ export default function IssueFields({ idPrefix, error, draft, set, parentCandida
  * `minor` is deliberately absent — it is the one field without a FieldError —
  * so an error naming it, or naming anything td renames later, falls through to
  * the panel instead of rendering nowhere.
+ *
+ * The list has to be exact in one direction and merely tidy in the other: an
+ * omission here only duplicates a message, but a stale entry silences one.
  *
  * One list rather than one per form: it describes the placements above, and
  * with the placements shared there is nothing left to keep in step by hand.

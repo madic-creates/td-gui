@@ -470,8 +470,10 @@ grep -rn "const boundFields\|export const boundFields" web/src/features/issues/
 ```
 
 Expected: `IssueForm.tsx` mentions `legendClass` once (its title label),
-`IssueEditForm.tsx` not at all, and exactly one `boundFields` definition
-across the directory, in `IssueFields.tsx`.
+`IssueEditForm.tsx` not at all, and two `boundFields` definitions in the
+directory: one here, in `IssueFields.tsx`, and `CommentForm.tsx`'s own
+unrelated `const boundFields = ['text']`, which binds that form's single
+field and has nothing to do with the issue forms.
 
 - [ ] **Step 2: Full suite**
 
