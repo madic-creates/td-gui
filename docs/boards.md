@@ -56,10 +56,17 @@ hiding it:
   returned. Nothing in this block can be reordered, because there is no
   position to change.
 
-Drag a card into the pinned block to give it a position; drag between two
-pinned cards to place it there. For a card that is already pinned, **↑** and
-**↓** do the same job from the keyboard, and **Unpin** removes the stored
-position and drops it back into the query-ordered block.
+Drag a card into the pinned block to give it a position. Where you let go
+decides where it lands: the strip between two pinned cards places it exactly
+there, and the rest of the block — the **Pinned** heading, the space around the
+list — appends it to the end. With nothing pinned yet the whole block is that
+one target, which is what the sentence in the empty block is telling you.
+
+The pinned cards themselves take no drop. Dropping a card back onto a card is
+the gesture for calling a drag off, so it does nothing rather than guess at a
+slot the drop did not name. For a card that is already pinned, **↑** and **↓**
+do the same job from the keyboard, and **Unpin** removes the stored position
+and drops it back into the query-ordered block.
 
 Nothing moves optimistically. td computes the sort key and may respace the
 whole board while it does, so the list updates when td answers, not before —
