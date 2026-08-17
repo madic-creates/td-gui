@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -79,5 +81,44 @@ func TestServeReturnsListenerErrors(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("serve did not return after Serve failed")
+	}
+}
+
+// TestStartAndReapWaitsOnTheChild pins that startAndReap reaps the process it
+// starts instead of leaving it a zombie until td-gui itself exits — the bug
+// openBrowser had when it called cmd.Start() without ever calling Wait().
+// Reading cmd.ProcessState only after <-done is what makes this race-free:
+// that receive happens-after the close(done) in startAndReap's goroutine,
+// which happens-after the Wait() call that sets ProcessState.
+func TestStartAndReapWaitsOnTheChild(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a Unix shell command")
+	}
+	cmd := exec.Command("sh", "-c", "exit 0")
+	done, err := startAndReap(cmd)
+	if err != nil {
+		t.Fatalf("startAndReap: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("startAndReap did not reap the child within 3s")
+	}
+
+	if cmd.ProcessState == nil {
+		t.Fatal("ProcessState is nil after <-done, want it set by Wait")
+	}
+	if !cmd.ProcessState.Exited() {
+		t.Error("ProcessState.Exited() = false, want true")
+	}
+}
+
+// TestStartAndReapReturnsStartError pins that a Start failure (e.g. a
+// nonexistent binary) is reported rather than silently discarded.
+func TestStartAndReapReturnsStartError(t *testing.T) {
+	cmd := exec.Command("td-gui-nonexistent-binary-for-test")
+	if _, err := startAndReap(cmd); err == nil {
+		t.Error("startAndReap with a nonexistent binary: want error, got nil")
 	}
 }

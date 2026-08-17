@@ -194,16 +194,36 @@ func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
 }
 
 func openBrowser(url string) {
-	var cmd *exec.Cmd
+	// A failure to open a browser, or the browser process itself failing, is
+	// not a reason to fail startup; the URL is already printed above. The
+	// returned channel is intentionally unused: nothing here needs to know
+	// when the browser process exits, only that it eventually gets reaped.
+	_, _ = startAndReap(browserCommand(url))
+}
+
+func browserCommand(url string) *exec.Cmd {
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		return exec.Command("open", url)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		return exec.Command("xdg-open", url)
 	}
-	// A failure to open a browser is not a reason to fail startup; the URL is
-	// already printed above.
-	_ = cmd.Start()
+}
+
+// startAndReap starts cmd and waits for it on its own goroutine, so a process
+// that exits before td-gui does is reaped immediately instead of sitting as a
+// zombie until td-gui's own exit reparents and clears it. The returned
+// channel closes once the wait completes.
+func startAndReap(cmd *exec.Cmd) (<-chan struct{}, error) {
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	return done, nil
 }
