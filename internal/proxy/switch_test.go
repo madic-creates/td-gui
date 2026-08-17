@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,6 +90,51 @@ func TestSwitchDoesNotDisruptInFlightRequest(t *testing.T) {
 	close(release)
 	if _, err := io.ReadAll(reader); err != nil {
 		t.Fatalf("read rest of in-flight stream: %v", err)
+	}
+}
+
+// TestSwitchServesJSONWhenNoHandlerIsSet pins that the nil-handler error
+// response is valid JSON with a matching Content-Type, not http.Error's
+// default text/plain — every other error envelope in this package (see
+// proxy.go's ErrorHandler) is JSON, and a client that trusts Content-Type
+// to decide how to parse the body must not be misled here.
+func TestSwitchServesJSONWhenNoHandlerIsSet(t *testing.T) {
+	sw := &Switch{} // zero value: no handler has been Set yet
+	srv := httptest.NewServer(sw)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadGateway)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want %q", ct, "application/json")
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed struct {
+		OK    bool `json:"ok"`
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		t.Fatalf("body %q is not valid JSON: %v", body, err)
+	}
+	if parsed.OK {
+		t.Error("ok = true, want false")
+	}
+	if parsed.Error.Code != "internal" {
+		t.Errorf("error.code = %q, want %q", parsed.Error.Code, "internal")
 	}
 }
 
