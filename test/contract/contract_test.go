@@ -1003,13 +1003,11 @@ func TestCreateFieldsContract(t *testing.T) {
 	}
 	var detail struct {
 		Data struct {
-			Issue struct {
-				Dependencies []any `json:"dependencies"`
-			} `json:"issue"`
+			Dependencies []any `json:"dependencies"`
 		} `json:"data"`
 	}
 	getJSON(t, front+"/v1/issues/"+id, &detail)
-	if deps := detail.Data.Issue.Dependencies; len(deps) > 0 {
+	if deps := detail.Data.Dependencies; len(deps) > 0 {
 		t.Errorf("dependencies = %v after create — td now honours depends_on on "+
 			"POST /v1/issues, so the create form could offer it", deps)
 	}
