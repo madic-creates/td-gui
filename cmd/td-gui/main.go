@@ -65,12 +65,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ok, err := tdbin.AtLeast(version, minTdVersion)
-	if err != nil {
+	if err := checkMinVersion(version); err != nil {
 		return err
-	}
-	if !ok {
-		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
 	}
 
 	assets, err := web.Handler()
@@ -141,6 +137,21 @@ func run() error {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "td-gui stopped")
+	return nil
+}
+
+// checkMinVersion rejects a td older than minTdVersion. Split out of run() so
+// the version gate — and its exact wording, which is the only clue an
+// operator on an old td gets — has a test that doesn't need a real td binary
+// on PATH.
+func checkMinVersion(version string) error {
+	ok, err := tdbin.AtLeast(version, minTdVersion)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
+	}
 	return nil
 }
 

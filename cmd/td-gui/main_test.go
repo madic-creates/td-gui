@@ -8,9 +8,40 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
+
+// TestCheckMinVersion pins the compatibility gate's outcomes and, for the
+// rejection case, the exact message — an operator on an old td has nothing
+// else to go on.
+func TestCheckMinVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		wantErr string // "" means no error
+	}{
+		{"newer than minimum", "v99.0.0", ""},
+		{"exactly minimum", minTdVersion, ""},
+		{"older than minimum", "v0.10.0", "td v0.10.0 is too old, v0.57.0 or newer is required"},
+		{"unparseable version", "not-a-version", `unparseable version "not-a-version"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkMinVersion(tt.version)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("checkMinVersion(%q) = %v, want nil", tt.version, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("checkMinVersion(%q) = %v, want error containing %q", tt.version, err, tt.wantErr)
+			}
+		})
+	}
+}
 
 // TestServeShutsDownWhileAStreamIsOpen is the load-bearing test for Ctrl-C
 // latency. The UI always holds td's SSE endpoint open, and Shutdown waits for
