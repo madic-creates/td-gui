@@ -121,7 +121,20 @@ export default function SwimlaneView({
                 setOverColumn(current => (current === status ? null : current))
               }}
               onDrop={dropOn(status)}
-              className={`w-64 shrink-0 rounded-sm border p-2 ${COLUMN_STYLE[state]}`}
+              // `flex-1` is `flex: 1 1 0%` — equal basis and equal growth, so
+              // the five columns stay the same width as each other at every
+              // viewport, sharing whatever is there instead of leaving dead
+              // space to the right of a fixed 256px.
+              //
+              // The floor has to be spelled out because a flex item defaults to
+              // `min-width: auto` and refuses to shrink past its content. 208px
+              // is what the card needs: ~147px of it is spoken for before the
+              // title gets a pixel — 16 lane padding, 20 card padding, the 74px
+              // id column, the priority tag and two gaps — which measures out
+              // to 61px of title to truncate into. Below roughly this the title is
+              // ellipsis only and the column stops saying anything, the failure
+              // td-3c4244 hit by dropping Closed entirely.
+              className={`min-w-[208px] flex-1 rounded-sm border p-2 ${COLUMN_STYLE[state]}`}
             >
               <h2 className="mb-1.5 text-[11px] uppercase tracking-widest text-ink-muted">
                 {STATUS_LABEL[status]}
