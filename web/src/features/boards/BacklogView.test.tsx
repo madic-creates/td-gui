@@ -265,6 +265,73 @@ describe('BacklogView', () => {
     expect(positioned).toEqual([{ issue_id: 'td-aaa', position: 3 }])
   })
 
+  /**
+   * A gap is 6px tall. The section around it is the whole pinned block — its
+   * heading, its prose and the space beside the cards — so a drop that misses
+   * every gap still pins the card, at the end of the block. The gaps remain the
+   * only way to name an exact slot.
+   */
+  it('appends a card dropped on the Pinned heading', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 4 }]))
+  })
+
+  // The empty state is the case the 6px gap serves worst: it tells the user to
+  // drag a card "up here" while "here" is a transparent strip under the
+  // sentence saying it. The sentence is part of the target.
+  it('pins a card dropped on the nothing-is-pinned text', async () => {
+    renderBacklog([makeCard({ id: 'td-ddd' }, { position: 0, has_position: false })])
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByText(/Nothing is pinned/), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 1 }]))
+  })
+
+  /**
+   * The gaps sit inside the section, so a drop on one reaches the section's
+   * handler too unless the gap stops it — and that second handler would append
+   * the card the first one just placed. The proof is the same shape as the
+   * self-drop test: assert the whole array, not just that it contains the move.
+   */
+  it('places a gap drop at that gap and nowhere else', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
+
+    const move = { issue_id: 'td-ddd', position: 1 }
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  // Same refusal `dropAt` makes at a gap: a link dragged in from another window
+  // arrives as its URL, and td would answer a 404 the user did nothing to earn.
+  it('ignores a drop on the section whose payload is not a card on this board', async () => {
+    renderBacklog()
+    fireEvent.drop(screen.getByRole('heading', { name: 'Pinned' }), {
+      dataTransfer: dataTransfer('https://example.com'),
+    })
+
+    const move = { issue_id: 'td-ddd', position: 4 }
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  // Without preventDefault on dragover the browser refuses the drop outright.
+  it('accepts the drag over the section', () => {
+    renderBacklog()
+    const heading = screen.getByRole('heading', { name: 'Pinned' })
+    const event = createEvent.dragOver(heading, { dataTransfer: dataTransfer('td-ddd') })
+    fireEvent(heading, event)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
   // Without preventDefault on dragover the browser refuses the drop outright.
   it('accepts the drag over a gap', () => {
     renderBacklog()
@@ -346,6 +413,101 @@ describe('BacklogView', () => {
 
     fireEvent.dragEnd(card)
     expect(gapStates()).toEqual(['idle', 'idle', 'idle', 'idle'])
+  })
+
+  const sectionState = () =>
+    screen.getByTestId('pinned-dropzone').getAttribute('data-state')
+
+  it('shows the whole section will take the drop once a card is picked up', () => {
+    renderBacklog()
+    expect(sectionState()).toBe('idle')
+
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, {
+      dataTransfer: dataTransfer('td-ddd'),
+    })
+    expect(sectionState()).toBe('armed')
+  })
+
+  /**
+   * Two highlights must never both read as "the card lands here". The gaps say
+   * where an exact slot is; the section says the coarse fallback is what a drop
+   * would take, so it goes active only while no gap is under the cursor.
+   */
+  it('marks the section, and no gap, while the cursor is on its heading', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+    expect(sectionState()).toBe('active')
+    expect(gapStates()).toEqual(['armed', 'armed', 'armed', 'armed'])
+  })
+
+  it('hands the mark back to a gap when the cursor reaches one', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+
+    fireEvent.dragOver(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
+    expect(gapStates()).toEqual(['armed', 'active', 'armed', 'armed'])
+    expect(sectionState()).toBe('armed')
+  })
+
+  /**
+   * As in SwimlaneView's suite: jsdom drops `relatedTarget` from the init, so
+   * passing it to fireEvent.dragLeave looks right and measures nothing. The
+   * section's guard reads exactly that field, so it has to be defined on the
+   * event or the test proves the opposite of what it says.
+   */
+  function leave(target: HTMLElement, relatedTarget: HTMLElement | null) {
+    const event = createEvent.dragLeave(target)
+    Object.defineProperty(event, 'relatedTarget', { value: relatedTarget })
+    fireEvent(target, event)
+  }
+
+  // dragleave bubbles out of everything inside the section — every gap, every
+  // card — so clearing on each of them would unmark the section that the
+  // dragover about to follow immediately marks again.
+  it('keeps the section marked as the cursor crosses what is inside it', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+
+    leave(screen.getByRole('heading', { name: 'Pinned' }),
+      screen.getByRole('list', { name: 'Pinned' }))
+    expect(sectionState()).toBe('active')
+  })
+
+  it('unmarks the section when the cursor leaves it altogether', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+
+    leave(screen.getByTestId('pinned-dropzone'),
+      screen.getByRole('list', { name: 'Ordered by the board query' }))
+    expect(sectionState()).toBe('armed')
+  })
+
+  /**
+   * `dropAt` refuses while a write is in flight, and the section shares it. A
+   * region that lit up anyway would be advertising a drop the handler discards
+   * without a word.
+   */
+  it('leaves the section dark while a position write is in flight', async () => {
+    const release = heldPosition()
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+    await waitFor(() =>
+      expect(screen.getByRole('list', { name: 'Pinned' })).toHaveAttribute('aria-busy', 'true'))
+
+    fireEvent.dragStart(screen.getByText('td-ccc').closest('li')!, {
+      dataTransfer: dataTransfer('td-ccc'),
+    })
+    expect(sectionState()).toBe('idle')
+    release()
   })
 
   /**
