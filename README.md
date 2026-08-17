@@ -75,15 +75,13 @@ td-gui does not touch `.todos/issues.db`. It discovers or starts td's own
 migrations, action log and review policy: exactly as if you had typed the CLI
 command.
 
-That is the whole design, and a few things follow from it:
-
 - Every listener binds `127.0.0.1`. The bearer token never appears in a
-  response or a log line.
+  response or a log line
 - The frontend validates nothing td validates. Title bounds and review policy
   are per-project td config, so the server answers and the form shows td's
-  own message.
+  own message
 - The UI renders exactly the transitions td reports, and none when td reports
-  none.
+  none
 
 If a `td serve` is already running for the project (started by an agent, or by
 `td monitor`), td-gui reuses it and leaves it running on exit. A backend it
@@ -114,27 +112,6 @@ PATH.
 
 Design notes for each feature are in
 [docs/superpowers/specs](docs/superpowers/specs).
-
-## What's still missing
-
-Honest state of things, roughly in the order it bites:
-
-- **List filtering stops at status and free text.** The API layer already
-  passes type and priority, but nothing in the UI sets them, and there is no
-  TDQ box on the list. Saving a query means making it a board.
-- **Dragging gives no feedback.** The backlog accepts drops but shows no drag
-  ghost and no drop-gap highlight, so the target is guesswork.
-- **Board rough edges.** Swimlane headings and status tags use different
-  words for the same status, the list's Edit/Delete controls read as
-  `Edit <board name>`, and the query field explains TDQ without linking to it.
-- **A board's view mode is not stored in td.** `PATCH /v1/boards/{id}` takes
-  name and query only, so backlog-vs-swimlanes is remembered per browser.
-- **Focus is write-only.** td exposes no read for it, so the button confirms
-  the request and the UI cannot show what is currently focused.
-- **No work sessions, no epic tree, no critical path.** `td ws`,
-  `td critical-path` and the dependency graph have no equivalent here; an epic
-  lists its direct children and that is all.
-- **Releases are linux/amd64 only.** Other platforms build from source.
 
 ## Releases
 
