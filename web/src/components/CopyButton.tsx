@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CopyIcon } from './Icon'
 
 /** How long an outcome stays on screen before the control returns to idle. */
 const RESET_MS = 2000
@@ -64,24 +65,7 @@ export default function CopyButton({ value, label, className = '' }: Props) {
         }}
         className="inline-flex items-center rounded-sm border border-line p-1 text-ink-muted"
       >
-        {/* Two sheets, the back one drawn as the L its front neighbour leaves
-            visible — the same 16-box line icon ThemeToggle uses, in
-            currentColor so it inherits whatever ink the row is written in.
-            aria-hidden: the button's name is the label, and an unnamed shape
-            announced beside it would only repeat it badly. */}
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 16 16"
-          className="h-3 w-3"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.25"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="6" y="6" width="8" height="8" rx="1.5" />
-          <path d="M10 6V3.5A1 1 0 0 0 9 2.5H3.5a1 1 0 0 0-1 1V9a1 1 0 0 0 1 1H6" />
-        </svg>
+        <CopyIcon />
       </button>
       {/* Mounted in every state and empty while idle. A live region that
           appears with its message already inside it is not reliably
