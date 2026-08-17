@@ -111,7 +111,8 @@ describe('IssueDetail', () => {
 
   // The header is a band above the body, not the body column's first child.
   // The open editor's field grid is sm:grid-cols-4 and needs the page width,
-  // not the 68ch prose column Task 4 introduces.
+  // not the 1fr content column, which from lg up gives up 260px plus the gap
+  // to the sidebar.
   it('lifts the header out of the body column', async () => {
     server.use(http.get('/v1/issues/td-6a0883', () =>
       HttpResponse.json({ ok: true, data: detail })))
