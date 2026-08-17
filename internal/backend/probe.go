@@ -15,6 +15,12 @@ const (
 	// ProbeUnauthorized means the instance is alive but was started with a
 	// token td-gui does not know. It cannot be reused.
 	ProbeUnauthorized
+	// ProbeUnusable means the instance answered /health but its authenticated
+	// read failed with something other than 401 — a live process in a broken
+	// state, not merely a slow-to-start or absent one. It must not be treated
+	// like ProbeDead: falling through to spawn would start a second td serve
+	// against the same .todos directory, racing two writers on one database.
+	ProbeUnusable
 	// ProbeDead means the instance does not answer at all.
 	ProbeDead
 )
@@ -25,6 +31,8 @@ func (r ProbeResult) String() string {
 		return "usable"
 	case ProbeUnauthorized:
 		return "unauthorized"
+	case ProbeUnusable:
+		return "unusable"
 	default:
 		return "dead"
 	}
@@ -48,7 +56,7 @@ func Probe(ctx context.Context, client *http.Client, baseURL string) ProbeResult
 	case status == http.StatusOK:
 		return ProbeUsable
 	default:
-		return ProbeDead
+		return ProbeUnusable
 	}
 }
 

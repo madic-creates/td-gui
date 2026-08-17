@@ -106,6 +106,8 @@ func (m *Manager) Start(ctx context.Context) error {
 			return nil
 		case ProbeUnauthorized:
 			return fmt.Errorf("a td serve instance is already running on port %d with a bearer token td-gui does not know; stop it, or start td-gui against a different project", info.Port)
+		case ProbeUnusable:
+			return fmt.Errorf("a td serve instance is already running on port %d but is not responding correctly; check its logs, or stop it and retry", info.Port)
 		}
 		// ProbeDead: fall through and spawn our own.
 	}

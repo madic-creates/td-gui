@@ -116,6 +116,63 @@ func TestStartRejectsTokenProtectedForeignInstance(t *testing.T) {
 	}
 }
 
+// startUnhealthyFakeServe simulates a td serve instance that is up (answers
+// /health) but errors on every authenticated read — a live process in a
+// broken state, distinct from one that is not there at all.
+func startUnhealthyFakeServe(t *testing.T, baseDir string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.Write([]byte(`{"ok":true,"data":{"status":"ok"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(srv.Close)
+
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(baseDir, ".todos"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf(`{"port":%d,"pid":%d,"started_at":%q,"instance_id":"srv_fake"}`,
+		port, os.Getpid(), time.Now().Format(time.RFC3339))
+	if err := os.WriteFile(PortFilePath(baseDir), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return srv
+}
+
+// TestStartRejectsUnusableForeignInstance guards against a live-but-broken
+// instance (answers /health, errors on an authenticated read) being treated
+// like a dead one. Before ProbeUnusable existed, Probe's default case folded
+// this into ProbeDead, and Start would fall through to spawn a second td
+// serve against the same .todos directory — two processes writing to the
+// same database. TdPath is a *working* stub, not a missing binary: if Start
+// fell through to spawn here it would succeed, so failure is the only
+// signal that Start refused to spawn a second instance rather than merely
+// failing to spawn one.
+func TestStartRejectsUnusableForeignInstance(t *testing.T) {
+	base := t.TempDir()
+	startUnhealthyFakeServe(t, base)
+
+	m := NewManager(Config{BaseDir: base, TdPath: fakeTd(t), StartTimeout: 10 * time.Second})
+	err := m.Start(context.Background())
+	defer m.Stop()
+	if err == nil {
+		t.Fatal("Start succeeded against an unusable foreign instance (it spawned a second process), want error")
+	}
+	if m.Owned() {
+		t.Error("Start spawned an owned process against an unusable foreign instance, want none")
+	}
+}
+
 func TestSpawnIgnoresStalePortFileFromAnotherInstance(t *testing.T) {
 	base := t.TempDir()
 	// A foreign, still-live instance's port file already sits at BaseDir,

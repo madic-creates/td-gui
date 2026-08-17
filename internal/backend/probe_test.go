@@ -53,6 +53,23 @@ func TestProbeUnhealthy(t *testing.T) {
 	}
 }
 
+func TestProbeUnusableWhenAuthenticatedReadFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.Write([]byte(`{"ok":true,"data":{"status":"ok"}}`))
+			return
+		}
+		// Not 401 (unauthorized) and not 200 (usable): the process is up but
+		// broken, e.g. a DB error on this specific request.
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	if got := Probe(context.Background(), srv.Client(), srv.URL); got != ProbeUnusable {
+		t.Errorf("Probe = %v, want ProbeUnusable", got)
+	}
+}
+
 func TestProbeNoListener(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	url := srv.URL
