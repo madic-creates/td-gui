@@ -4,18 +4,35 @@ import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
+import IssueCombobox from '../../components/IssueCombobox'
+import LabelInput from './LabelInput'
+import { blankDraft, createBodyFrom } from './issueCreate'
+import type { IssueDraft } from './issueDiff'
+import { candidatesFor } from './issueIndex'
+import { useIssueIndex } from './useIssueIndex'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
 const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
 
+const fieldClass = 'w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink'
+const legendClass = 'mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted'
+
 export default function IssueForm() {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [type, setType] = useState<IssueType>('task')
-  const [priority, setPriority] = useState<Priority>('P2')
+  // One draft rather than a state per field, and the same shape the edit form
+  // holds — the two forms offer the same fields, so they hold the same object.
+  const [draft, setDraft] = useState<IssueDraft>(blankDraft)
   const create = useCreateIssue()
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
+
+  // Of the two queries this fires, the open one is what IssueList already
+  // issues and so is served from cache; the closed one is not, and costs a
+  // real request of its own — see useIssueIndex's docstring for why.
+  const { issues } = useIssueIndex()
+
+  function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
+    setDraft(current => ({ ...current, [key]: value }))
+  }
 
   // The submit button disables on create.isPending, but that reads from
   // state and doesn't stop the form's native submit event: two submits
@@ -29,7 +46,7 @@ export default function IssueForm() {
   // so any hardcoded value here would eventually be wrong.
   return (
     <form
-      className="max-w-xl space-y-4 px-5 py-4"
+      className="max-w-3xl space-y-4 px-5 py-4"
       onSubmit={e => {
         e.preventDefault()
         if (submitting.current) return
@@ -38,68 +55,138 @@ export default function IssueForm() {
         // without this the fields kept their submitted values with nothing
         // stopping a second click from creating a duplicate, and the only way
         // to reach the issue just created was to go find it in the list.
-        create.mutate(
-          { title, description: description || undefined, type, priority },
-          {
-            onSuccess: data => navigate(`/issues/${data.issue.id}`),
-            onSettled: () => { submitting.current = false },
-          },
-        )
+        create.mutate(createBodyFrom(draft), {
+          onSuccess: data => navigate(`/issues/${data.issue.id}`),
+          onSettled: () => { submitting.current = false },
+        })
       }}
     >
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Title</label>
+        <label htmlFor="new-title" className={legendClass}>Title</label>
         <input
-          id="title" value={title} onChange={e => setTitle(e.target.value)}
-          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+          id="new-title" value={draft.title} onChange={e => set('title', e.target.value)}
+          className={fieldClass}
         />
         <FieldError error={create.error} field="title" />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Description</label>
+        <label htmlFor="new-description" className={legendClass}>Description</label>
         <textarea
-          id="description" rows={5} value={description}
-          onChange={e => setDescription(e.target.value)}
-          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+          id="new-description" rows={5} value={draft.description}
+          onChange={e => set('description', e.target.value)}
+          className={fieldClass}
         />
         <FieldError error={create.error} field="description" />
       </div>
 
-      <div className="flex gap-4">
+      <div>
+        <label htmlFor="new-acceptance" className={legendClass}>Acceptance criteria</label>
+        <textarea
+          id="new-acceptance" rows={4} value={draft.acceptance}
+          onChange={e => set('acceptance', e.target.value)} className={fieldClass}
+        />
+        <FieldError error={create.error} field="acceptance" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-4">
         <div>
-          <label htmlFor="type" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Type</label>
-          <select
-            id="type" value={type} onChange={e => setType(e.target.value as IssueType)}
-            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
-          >
+          <label htmlFor="new-type" className={legendClass}>Type</label>
+          <select id="new-type" value={draft.type}
+            onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
+          <FieldError error={create.error} field="type" />
         </div>
         <div>
-          <label htmlFor="priority" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Priority</label>
-          <select
-            id="priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}
-            className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
-          >
+          <label htmlFor="new-priority" className={legendClass}>Priority</label>
+          <select id="new-priority" value={draft.priority}
+            onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
             {priorities.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
+          <FieldError error={create.error} field="priority" />
+        </div>
+        <div>
+          {/* No min or max: the accepted values are td config, and it names
+              them in the error when a value is rejected. */}
+          <label htmlFor="new-points" className={legendClass}>Points</label>
+          <input id="new-points" type="number" value={draft.points ?? ''}
+            onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
+            className={fieldClass} />
+          <FieldError error={create.error} field="points" />
+        </div>
+        <div>
+          <label htmlFor="new-sprint" className={legendClass}>Sprint</label>
+          <input id="new-sprint" value={draft.sprint}
+            onChange={e => set('sprint', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="sprint" />
         </div>
       </div>
+
+      <div>
+        <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
+        <FieldError error={create.error} field="labels" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label htmlFor="new-parent" className={legendClass}>Parent</label>
+          {/* Nothing to exclude: the issue does not exist yet, so it can be
+              neither its own parent nor its own child. candidatesFor still
+              earns its place by sorting closed issues last. */}
+          <IssueCombobox id="new-parent" value={draft.parent_id}
+            onChange={next => set('parent_id', next)}
+            candidates={candidatesFor(issues, [])}
+            placeholder="td-…" className={fieldClass} />
+          <FieldError error={create.error} field="parent_id" />
+        </div>
+        <div>
+          <label htmlFor="new-due" className={legendClass}>Due date</label>
+          <input id="new-due" type="date" value={draft.due_date}
+            onChange={e => set('due_date', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="due_date" />
+        </div>
+        <div>
+          <label htmlFor="new-defer" className={legendClass}>Defer until</label>
+          <input id="new-defer" type="date" value={draft.defer_until}
+            onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
+          <FieldError error={create.error} field="defer_until" />
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={draft.minor}
+          onChange={e => set('minor', e.target.checked)} />
+        <span>Minor — self-reviewable</span>
+      </label>
 
       <button type="submit" disabled={create.isPending}
         className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
         Create
       </button>
 
-      {/* This form binds title and description; anything else td names, and
+      {/* This form binds every field it renders; anything else td names, and
           any error carrying no field at all, belongs here. */}
       {panelError && <ErrorPanel message={panelError} />}
     </form>
   )
 }
 
-const boundFields = ['title', 'description']
+/**
+ * Every field with a <FieldError> of its own above. `minor` is deliberately
+ * absent — it is the one field without one — so an error naming it, or naming
+ * anything td renames later, falls through to the panel instead of rendering
+ * nowhere.
+ *
+ * Exported so the suite can prove each entry really renders at an input: an
+ * omission here only duplicates a message, but a stale entry silences one.
+ * The same guard IssueEditForm.tsx carries, for the same reason.
+ */
+// oxlint-disable-next-line react/only-export-components
+export const boundFields = [
+  'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
+  'labels', 'parent_id', 'due_date', 'defer_until',
+]
 
 function FieldError({ error, field }: { error: unknown; field: string }) {
   const message = fieldErrorFor(error, field)

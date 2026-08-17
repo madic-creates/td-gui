@@ -85,11 +85,26 @@ export function useAddComment(id: string) {
   })
 }
 
+/**
+ * A create body. Only `title` is required; every other field is omitted when
+ * the form left it empty, so td applies its own defaults rather than storing
+ * a blank — see issueCreate.ts. `depends_on` and `blocks` are deliberately
+ * absent: td's CLI takes them at create time but this endpoint ignores them,
+ * and dependencies are added from the detail view instead.
+ */
 export interface IssueInput {
   title: string
   description?: string
+  acceptance?: string
   type?: IssueType
   priority?: Priority
+  points?: number
+  sprint?: string
+  labels?: string[]
+  parent_id?: string
+  due_date?: string
+  defer_until?: string
+  minor?: boolean
 }
 
 export function useCreateIssue() {

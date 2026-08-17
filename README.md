@@ -119,8 +119,6 @@ Design notes for each feature are in
 
 Honest state of things, roughly in the order it bites:
 
-- **The create form is thin.** Title, description, type and priority only —
-  points, labels, sprint, parent and dates need a second pass in the editor.
 - **List filtering stops at status and free text.** The API layer already
   passes type and priority, but nothing in the UI sets them, and there is no
   TDQ box on the list. Saving a query means making it a board.
