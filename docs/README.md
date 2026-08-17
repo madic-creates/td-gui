@@ -13,7 +13,7 @@ begin with [Getting started](getting-started.md).
 Two things are worth knowing before you read any of it.
 
 **td-gui never writes to the database.** It proxies to `td serve`, so every
-change goes through td itself — its validation, its action log, its review
+change goes through td itself: its validation, its action log, its review
 policy. Anything td refuses, td-gui refuses too, in td's own words.
 
 **The screen only shows what td reports.** If a transition button is missing,

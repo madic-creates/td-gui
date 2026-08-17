@@ -1,6 +1,6 @@
 # td-gui
 
-A local web UI for [td](https://github.com/marcus/td) — the issue tracker
+A local web UI for [td](https://github.com/marcus/td), the issue tracker
 built for sessions that forget, where agents and humans hand work off to each
 other through handoffs and reviews.
 
@@ -13,14 +13,14 @@ review policy, the same wording when td says no.
 ## What you can do with it
 
 - **Read the backlog at a glance.** Issues are grouped by status in attention
-  order — what is moving first, what is done last — and sort by id, title,
+  order (what is moving first, what is done last), and sort by id, title,
   priority or last update. Filter by status, search the text.
 - **Open an issue and see everything td knows.** Description, acceptance
   criteria, the latest handoff split into done / remaining / decisions /
   uncertain, the activity log, comments, dependencies, the review standing on
   it, and which sessions touched it.
 - **Move work along.** Start, request review, approve, reject, block, unblock,
-  close, reopen — with a reason where td records one. Only the transitions td
+  close, reopen, with a reason where td records one. Only the transitions td
   reports as available are offered.
 - **Review the way td expects.** Approving asks how the review is attributed:
   done independently, done by someone else, or self-reviewed. You can also
@@ -30,7 +30,7 @@ review policy, the same wording when td says no.
 - **Work from boards.** Any saved TDQ query, as a flat backlog you can pin and
   reorder, or as swimlanes where dragging a card proposes a status change.
 - **Watch it update itself.** When an agent writes from the CLI in another
-  terminal, the page follows along — no reload.
+  terminal, the page follows along, without a reload.
 
 Light and dark theme, keyboard-reachable controls, one binary, nothing leaves
 `127.0.0.1`.
@@ -72,7 +72,7 @@ has already been through `td init`. td-gui never runs `td init` for you.
 
 td-gui does not touch `.todos/issues.db`. It discovers or starts td's own
 `td serve` HTTP API and reverse-proxies to it, so every write goes through td's
-migrations, action log and review policy — exactly as if you had typed the CLI
+migrations, action log and review policy: exactly as if you had typed the CLI
 command.
 
 That is the whole design, and a few things follow from it:
@@ -85,8 +85,8 @@ That is the whole design, and a few things follow from it:
 - The UI renders exactly the transitions td reports, and none when td reports
   none.
 
-If a `td serve` is already running for the project — started by an agent, or by
-`td monitor` — td-gui reuses it and leaves it running on exit. A backend it
+If a `td serve` is already running for the project (started by an agent, or by
+`td monitor`), td-gui reuses it and leaves it running on exit. A backend it
 started itself, it also stops, and restarts once if it dies unexpectedly.
 
 ## Development
@@ -107,7 +107,7 @@ cd web && npm run dev
 ```
 
 Conventions, invariants and the testing caveats live in
-[CLAUDE.md](CLAUDE.md) — worth reading before the first change. The short
+[CLAUDE.md](CLAUDE.md), worth reading before the first change. The short
 version: English only, the Go server is standard library only, and a green
 `make test` can still mean the contract suite skipped because `td` was not on
 PATH.
@@ -156,7 +156,7 @@ stamped into it via `-ldflags -X main.buildVersion=`.
 
 ## License
 
-td-gui is licensed under the Apache License 2.0 — see [LICENSE](LICENSE).
+td-gui is licensed under the Apache License 2.0; see [LICENSE](LICENSE).
 
 It is an independent project and contains no code from td; it drives the `td`
 binary and its HTTP API from the outside. td itself is a separate work by
