@@ -1,9 +1,12 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -58,6 +61,109 @@ func main() {
 		t.Skipf("cannot build fake td: %v\n%s", err, out)
 	}
 	return bin
+}
+
+// fakeTdFailsOnRestart behaves like fakeTd on its first invocation, but exits
+// immediately without ever writing a port file on any invocation after that —
+// simulating the one restart attempt itself failing to spawn (a removed
+// binary, disk full, port exhaustion), not merely being slow to become
+// healthy.
+func fakeTdFailsOnRestart(t *testing.T) string {
+	t.Helper()
+	src := `package main
+
+import (
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+func main() {
+	dir := "."
+	for i, a := range os.Args {
+		if a == "--work-dir" && i+1 < len(os.Args) {
+			dir = os.Args[i+1]
+		}
+	}
+	marker := filepath.Join(dir, ".todos", "restart-attempted")
+	if _, err := os.Stat(marker); err == nil {
+		os.Exit(1)
+	}
+	os.MkdirAll(filepath.Join(dir, ".todos"), 0o755)
+	os.WriteFile(marker, []byte("1"), 0o644)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		os.Exit(1)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	body := fmt.Sprintf(` + "`" + `{"port":%d,"pid":%d,"started_at":%q,"instance_id":"srv_fake"}` + "`" + `,
+		port, os.Getpid(), time.Now().Format(time.RFC3339))
+	os.WriteFile(filepath.Join(dir, ".todos", "serve-port"), []byte(body), 0o644)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(` + "`" + `{"ok":true,"data":{}}` + "`" + `))
+	})
+	http.Serve(ln, mux)
+}
+`
+	dir := t.TempDir()
+	srcPath := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, "fake-td")
+	cmd := exec.Command("go", "build", "-o", bin, srcPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("cannot build fake td: %v\n%s", err, out)
+	}
+	return bin
+}
+
+// TestSuperviseLogsWhenRestartFails covers the gap where the one permitted
+// restart attempt itself fails to spawn: onRestart is correctly never called
+// (nothing to switch the proxy to), but that must not be the operator's only
+// signal — a line naming the failure belongs on cfg.Stderr instead of being
+// silently swallowed.
+func TestSuperviseLogsWhenRestartFails(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(base+"/.todos", 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stderr bytes.Buffer
+	m := NewManager(Config{
+		BaseDir:      base,
+		TdPath:       fakeTdFailsOnRestart(t),
+		Stderr:       &stderr,
+		StartTimeout: 500 * time.Millisecond,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := m.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer m.Stop()
+
+	restarted := make(chan string, 1)
+	m.Supervise(ctx, func(baseURL, token string) { restarted <- baseURL })
+
+	m.killChildForTest()
+
+	select {
+	case url := <-restarted:
+		t.Fatalf("onRestart called with %q, want it never called when the restart itself fails", url)
+	case <-time.After(5 * time.Second):
+	}
+
+	if !strings.Contains(stderr.String(), "restart failed") {
+		t.Errorf("Stderr = %q, want it to mention the restart failure", stderr.String())
+	}
 }
 
 func TestSuperviseRestartsOnce(t *testing.T) {

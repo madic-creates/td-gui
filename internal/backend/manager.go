@@ -265,6 +265,11 @@ func (m *Manager) killChildForTest() {
 // reason td-gui cannot fix, and an endless respawn would hide that behind a
 // UI that looks almost alive. After the single attempt the SSE connection
 // stays down and the UI shows its persistent disconnected banner.
+//
+// If that one attempt itself fails to spawn — not merely to become healthy,
+// which spawn already retries internally, but outright — cfg.Stderr gets a
+// line explaining why, so the disconnected banner is not the operator's only
+// clue that a restart was attempted at all.
 func (m *Manager) Supervise(ctx context.Context, onRestart func(baseURL, token string)) {
 	if !m.Owned() {
 		return // a foreign instance is not ours to supervise
@@ -294,6 +299,9 @@ func (m *Manager) Supervise(ctx context.Context, onRestart func(baseURL, token s
 			}
 
 			if err := m.spawn(ctx); err != nil {
+				if m.cfg.Stderr != nil {
+					fmt.Fprintln(m.cfg.Stderr, "td-gui: backend restart failed:", err)
+				}
 				return
 			}
 			onRestart(m.BaseURL(), m.Token())
