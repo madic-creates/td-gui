@@ -930,9 +930,9 @@ func boardIssueIDs(t *testing.T, front string) []string {
 // the create form offers, so the GUI never needs a follow-up PATCH — the
 // frontend suite runs against msw and can only prove what we told it to.
 //
-// It also pins the negative that scopes the form: depends_on is a td create
-// flag that this endpoint ignores, which is why dependencies are added from
-// the detail view instead.
+// It also pins the negative that scopes the form: depends_on and blocks are
+// td create flags that this endpoint ignores, which is why dependencies are
+// added from the detail view instead.
 func TestCreateFieldsContract(t *testing.T) {
 	front, seeded := newProject(t)
 
@@ -957,7 +957,7 @@ func TestCreateFieldsContract(t *testing.T) {
 		`"type":"feature","priority":"P1","points":5,"sprint":"sprint-1",` +
 		`"labels":["alpha","beta"],"parent_id":"` + parent + `",` +
 		`"due_date":"2026-09-01","defer_until":"2026-08-20","minor":true,` +
-		`"depends_on":"` + parent + `"}`
+		`"depends_on":"` + parent + `","blocks":"` + parent + `"}`
 
 	if status := postJSON(t, front+"/v1/issues", body, &created); status != http.StatusCreated &&
 		status != http.StatusOK {
@@ -994,9 +994,9 @@ func TestCreateFieldsContract(t *testing.T) {
 	// dependencies at creation become worth revisiting.
 	//
 	// Read back through the detail endpoint rather than off the create
-	// response: the create response is not required to carry `dependencies` at
-	// all, and an absent field would make this assertion pass without ever
-	// having looked at anything.
+	// response: the create response is not required to carry `dependencies` or
+	// `blocked_by` at all, and an absent field would make this assertion pass
+	// without ever having looked at anything.
 	id, ok := issue["id"].(string)
 	if !ok {
 		t.Fatalf("create response carried no id: %v", issue)
@@ -1004,11 +1004,16 @@ func TestCreateFieldsContract(t *testing.T) {
 	var detail struct {
 		Data struct {
 			Dependencies []any `json:"dependencies"`
+			BlockedBy    []any `json:"blocked_by"`
 		} `json:"data"`
 	}
 	getJSON(t, front+"/v1/issues/"+id, &detail)
 	if deps := detail.Data.Dependencies; len(deps) > 0 {
 		t.Errorf("dependencies = %v after create — td now honours depends_on on "+
 			"POST /v1/issues, so the create form could offer it", deps)
+	}
+	if blocked := detail.Data.BlockedBy; len(blocked) > 0 {
+		t.Errorf("blocked_by = %v after create — td now honours blocks on "+
+			"POST /v1/issues, so the create form could offer it", blocked)
 	}
 }
