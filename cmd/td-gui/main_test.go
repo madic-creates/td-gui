@@ -43,6 +43,46 @@ func TestCheckMinVersion(t *testing.T) {
 	}
 }
 
+// TestListenError pins listenError's wording per failure kind: an operator
+// only sees this string, so which one it picks is the only diagnosis they get.
+func TestListenError(t *testing.T) {
+	// A real EADDRINUSE, produced by binding the same port twice, rather than
+	// a synthetic error — errors.Is has to see through net.Listen's actual
+	// wrapping (*net.OpError -> *os.SyscallError -> syscall.Errno), not a
+	// hand-built stand-in.
+	first, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	port := first.Addr().(*net.TCPAddr).Port
+	_, dupErr := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if dupErr == nil {
+		t.Fatal("second Listen on an already-bound port: want error, got nil")
+	}
+
+	other := fmt.Errorf("some other failure")
+
+	tests := []struct {
+		name string
+		port int
+		err  error
+		want string
+	}{
+		{"port already in use", port, dupErr, fmt.Sprintf("port %d is already in use", port)},
+		{"other failure with an explicit port", 4321, other, "open listener on port 4321"},
+		{"other failure with an auto-assigned port", 0, other, "open listener:"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := listenError(tt.port, tt.err)
+			if got == nil || !strings.Contains(got.Error(), tt.want) {
+				t.Errorf("listenError(%d, %v) = %v, want containing %q", tt.port, tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestServeShutsDownWhileAStreamIsOpen is the load-bearing test for Ctrl-C
 // latency. The UI always holds td's SSE endpoint open, and Shutdown waits for
 // in-flight handlers without cancelling them, so without the cancellable base

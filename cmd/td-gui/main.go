@@ -92,10 +92,7 @@ func run() error {
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
-		if *port != 0 {
-			return fmt.Errorf("port %d is already in use: %w", *port, err)
-		}
-		return fmt.Errorf("open listener: %w", err)
+		return listenError(*port, err)
 	}
 	origin := fmt.Sprintf("http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port)
 
@@ -153,6 +150,22 @@ func checkMinVersion(version string) error {
 		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
 	}
 	return nil
+}
+
+// listenError turns a failed net.Listen into the message run() returns. The
+// specific "already in use" wording is only accurate for EADDRINUSE — a
+// requested port can also fail to bind on permission (e.g. a privileged port
+// without root) or on an invalid address, and blaming those on "in use" would
+// send an operator looking in the wrong place. port == 0 means "pick any
+// free port", so a failure there is never about a specific port being taken.
+func listenError(port int, err error) error {
+	if port == 0 {
+		return fmt.Errorf("open listener: %w", err)
+	}
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return fmt.Errorf("port %d is already in use: %w", port, err)
+	}
+	return fmt.Errorf("open listener on port %d: %w", port, err)
 }
 
 // serve runs handler on ln until ctx is cancelled or Serve fails, then shuts
