@@ -3,6 +3,7 @@ import type { DragEvent } from 'react'
 import { unboundMessage } from '../../api/client'
 import { useClearCardPosition, useSetCardPosition } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
+import { ArrowDownIcon, ArrowUpIcon, UnpinIcon } from '../../components/Icon'
 import BoardCard from './BoardCard'
 import { dragSourceProps } from './dragSource'
 import { insertSlot } from './position'
@@ -206,17 +207,21 @@ export default function BacklogView({ boardId, cards }: Props) {
                   >
                     <BoardCard issue={card.issue} />
                   </span>
+                  {/* Three icons and no words. Unpin used to be the one
+                      label here, beside two arrow glyphs of the same size —
+                      a row that was half symbol and half sentence. Every one
+                      of them names itself through aria-label and title: a
+                      drawing names nothing on its own, and these are the
+                      primary pointer affordance next to dragging. */}
                   <button
                     type="button"
                     aria-label={`Move ${card.issue.id} up`}
-                    // The glyph names nothing on its own, and this is the
-                    // primary pointer affordance next to dragging.
                     title={`Move ${card.issue.id} up`}
                     disabled={busy || index === 0}
                     onClick={() => move(card.issue.id, insertSlot(index - 1, index))}
-                    className="rounded-sm border border-line px-2 py-1 text-[11px] text-ink-muted disabled:opacity-40"
+                    className="inline-flex items-center rounded-sm border border-line p-1.5 text-ink-muted disabled:opacity-40"
                   >
-                    ↑
+                    <ArrowUpIcon />
                   </button>
                   <button
                     type="button"
@@ -226,18 +231,19 @@ export default function BacklogView({ boardId, cards }: Props) {
                     // gap = index + 2, not index + 1: at index + 1 td interpolates
                     // between the card and its successor and it keeps its place.
                     onClick={() => move(card.issue.id, insertSlot(index + 2, index))}
-                    className="rounded-sm border border-line px-2 py-1 text-[11px] text-ink-muted disabled:opacity-40"
+                    className="inline-flex items-center rounded-sm border border-line p-1.5 text-ink-muted disabled:opacity-40"
                   >
-                    ↓
+                    <ArrowDownIcon />
                   </button>
                   <button
                     type="button"
                     aria-label={`Unpin ${card.issue.id}`}
+                    title={`Unpin ${card.issue.id}`}
                     disabled={busy}
                     onClick={() => unpin(card.issue.id)}
-                    className="rounded-sm border border-line px-2 py-1 text-[11px] text-ink-muted disabled:opacity-40"
+                    className="inline-flex items-center rounded-sm border border-line p-1.5 text-ink-muted disabled:opacity-40"
                   >
-                    Unpin
+                    <UnpinIcon />
                   </button>
                 </li>
               </Fragment>

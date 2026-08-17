@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ConfirmButton from './ConfirmButton'
+import { TrashIcon } from './Icon'
 
 describe('ConfirmButton', () => {
   it('does not fire on the first click', async () => {
@@ -39,6 +40,44 @@ describe('ConfirmButton', () => {
 
     const trigger = screen.getByRole('button', { name: 'Delete Sprint 1' })
     expect(trigger.textContent).toBe('Delete')
+  })
+
+  /**
+   * A trigger that sits in a row of metadata is drawn, not written. It has no
+   * text left to fall back on, so the label has to become the name — a
+   * caller that passes no ariaLabel gets a named control anyway, where the
+   * text trigger would rightly stay unnamed and let its own words speak.
+   */
+  it('names an icon trigger from the label when no ariaLabel is given', () => {
+    render(
+      <ConfirmButton
+        label="Delete comment" icon={<TrashIcon />}
+        question="Delete this comment?" onConfirm={vi.fn()}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Delete comment' })
+
+    expect(trigger.textContent).toBe('')
+    expect(trigger).toHaveAttribute('title', 'Delete comment')
+  })
+
+  // The icon is only the resting state. What it arms into is the destructive
+  // half, and that stays in words.
+  it('arms an icon trigger into the written question', async () => {
+    const onConfirm = vi.fn()
+    render(
+      <ConfirmButton
+        label="Delete comment" icon={<TrashIcon />}
+        question="Delete this comment?" onConfirm={onConfirm}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete comment' }))
+
+    expect(screen.getByText('Delete this comment?')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment' }))
+    expect(onConfirm).toHaveBeenCalledOnce()
   })
 
   // Each ConfirmButton owns its armed state, so a list can hold two armed at

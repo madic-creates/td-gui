@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import Icon from './Icon'
 import {
   applyTheme,
   nextPreference,
@@ -8,7 +9,7 @@ import {
   type ThemePreference,
 } from '../lib/theme'
 
-/* 12px line icons, drawn in currentColor so they inherit the header's ink. */
+/* Paths for the shared Icon frame, which supplies the 16-box and the ink. */
 const icons: Record<ThemePreference, ReactNode> = {
   light: (
     <>
@@ -55,18 +56,7 @@ export default function ThemeToggle() {
       title={`Theme: ${preference}. Switch to ${next}.`}
       className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
     >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 16 16"
-        className="h-3 w-3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {icons[preference]}
-      </svg>
+      <Icon>{icons[preference]}</Icon>
       {preference}
     </button>
   )

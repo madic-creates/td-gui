@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 interface Props {
   label: string
@@ -7,6 +7,14 @@ interface Props {
    * which of several identical controls this is. Defaults to `label`.
    */
   ariaLabel?: string
+  /**
+   * Drawn in place of the label, for a trigger that sits in a row of
+   * metadata rather than in a bar of actions. The button then has no text at
+   * all, so its name falls back to `label` when no `ariaLabel` is given —
+   * unnamed is not an option the way it is for a trigger that reads
+   * "Delete".
+   */
+  icon?: ReactNode
   question: string
   /** Visible text of the confirm control. Defaults to `Confirm <label>`. */
   confirmLabel?: string
@@ -22,7 +30,7 @@ interface Props {
  * the same inline pattern TransitionBar uses for actions needing extra input.
  */
 export default function ConfirmButton({
-  label, ariaLabel, question, confirmLabel, onConfirm, disabled, className = '',
+  label, ariaLabel, icon, question, confirmLabel, onConfirm, disabled, className = '',
 }: Props) {
   const [armed, setArmed] = useState(false)
 
@@ -36,15 +44,20 @@ export default function ConfirmButton({
     ariaLabel && `${verb} ${ariaLabel[0].toLowerCase()}${ariaLabel.slice(1)}`
 
   if (!armed) {
+    // The icon trigger is square and tighter than the text one, and it takes
+    // a tooltip: a shape in a row of metadata is the one control here a
+    // pointer user cannot read.
+    const name = icon ? ariaLabel ?? label : ariaLabel
     return (
       <button
         type="button"
-        aria-label={ariaLabel}
+        aria-label={name}
+        title={icon ? name : undefined}
         disabled={disabled}
         onClick={() => setArmed(true)}
-        className={`rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted disabled:opacity-40 ${className}`}
+        className={`inline-flex items-center rounded-sm border border-line text-[11px] text-ink-muted disabled:opacity-40 ${icon ? 'p-1' : 'px-2.5 py-1'} ${className}`}
       >
-        {label}
+        {icon ?? label}
       </button>
     )
   }

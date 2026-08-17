@@ -75,14 +75,28 @@ describe('BacklogView', () => {
     expect(positioned).toEqual([{ issue_id: 'td-ccc', position: 2 }])
   })
 
-  // ↑ and ↓ name nothing to a sighted mouse user, and dragging aside they are
-  // the feature's primary pointer affordance.
-  it('names the move glyphs on hover as well as to assistive tech', () => {
+  // An icon names nothing to a sighted mouse user, and dragging aside these
+  // are the feature's primary pointer affordance.
+  it('names the row controls on hover as well as to assistive tech', () => {
     renderBacklog()
     expect(screen.getByRole('button', { name: 'Move td-aaa down' }))
       .toHaveAttribute('title', 'Move td-aaa down')
     expect(screen.getByRole('button', { name: 'Move td-ccc up' }))
       .toHaveAttribute('title', 'Move td-ccc up')
+    expect(screen.getByRole('button', { name: 'Unpin td-bbb' }))
+      .toHaveAttribute('title', 'Unpin td-bbb')
+  })
+
+  /**
+   * The row is drawn, not written. Unpin was a word between two arrow glyphs
+   * of the same size, which read as a control bar that had lost half its
+   * labels; the words belong to bars of actions, not to a card's own row.
+   */
+  it('gives the pinned row three controls and no text in any of them', () => {
+    renderBacklog()
+    for (const name of ['Move td-bbb up', 'Move td-bbb down', 'Unpin td-bbb']) {
+      expect(screen.getByRole('button', { name }).textContent).toBe('')
+    }
   })
 
   it('cannot move the first card up or the last one down', () => {
