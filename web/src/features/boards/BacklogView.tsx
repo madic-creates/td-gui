@@ -167,30 +167,44 @@ export default function BacklogView({ boardId, cards }: Props) {
   }
 
   /**
-   * A pinned card's own row, made inert to the drag.
+   * The pinned list, made inert to the drag. Its gaps still answer; nothing
+   * else inside it does.
    *
-   * The section takes the drop for the chrome around the block — its heading,
-   * its prose, the space beside the cards. The rows are not chrome: a row is
-   * where a card already is, so a drop on one names no new place, and left to
-   * bubble it would reach the section and append. That turns the standard
-   * cancel gesture — pick a card up, put it back down where it was — into a
-   * silent write that sends the card to the bottom of the block, defeating the
-   * guard `insertSlot` documents. So the row answers the drag the way it did
-   * before the section became a target: not at all.
+   * The section takes the drop for the chrome *around* the list — its heading,
+   * its prose, the padding. The list is not chrome: it is where the pinned
+   * cards already are, so a drop on one names no new place, and left to bubble
+   * it would reach the section and append. That turns the standard cancel
+   * gesture — pick a card up, put it back down where it was — into a silent
+   * write that sends the card to the bottom of the block, defeating the guard
+   * `insertSlot` documents.
+   *
+   * These sit on the `<ul>` rather than on each `<li>`, which is the part worth
+   * being careful about. `space-y-1.5` is a 6px margin between every child, and
+   * a margin belongs to the parent's content box, not the child's — so with
+   * only the rows inert, those strips still bubbled to the section. Every gap
+   * would then sit between two 6px bands that append instead of placing, and
+   * being a few pixels off is the whole reason this section became a target.
+   * One handler on the list covers the rows and the space between them alike.
    *
    * dragover is stopped without `preventDefault`, which is how a browser is
    * told the drop is refused here — it then fires no drop event at all. `onDrop`
-   * stops it anyway, for the same reason `DropGap` does: it is the one place
-   * that decides, and a synthetic event must not reach past it either.
+   * cancels and stops it anyway, for the same reason `DropGap` does: it is the
+   * one place that decides, and a synthetic event must not reach past it. The
+   * `preventDefault` matters because the section arms on any payload without
+   * reading it, so a link dragged in from another window makes the browser
+   * offer the drop — and an uncancelled default there navigates the page away.
    */
-  const inertRowProps = {
+  const inertListProps = {
     onDragOver: (event: DragEvent) => {
       event.stopPropagation()
       // The section is still armed — a drop is accepted in this block, just not
-      // on this row — but nothing may read as "the card lands here".
+      // here — but nothing may read as "the card lands here".
       setOver(null)
     },
-    onDrop: (event: DragEvent) => event.stopPropagation(),
+    onDrop: (event: DragEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+    },
   }
 
   /** Dims the card a write is currently about. */
@@ -219,13 +233,12 @@ export default function BacklogView({ boardId, cards }: Props) {
             Nothing is pinned. Drag a card up here to give it a stored position.
           </p>
         ) : (
-          <ul aria-label="Pinned" aria-busy={busy} className="space-y-1.5">
+          <ul {...inertListProps} aria-label="Pinned" aria-busy={busy} className="space-y-1.5">
             {pinned.map((card, index) => (
               <Fragment key={card.issue.id}>
                 <DropGap {...gapProps(index)} />
                 <li
                   {...dragSourceProps(card.issue.id, { setDragging, endDrag, enabled: !busy })}
-                  {...inertRowProps}
                   className="flex items-center gap-1.5"
                 >
                   {/* The dimming sits on the card, not the row: the controls

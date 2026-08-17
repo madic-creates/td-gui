@@ -543,6 +543,9 @@ describe('BacklogView', () => {
   /** The row of a pinned card, controls and all. */
   const rowOf = (issueId: string) => screen.getByTestId(`card-${issueId}`).closest('li')!
 
+  /** The pinned list itself — in a real browser, the margins between its rows. */
+  const pinnedList = () => screen.getByRole('list', { name: 'Pinned' })
+
   /**
    * The section is the coarse fallback for the chrome around the block — its
    * heading, its prose, the space beside the cards. The card rows are most of
@@ -604,5 +607,64 @@ describe('BacklogView', () => {
     fireEvent.dragOver(rowOf('td-bbb'), { dataTransfer: dt })
     expect(sectionState()).toBe('armed')
     expect(gapStates()).toEqual(['armed', 'armed', 'armed', 'armed'])
+  })
+
+  /**
+   * The list is `space-y-1.5`, which is a 6px margin between every child. A
+   * margin is outside the child's box but inside the list's, so those strips
+   * belong to the list itself — and with the rows inert but the list not, a
+   * drop landing in one bubbled past them to the section and appended.
+   *
+   * That put a 6px append band on each side of every gap: missing the slot the
+   * user aimed at by three pixels sent the card to the bottom of the block
+   * instead. The premise of this whole feature is that 6px is not a target a
+   * dragged card can hit, so those bands are the last place a silent write
+   * belongs. The list refuses the drag for the same reason a row does.
+   */
+  it('sends nothing when a card is dropped between the rows', async () => {
+    renderBacklog()
+    const dt = dataTransfer('td-aaa')
+    fireEvent.dragStart(rowOf('td-aaa'), { dataTransfer: dt })
+    fireEvent.drop(pinnedList(), { dataTransfer: dt })
+
+    const move = { issue_id: 'td-aaa', position: 3 }
+    fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
+    await waitFor(() => expect(positioned).toContainEqual(move))
+    expect(positioned).toEqual([move])
+  })
+
+  it('refuses the drag over the space between the rows', () => {
+    renderBacklog()
+    const list = pinnedList()
+    const event = createEvent.dragOver(list, { dataTransfer: dataTransfer('td-ddd') })
+    fireEvent(list, event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('marks nothing active while the cursor is between the rows', () => {
+    renderBacklog()
+    const dt = dataTransfer('td-ddd')
+    fireEvent.dragStart(rowOf('td-ddd'), { dataTransfer: dt })
+    fireEvent.dragOver(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
+    expect(sectionState()).toBe('active')
+
+    fireEvent.dragOver(pinnedList(), { dataTransfer: dt })
+    expect(sectionState()).toBe('armed')
+    expect(gapStates()).toEqual(['armed', 'armed', 'armed', 'armed'])
+  })
+
+  /**
+   * Refusing a drop is not the same as ignoring it. The section arms on any
+   * payload without inspecting it, so a link or a file dragged in from another
+   * window makes the browser offer the drop; if one then landed on the list,
+   * an uncancelled default is navigate-to-URL or open-file, which takes the
+   * page down. Every other drop path here cancels on its first line.
+   */
+  it('cancels the browser default on a drop it refuses', () => {
+    renderBacklog()
+    const list = pinnedList()
+    const event = createEvent.drop(list, { dataTransfer: dataTransfer('https://example.com') })
+    fireEvent(list, event)
+    expect(event.defaultPrevented).toBe(true)
   })
 })
