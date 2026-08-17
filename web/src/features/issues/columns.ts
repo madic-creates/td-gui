@@ -28,6 +28,16 @@ export const COL = {
   // header and the value share this column, so it is sized for the longer of
   // the two. Right-aligned to match the updated and status columns.
   priority: 'w-12 shrink-0 text-right',
-  updated: 'w-[64px] shrink-0 text-right',
+  // Sized for the ISO date relativeTime falls back to past a week, not for the
+  // relative form: "2026-07-24" renders 67.88px at the row's 13px, so it did
+  // not fit the old 64px and broke after a hyphen into two lines. 74px matches
+  // the id and status columns and leaves more slack than the id column already
+  // lives with (its 9 mono chars measure 70.46px).
+  //
+  // whitespace-nowrap because the width rests on one machine's font stack, and
+  // the header's sort button already nowraps for the same reason. It makes a
+  // wider stack overhang by a pixel instead of wrapping — the row pins an
+  // explicit height, so a second line is the worse of the two failures.
+  updated: 'w-[74px] shrink-0 text-right whitespace-nowrap',
   status: 'w-[74px] shrink-0 text-right',
 } as const
