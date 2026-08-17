@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -212,6 +213,61 @@ func TestProxyErrorHandlerReturnsBadGateway(t *testing.T) {
 	if got := string(body); got != want {
 		t.Errorf("body = %q, want %q", got, want)
 	}
+}
+
+// TestProxyErrorHandlerLogsWithOption pins the one thing the JSON 502 body in
+// TestProxyErrorHandlerReturnsBadGateway can't carry to an operator: why td
+// serve was unreachable. Without WithErrorLog that reason went nowhere.
+func TestProxyErrorHandlerLogsWithOption(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreachable := "http://" + ln.Addr().String()
+	ln.Close()
+
+	var log bytes.Buffer
+	p, err := New(unreachable, "", WithErrorLog(&log))
+	if err != nil {
+		t.Fatal(err)
+	}
+	front := httptest.NewServer(p)
+	defer front.Close()
+
+	resp, err := front.Client().Get(front.URL + "/v1/issues")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	got := log.String()
+	if !strings.Contains(got, "GET") || !strings.Contains(got, "/v1/issues") {
+		t.Errorf("error log = %q, want it to mention the method and path", got)
+	}
+}
+
+// TestProxyErrorHandlerDefaultLogsNothing pins that omitting WithErrorLog
+// keeps prior behavior: no writer means no output, not a nil-pointer panic.
+func TestProxyErrorHandlerDefaultLogsNothing(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unreachable := "http://" + ln.Addr().String()
+	ln.Close()
+
+	p, err := New(unreachable, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	front := httptest.NewServer(p)
+	defer front.Close()
+
+	resp, err := front.Client().Get(front.URL + "/v1/issues")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
 }
 
 func TestNewRejectsBadURL(t *testing.T) {

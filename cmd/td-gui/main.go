@@ -99,14 +99,14 @@ func run() error {
 	}
 	origin := fmt.Sprintf("http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port)
 
-	api, err := proxy.New(mgr.BaseURL(), mgr.Token())
+	api, err := proxy.New(mgr.BaseURL(), mgr.Token(), proxy.WithErrorLog(os.Stderr))
 	if err != nil {
 		return err
 	}
 	apiSwitch := proxy.NewSwitch(api)
 
 	mgr.Supervise(ctx, func(baseURL, token string) {
-		next, err := proxy.New(baseURL, token)
+		next, err := proxy.New(baseURL, token, proxy.WithErrorLog(os.Stderr))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "td-gui: restarting the backend failed:", err)
 			return
