@@ -279,15 +279,27 @@ describe('BacklogView', () => {
     await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 4 }]))
   })
 
-  // The empty state is the case the 6px gap serves worst: it tells the user to
-  // drag a card "up here" while "here" is a transparent strip under the
-  // sentence saying it. The sentence is part of the target.
+  // The empty state is what the 6px gap served worst: it told the user to drag
+  // a card "up here" while "here" was a transparent strip under the sentence
+  // saying it. The sentence is the target now.
   it('pins a card dropped on the nothing-is-pinned text', async () => {
     renderBacklog([makeCard({ id: 'td-ddd' }, { position: 0, has_position: false })])
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByText(/Nothing is pinned/), { dataTransfer: dt })
     await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 1 }]))
+  })
+
+  /**
+   * A gap marks the boundary between two pinned cards. With no pinned cards
+   * there is no boundary to mark, and the strip drawn where one would go is a
+   * second drop target sitting inside the first, offering the same slot the
+   * prose above it already offers. Two targets, one outcome: the empty state
+   * renders the section and nothing else.
+   */
+  it('draws no gap inside the section when nothing is pinned', () => {
+    renderBacklog([makeCard({ id: 'td-ddd' }, { position: 0, has_position: false })])
+    expect(screen.queryAllByTestId(/^drop-gap-/)).toEqual([])
   })
 
   /**

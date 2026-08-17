@@ -135,12 +135,14 @@ export default function BacklogView({ boardId, cards }: Props) {
   /**
    * The pinned block as one drop target.
    *
-   * A gap is 6px tall, and in the state that matters most — nothing pinned yet
-   * — the section is a heading, one line of prose telling the user to drag a
-   * card "up here", and a single transparent strip underneath. So the whole
-   * section takes the drop and resolves it to the end of the block, which for
-   * an empty block is its only slot. The gaps sit inside and keep their exact
-   * placement; this is the fallback for a drop that missed all of them.
+   * A gap is 6px tall, which is no target at all for a dragged card. So the
+   * whole section takes the drop and resolves it to the end of the block. The
+   * gaps sit inside and keep their exact placement; this is the fallback for a
+   * drop that missed all of them.
+   *
+   * With nothing pinned there are no gaps, and the section is the only target
+   * — a heading and one line of prose telling the user to drag a card "up
+   * here", which is now the whole of "here".
    */
   const sectionState: GapState = !armed ? 'idle' : over === 'section' ? 'active' : 'armed'
 
@@ -181,14 +183,14 @@ export default function BacklogView({ boardId, cards }: Props) {
       <section {...sectionProps} className={`-mx-2 rounded-sm p-2 ${SECTION_STYLE[sectionState]}`}>
         <h2 className="mb-1.5 text-[11px] uppercase tracking-widest text-ink-muted">Pinned</h2>
         {pinned.length === 0 ? (
-          <>
-            <p className="text-[11px] text-ink-faint">
-              Nothing is pinned. Drag a card up here to give it a stored position.
-            </p>
-            <ul aria-label="Pinned">
-              <DropGap {...gapProps(0)} />
-            </ul>
-          </>
+          // No list and no gap. A gap marks the boundary between two pinned
+          // cards, and with none there is no boundary to mark — the strip drawn
+          // where one would go was a second drop target inside the first,
+          // offering the very slot the sentence above it offers. The section
+          // is the whole target here.
+          <p className="text-[11px] text-ink-faint">
+            Nothing is pinned. Drag a card up here to give it a stored position.
+          </p>
         ) : (
           <ul aria-label="Pinned" aria-busy={busy} className="space-y-1.5">
             {pinned.map((card, index) => (
