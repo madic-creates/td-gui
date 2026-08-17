@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
-import IssueForm, { boundFields } from './IssueForm'
+import IssueForm from './IssueForm'
+import { boundFields } from './IssueFields'
 
 const server = setupServer(
   http.get('/v1/labels', () =>
