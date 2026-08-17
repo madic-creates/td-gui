@@ -18,6 +18,7 @@ import { relativeTime, shortSession } from '../../lib/format'
 import ErrorPanel from '../../components/ErrorPanel'
 import ConfirmButton from '../../components/ConfirmButton'
 import CopyButton from '../../components/CopyButton'
+import { TrashIcon } from '../../components/Icon'
 
 /**
  * Keyed on the id, which is load-bearing rather than cosmetic. The route
@@ -246,8 +247,13 @@ function IssueDetailView({ id }: { id: string }) {
                       <span>·</span>
                       <span>{relativeTime(comment.created_at)}</span>
                       <span className="ml-auto">
+                        {/* An icon, because this row is metadata — a session
+                            and a time — and the word "Delete" was the only
+                            thing in it written to be read. Arming still puts
+                            the question and both answers in words. */}
                         <ConfirmButton
                           label="Delete comment"
+                          icon={<TrashIcon />}
                           question="Delete this comment?"
                           disabled={deleteComment.isPending}
                           onConfirm={() => deleteComment.mutate(comment.id)}
