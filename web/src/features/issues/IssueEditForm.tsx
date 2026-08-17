@@ -1,20 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fieldErrorFor, unboundMessage } from '../../api/client'
+import { unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
-import type { Issue, IssueType, Priority } from '../../api/types'
+import type { Issue } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
-import IssueCombobox from '../../components/IssueCombobox'
-import LabelInput from './LabelInput'
+import IssueFields, { boundFields, FieldError, fieldClass } from './IssueFields'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
 import { candidatesFor, childrenOf } from './issueIndex'
 import { useIssueIndex } from './useIssueIndex'
 
-const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
-const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
-
-const fieldClass = 'w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink'
-const legendClass = 'mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted'
 const titleClass = 'mt-0.5 mb-2 text-xl font-semibold leading-snug tracking-tight text-ink'
 
 interface Props {
@@ -172,92 +166,15 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
 
       {editing && (
         <div className="mt-4 space-y-4 border-t border-line-subtle pt-4">
-          <div>
-            <label htmlFor="edit-description" className={legendClass}>Description</label>
-            <textarea id="edit-description" rows={6} value={draft.description}
-              onChange={e => set('description', e.target.value)} className={fieldClass} />
-            <FieldError error={update.error} field="description" />
-          </div>
-
-          <div>
-            <label htmlFor="edit-acceptance" className={legendClass}>Acceptance criteria</label>
-            <textarea id="edit-acceptance" rows={4} value={draft.acceptance}
-              onChange={e => set('acceptance', e.target.value)} className={fieldClass} />
-            <FieldError error={update.error} field="acceptance" />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div>
-              <label htmlFor="edit-type" className={legendClass}>Type</label>
-              <select id="edit-type" value={draft.type}
-                onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
-                {types.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <FieldError error={update.error} field="type" />
-            </div>
-            <div>
-              <label htmlFor="edit-priority" className={legendClass}>Priority</label>
-              <select id="edit-priority" value={draft.priority}
-                onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
-                {priorities.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <FieldError error={update.error} field="priority" />
-            </div>
-            <div>
-              {/* No min or max: the accepted values are td config, and it names
-                  them in the error when a value is rejected. */}
-              <label htmlFor="edit-points" className={legendClass}>Points</label>
-              <input id="edit-points" type="number" value={draft.points ?? ''}
-                onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
-                className={fieldClass} />
-              <FieldError error={update.error} field="points" />
-            </div>
-            <div>
-              <label htmlFor="edit-sprint" className={legendClass}>Sprint</label>
-              <input id="edit-sprint" value={draft.sprint}
-                onChange={e => set('sprint', e.target.value)} className={fieldClass} />
-              <FieldError error={update.error} field="sprint" />
-            </div>
-          </div>
-
-          <div>
-            <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
-            <FieldError error={update.error} field="labels" />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label htmlFor="edit-parent" className={legendClass}>Parent</label>
-              <IssueCombobox id="edit-parent" value={draft.parent_id}
-                onChange={next => set('parent_id', next)}
-                // Excludes the issue itself (it cannot be its own parent) and
-                // its own children — picking one would only earn a rejection
-                // from td, since the child's existing parent_id already makes
-                // that edge a cycle. Longer cycles through a grandchild stay
-                // td's to catch, same as DependencyPanel's dependency picker.
-                candidates={candidatesFor(issues, [issue.id, ...childrenOf(issues, issue.id).map(c => c.id)])}
-                placeholder="td-…" className={fieldClass} />
-              <FieldError error={update.error} field="parent_id" />
-            </div>
-            <div>
-              <label htmlFor="edit-due" className={legendClass}>Due date</label>
-              <input id="edit-due" type="date" value={draft.due_date}
-                onChange={e => set('due_date', e.target.value)} className={fieldClass} />
-              <FieldError error={update.error} field="due_date" />
-            </div>
-            <div>
-              <label htmlFor="edit-defer" className={legendClass}>Defer until</label>
-              <input id="edit-defer" type="date" value={draft.defer_until}
-                onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
-              <FieldError error={update.error} field="defer_until" />
-            </div>
-          </div>
-
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={draft.minor}
-              onChange={e => set('minor', e.target.checked)} />
-            <span>Minor — self-reviewable</span>
-          </label>
+          <IssueFields
+            idPrefix="edit" error={update.error} draft={draft} set={set}
+            // Excludes the issue itself (it cannot be its own parent) and its
+            // own children — picking one would only earn a rejection from td,
+            // since the child's existing parent_id already makes that edge a
+            // cycle. Longer cycles through a grandchild stay td's to catch,
+            // same as DependencyPanel's dependency picker.
+            parentCandidates={candidatesFor(issues, [issue.id, ...childrenOf(issues, issue.id).map(c => c.id)])}
+          />
 
           {/* The form's default button, and nothing else — it is what makes
               Enter in a text field save, and Save itself is no longer here to
@@ -268,35 +185,10 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
               layout and out of the accessible tree; both buttons run the same
               onSubmit, so which one wins the tie does not matter. */}
           <button type="submit" hidden tabIndex={-1} aria-hidden="true" />
-
         </div>
       )}
     </form>
     {editing && (footerSlot === undefined ? footer : footerSlot && createPortal(footer, footerSlot))}
     </>
   )
-}
-
-/**
- * Every field with a <FieldError> of its own above. `minor` is deliberately
- * absent — it is the one editable field without one — so an error naming it,
- * or naming anything td renames later, falls through to the panel instead of
- * rendering nowhere.
- *
- * Exported so the suite can prove each entry really renders at an input: an
- * omission here only duplicates a message, but a stale entry silences one.
- * That guard is worth one file's fast-refresh granularity, and the list has to
- * stay in this file — it describes the FieldError placements above and would
- * rot the moment it moved away from them.
- */
-// oxlint-disable-next-line react/only-export-components
-export const boundFields = [
-  'title', 'description', 'acceptance', 'type', 'priority', 'points', 'sprint',
-  'labels', 'parent_id', 'due_date', 'defer_until',
-]
-
-function FieldError({ error, field }: { error: unknown; field: string }) {
-  const message = fieldErrorFor(error, field)
-  if (!message) return null
-  return <p className="mt-1.5 text-[11px] text-danger">{message}</p>
 }
