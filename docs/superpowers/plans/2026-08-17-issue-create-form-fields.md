@@ -226,7 +226,7 @@ export function createBodyFrom(draft: IssueDraft): IssueInput {
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run from `web/`: `npm test -- --run issueCreate`
-Expected: PASS, 8 tests.
+Expected: PASS, 7 tests.
 
 - [ ] **Step 6: Typecheck**
 

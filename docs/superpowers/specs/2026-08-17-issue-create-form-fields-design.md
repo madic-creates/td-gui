@@ -88,8 +88,10 @@ would serialise to `null`, so it is omitted rather than sent.
 ### Parent candidates
 
 `IssueCombobox` over `useIssueIndex()`, with no exclusions: at creation there
-is no self to exclude and no children to exclude. It adds a `/v1/issues` fetch
-to `/issues/new`, normally already in cache from the list view.
+is no self to exclude and no children to exclude. `useIssueIndex` fires two
+`/v1/issues` fetches; only the unfiltered one matches what the list view
+already issues and is served from cache, the `status: ['closed']` one is a
+real request of its own.
 
 `IssueEditForm.tsx` is not touched.
 

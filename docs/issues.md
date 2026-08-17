@@ -82,8 +82,10 @@ decision and hides earlier ones behind a disclosure marked *superseded*.
 
 ![The new issue form](images/issue-new.jpg)
 
-**New issue** in the header opens a short form: title, description, type,
-priority. Submitting lands you on the issue that was just created.
+**New issue** in the header opens a form carrying every field td accepts at
+creation — title, description, acceptance criteria, type, priority, points,
+sprint, labels, parent, due and defer dates, and the minor flag. Submitting
+lands you on the issue that was just created.
 
 Nothing is length-checked in the browser. Title bounds are per-project td
 config, so td validates and the form shows td's answer under the field it
@@ -91,8 +93,10 @@ belongs to:
 
 > title too short (2 chars, min 15)
 
-Everything else an issue can carry — points, labels, sprint, parent, dates — is
-set afterwards in the editor.
+Every one of those fields goes out in the same POST, so there is no follow-up
+edit needed to set them. The one exception is dependencies: `POST /v1/issues`
+ignores `depends_on` and `blocks`, so those are added from the detail view
+after the issue exists.
 
 ## Editing
 

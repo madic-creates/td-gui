@@ -25,8 +25,9 @@ export default function IssueForm() {
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
 
-  // The same query IssueList issues, so the parent picker is served from cache
-  // rather than costing a request of its own.
+  // Of the two queries this fires, the open one is what IssueList already
+  // issues and so is served from cache; the closed one is not, and costs a
+  // real request of its own — see useIssueIndex's docstring for why.
   const { issues } = useIssueIndex()
 
   function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
