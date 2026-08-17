@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
-import IssueForm from './IssueForm'
+import IssueForm, { boundFields } from './IssueForm'
 
 const server = setupServer(
   http.get('/v1/labels', () =>
@@ -236,5 +236,56 @@ describe('IssueForm', () => {
       labels: ['alpha'], parent_id: 'td-a1b2c3',
       due_date: '2026-09-01', defer_until: '2026-08-20', minor: true,
     }))
+  })
+})
+
+// td returns not_found for a parent that does not exist, and — unlike its
+// validation errors — that carries no details.fields. There is no input for
+// it to bind to, so the panel is the only place it can be seen at all.
+describe('IssueForm unbound errors', () => {
+  it('renders a parent not_found in the panel', async () => {
+    const message = 'parent issue not found: td-zzzzzz'
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({ ok: false, error: { code: 'not_found', message } },
+        { status: 404 })))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.type(screen.getByLabelText('Parent'), 'td-zzzzzz')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findAllByText(message)).toHaveLength(1)
+  })
+})
+
+/**
+ * `boundFields` tells the panel which messages are already on screen, so a
+ * name that no input actually renders re-creates the silence the shared
+ * predicate exists to end. It is hand-maintained and cannot be derived — the
+ * panel's value is computed during the parent's render, before any child
+ * FieldError has run — so it is pinned here instead.
+ *
+ * Exactly once is the whole assertion, and it catches both directions: a stale
+ * entry renders the message nowhere (0), and a field left off the list renders
+ * it at the input and again in the panel (2).
+ */
+describe('IssueForm bound fields', () => {
+  it.each(boundFields)('renders td\'s message for %s at its own input', async field => {
+    const message = `${field} is not acceptable`
+    server.use(http.post('/v1/issues', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error',
+          message: 'Validation failed',
+          details: { fields: [{ field, rule: 'invalid', value: '', expected: '', message }] },
+        },
+      }, { status: 400 })))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    expect(await screen.findAllByText(message)).toHaveLength(1)
   })
 })
