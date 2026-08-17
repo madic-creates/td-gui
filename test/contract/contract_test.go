@@ -925,3 +925,92 @@ func boardIssueIDs(t *testing.T, front string) []string {
 	}
 	return ids
 }
+
+// TestCreateFieldsContract pins that one POST /v1/issues carries every field
+// the create form offers, so the GUI never needs a follow-up PATCH — the
+// frontend suite runs against msw and can only prove what we told it to.
+//
+// It also pins the negative that scopes the form: depends_on is a td create
+// flag that this endpoint ignores, which is why dependencies are added from
+// the detail view instead.
+func TestCreateFieldsContract(t *testing.T) {
+	front, seeded := newProject(t)
+
+	// An epic to hang the new issue off. Created first because parent_id has
+	// to name an issue that already exists. The project holds exactly two
+	// issues at this point — the one newProject seeded and this epic — so
+	// otherIssue returns the epic.
+	if status := post(t, front+"/v1/issues",
+		`{"title":"Contract epic with a sufficiently long title","type":"epic"}`,
+	); status != http.StatusCreated && status != http.StatusOK {
+		t.Fatalf("create parent epic: status = %d", status)
+	}
+	parent := otherIssue(t, front, seeded)
+
+	var created struct {
+		Data struct {
+			Issue map[string]any `json:"issue"`
+		} `json:"data"`
+	}
+	body := `{"title":"Contract issue carrying every create field",` +
+		`"description":"a description","acceptance":"it works",` +
+		`"type":"feature","priority":"P1","points":5,"sprint":"sprint-1",` +
+		`"labels":["alpha","beta"],"parent_id":"` + parent + `",` +
+		`"due_date":"2026-09-01","defer_until":"2026-08-20","minor":true,` +
+		`"depends_on":"` + parent + `"}`
+
+	if status := postJSON(t, front+"/v1/issues", body, &created); status != http.StatusCreated &&
+		status != http.StatusOK {
+		t.Fatalf("create with every field: status = %d — if td started rejecting "+
+			"one of these the create form sends a body it cannot accept", status)
+	}
+
+	issue := created.Data.Issue
+	for field, want := range map[string]any{
+		"title":       "Contract issue carrying every create field",
+		"description": "a description",
+		"acceptance":  "it works",
+		"type":        "feature",
+		"priority":    "P1",
+		"points":      float64(5),
+		"sprint":      "sprint-1",
+		"parent_id":   parent,
+		"due_date":    "2026-09-01",
+		"defer_until": "2026-08-20",
+		"minor":       true,
+	} {
+		if got := issue[field]; got != want {
+			t.Errorf("%s = %v after create, want %v — a field the form sends in "+
+				"the create body did not land, so it would need a PATCH", field, got, want)
+		}
+	}
+
+	labels, _ := issue["labels"].([]any)
+	if len(labels) != 2 || labels[0] != "alpha" || labels[1] != "beta" {
+		t.Errorf("labels = %v after create, want [alpha beta]", issue["labels"])
+	}
+
+	// The scope decision, as an executable fact: if this ever starts failing,
+	// dependencies at creation become worth revisiting.
+	//
+	// Read back through the detail endpoint rather than off the create
+	// response: the create response is not required to carry `dependencies` at
+	// all, and an absent field would make this assertion pass without ever
+	// having looked at anything.
+	id, ok := issue["id"].(string)
+	if !ok {
+		t.Fatalf("create response carried no id: %v", issue)
+	}
+	var detail struct {
+		Data struct {
+			Issue struct {
+				Dependencies []any `json:"dependencies"`
+			} `json:"issue"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+id, &detail)
+	if deps := detail.Data.Issue.Dependencies; len(deps) > 0 {
+		t.Errorf("dependencies = %v after create — td now honours depends_on on "+
+			"POST /v1/issues, so the create form could offer it", deps)
+	}
+}
