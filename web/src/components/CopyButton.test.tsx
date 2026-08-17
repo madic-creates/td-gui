@@ -28,6 +28,19 @@ afterEach(() => {
 })
 
 describe('CopyButton', () => {
+  // The trigger is an icon and carries no text, so the label is the whole of
+  // its accessible name — and the shape stays hidden, or a screen reader would
+  // announce the button twice, once badly.
+  it('names the icon-only trigger from the label alone', () => {
+    render(<CopyButton value="td-6a0883" label="Copy issue id" />)
+
+    const button = screen.getByRole('button', { name: 'Copy issue id' })
+
+    expect(button.textContent).toBe('')
+    expect(button).toHaveAttribute('title', 'Copy issue id')
+    expect(button.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('writes the value to the clipboard and says it did', async () => {
     const user = userEvent.setup()
     const writeText = vi.fn().mockResolvedValue(undefined)
