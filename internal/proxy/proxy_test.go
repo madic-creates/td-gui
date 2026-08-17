@@ -90,6 +90,44 @@ func TestProxyOmitsAuthWhenNoToken(t *testing.T) {
 	}
 }
 
+// TestProxyStripsClientSuppliedAuthorization pins the Rewrite hook's Del
+// call. With a token configured, Set alone would already clobber a
+// client-supplied header — but with no token configured (an instance td-gui
+// is reusing rather than one it spawned) Set is skipped entirely, and Del is
+// the only thing standing between an untrusted page's own Authorization
+// header and the upstream.
+func TestProxyStripsClientSuppliedAuthorization(t *testing.T) {
+	var hadAuth bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, hadAuth = r.Header["Authorization"]
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer upstream.Close()
+
+	p, err := New(upstream.URL, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	front := httptest.NewServer(p)
+	defer front.Close()
+
+	req, err := http.NewRequest(http.MethodGet, front.URL+"/v1/issues", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer attacker-supplied")
+
+	resp, err := front.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if hadAuth {
+		t.Error("proxy forwarded a client-supplied Authorization header upstream")
+	}
+}
+
 // TestProxyStreamsSSE is the load-bearing test: with default buffering the
 // browser would receive nothing until the stream closed, and live updates
 // would silently never arrive.
