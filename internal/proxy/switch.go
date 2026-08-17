@@ -30,7 +30,13 @@ func (s *Switch) Set(h http.Handler) {
 func (s *Switch) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := s.current.Load()
 	if h == nil {
-		http.Error(w, `{"ok":false,"error":{"code":"internal","message":"no backend"}}`, http.StatusBadGateway)
+		// http.Error would set Content-Type: text/plain, mismatching the JSON
+		// body below; every other error envelope in this package (see
+		// proxy.go's ErrorHandler) is written the same explicit way so
+		// clients can rely on Content-Type matching the body they parse.
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"ok":false,"error":{"code":"internal","message":"no backend"}}`))
 		return
 	}
 	(*h).ServeHTTP(w, r)
