@@ -93,6 +93,34 @@ func TestLocateMissingOverride(t *testing.T) {
 	}
 }
 
+// TestLocateFindsBinaryOnPATH covers the no-override path: the common case,
+// since most invocations never pass --td.
+func TestLocateFindsBinaryOnPATH(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "td")
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+
+	got, err := Locate("")
+	if err != nil {
+		t.Fatalf(`Locate("") unexpected error: %v`, err)
+	}
+	if got != fake {
+		t.Errorf(`Locate("") = %q, want %q`, got, fake)
+	}
+}
+
+func TestLocateMissingFromPATH(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	_, err := Locate("")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf(`Locate("") error = %v, want ErrNotFound`, err)
+	}
+}
+
 func TestVersionContextTimesOutOnHungBinary(t *testing.T) {
 	dir := t.TempDir()
 	hung := filepath.Join(dir, "td")
