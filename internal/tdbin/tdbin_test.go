@@ -22,6 +22,14 @@ func TestParseVersion(t *testing.T) {
 		{"with build suffix", "td version v0.57.0-dirty\n", "v0.57.0-dirty", false},
 		{"unparseable", "some other tool\n", "", true},
 		{"empty", "", "", true},
+		// A version manager or shim delegating to td can print its own
+		// version-shaped line first; the line naming "version" must win over
+		// an earlier decoy so AtLeast never compares against the wrong number.
+		{
+			"wrapper banner precedes td's own version line",
+			"Using node v18.2.0 wrapper\ntd version v0.57.3\n",
+			"v0.57.3", false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

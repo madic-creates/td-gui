@@ -72,12 +72,33 @@ func VersionContext(ctx context.Context, path string, timeout time.Duration) (st
 }
 
 // ParseVersion extracts a normalized "vX.Y.Z" version from --version output.
+//
+// A shim or version manager wrapping td (asdf, mise, a corporate proxy
+// banner) can print its own version-shaped line before delegating to the
+// real binary, e.g. "Using node v18.2.0 wrapper\ntd version v0.57.3". A blind
+// search over the whole output would silently pick up the wrapper's number
+// instead of td's, so the line naming "version" is preferred when present;
+// only output with no such line falls back to the old whole-text search.
 func ParseVersion(out string) (string, error) {
+	if m := versionRe.FindStringSubmatch(versionLine(out)); m != nil {
+		return "v" + m[1], nil
+	}
 	m := versionRe.FindStringSubmatch(out)
 	if m == nil {
 		return "", fmt.Errorf("no version found in %q", strings.TrimSpace(out))
 	}
 	return "v" + m[1], nil
+}
+
+// versionLine returns the first line of out that mentions "version", or ""
+// if none does.
+func versionLine(out string) string {
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(strings.ToLower(line), "version") {
+			return line
+		}
+	}
+	return ""
 }
 
 // AtLeast reports whether version is greater than or equal to min. Build
