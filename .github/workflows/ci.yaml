@@ -89,7 +89,11 @@ jobs:
       # satisfies that, so the Go suite needs no web build — internal/web's
       # tests skip themselves without one, which is expected here and covered
       # by the build job.
-      - run: go vet ./...
+      #
+      # No `go vet` step: the lint-go job runs golangci-lint with govet
+      # enabled (.golangci.yml), which covers the same analyzer set — verified
+      # down to the newest ones (waitgroup, hostport, slog). Both jobs gate the
+      # release, so nothing is lost. `go test` runs its own vet subset anyway.
       - run: go test -race -count=1 ./...
 
   lint-go:

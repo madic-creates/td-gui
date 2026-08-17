@@ -34,9 +34,20 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
+      # Same flags as the CI test-go job. -race is the point of running the
+      # suite here at all: without it the hook is strictly weaker than CI and a
+      # data race reaches main unseen. -count=1 defeats the test cache: it keys
+      # on the test binary plus the files and env vars a run was observed to
+      # touch, which misses what this suite actually hangs on — the `td` binary
+      # on PATH and whether internal/web/dist holds a real bundle. Change
+      # either and those packages still report `(cached)`.
+      # Together the two flags roughly double the hook's runtime.
+      #
+      # No separate `go vet` hook: golangci-lint above has govet enabled
+      # (.golangci.yml), and `go test` runs the vet subset itself anyway.
       - id: go-test
         name: go test
-        entry: go test ./...
+        entry: go test -race -count=1 ./...
         language: system
         types: [go]
         pass_filenames: false
