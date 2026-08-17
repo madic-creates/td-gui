@@ -8,7 +8,7 @@ td-gui puts that backlog in a browser. It runs on your machine, talks to td's
 own HTTP API, and shows exactly what the CLI would: the same issues, the same
 review policy, the same wording when td says no.
 
-![The issue list, grouped by status](docs/images/issue-list.jpg)
+![The issue list, grouped by status](docs/images/issue-list.png)
 
 ## What you can do with it
 

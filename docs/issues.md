@@ -2,7 +2,7 @@
 
 ## The list
 
-![The issue list, grouped by status](images/issue-list.jpg)
+![The issue list, grouped by status](images/issue-list.png)
 
 The front page is every issue td returns, bucketed by status. The order of the
 buckets is attention order, not alphabetical — what is moving comes before what
@@ -45,7 +45,7 @@ filters are how you narrow it.
 
 ## Reading an issue
 
-![An issue detail page](images/issue-detail.jpg)
+![An issue detail page](images/issue-detail.png)
 
 Click any row. The detail page shows, top to bottom:
 
@@ -67,7 +67,7 @@ Click any row. The detail page shows, top to bottom:
   `decision`, `blocker`, …).
 - **Comments** — with a box to add one and a confirm-once delete on each.
 
-![The activity log and comment box](images/issue-activity.jpg)
+![The activity log and comment box](images/issue-activity.png)
 
 The sidebar carries the facts that would interrupt the reading flow: points,
 labels, sprint, parent, due and defer dates, the minor flag, the branch the
@@ -80,7 +80,7 @@ decision and hides earlier ones behind a disclosure marked *superseded*.
 
 ## Creating an issue
 
-![The new issue form](images/issue-new.jpg)
+![The new issue form](images/issue-new.png)
 
 **New issue** in the header opens a form carrying every field td accepts at
 creation — title, description, acceptance criteria, type, priority, points,
@@ -100,7 +100,7 @@ after the issue exists.
 
 ## Editing
 
-![The issue editor](images/issue-edit.jpg)
+![The issue editor](images/issue-edit.png)
 
 **Edit** turns the detail page into a form in place: the title stays where you
 read it and the rest opens below.

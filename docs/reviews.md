@@ -52,7 +52,7 @@ different transition also discards it.
 
 ## Approving
 
-![The approve form, with attribution options](images/issue-review.jpg)
+![The approve form, with attribution options](images/issue-review.png)
 
 td's default review policy is *trusted mode*: closing an issue needs a review,
 and td wants to know who performed it. So approving asks first.

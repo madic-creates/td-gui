@@ -6,7 +6,7 @@ disappear from all of them at once.
 
 ## The board list
 
-![The board list](images/board-list.jpg)
+![The board list](images/board-list.png)
 
 **Boards** in the header lists every board in the project with its query beside
 it. td ships one of its own, marked `BUILTIN` and without Edit or Delete
@@ -45,7 +45,7 @@ query, nothing else, so there is no way to write the preference back.
 
 ### Backlog — one ordered list
 
-![The backlog view](images/board-backlog.jpg)
+![The backlog view](images/board-backlog.png)
 
 td stores one position sequence per board, and cards without a position always
 sort after every card that has one. The backlog draws that boundary instead of
@@ -75,7 +75,7 @@ a target that is about to shift.
 
 ### Swimlanes — columns by status
 
-![The swimlane view](images/board-swimlanes.jpg)
+![The swimlane view](images/board-swimlanes.png)
 
 The same cards, in status columns: open, in progress, blocked, in review, and
 closed when you have included it.
