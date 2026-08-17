@@ -65,12 +65,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	ok, err := tdbin.AtLeast(version, minTdVersion)
-	if err != nil {
+	if err := checkMinVersion(version); err != nil {
 		return err
-	}
-	if !ok {
-		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
 	}
 
 	assets, err := web.Handler()
@@ -96,21 +92,18 @@ func run() error {
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
 	if err != nil {
-		if *port != 0 {
-			return fmt.Errorf("port %d is already in use: %w", *port, err)
-		}
-		return fmt.Errorf("open listener: %w", err)
+		return listenError(*port, err)
 	}
 	origin := fmt.Sprintf("http://127.0.0.1:%d", ln.Addr().(*net.TCPAddr).Port)
 
-	api, err := proxy.New(mgr.BaseURL(), mgr.Token())
+	api, err := proxy.New(mgr.BaseURL(), mgr.Token(), proxy.WithErrorLog(os.Stderr))
 	if err != nil {
 		return err
 	}
 	apiSwitch := proxy.NewSwitch(api)
 
 	mgr.Supervise(ctx, func(baseURL, token string) {
-		next, err := proxy.New(baseURL, token)
+		next, err := proxy.New(baseURL, token, proxy.WithErrorLog(os.Stderr))
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "td-gui: restarting the backend failed:", err)
 			return
@@ -142,6 +135,37 @@ func run() error {
 	}
 	fmt.Fprintln(os.Stderr, "td-gui stopped")
 	return nil
+}
+
+// checkMinVersion rejects a td older than minTdVersion. Split out of run() so
+// the version gate — and its exact wording, which is the only clue an
+// operator on an old td gets — has a test that doesn't need a real td binary
+// on PATH.
+func checkMinVersion(version string) error {
+	ok, err := tdbin.AtLeast(version, minTdVersion)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("td %s is too old, %s or newer is required", version, minTdVersion)
+	}
+	return nil
+}
+
+// listenError turns a failed net.Listen into the message run() returns. The
+// specific "already in use" wording is only accurate for EADDRINUSE — a
+// requested port can also fail to bind on permission (e.g. a privileged port
+// without root) or on an invalid address, and blaming those on "in use" would
+// send an operator looking in the wrong place. port == 0 means "pick any
+// free port", so a failure there is never about a specific port being taken.
+func listenError(port int, err error) error {
+	if port == 0 {
+		return fmt.Errorf("open listener: %w", err)
+	}
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return fmt.Errorf("port %d is already in use: %w", port, err)
+	}
+	return fmt.Errorf("open listener on port %d: %w", port, err)
 }
 
 // serve runs handler on ln until ctx is cancelled or Serve fails, then shuts
@@ -194,16 +218,36 @@ func serve(ctx context.Context, ln net.Listener, handler http.Handler) error {
 }
 
 func openBrowser(url string) {
-	var cmd *exec.Cmd
+	// A failure to open a browser, or the browser process itself failing, is
+	// not a reason to fail startup; the URL is already printed above. The
+	// returned channel is intentionally unused: nothing here needs to know
+	// when the browser process exits, only that it eventually gets reaped.
+	_, _ = startAndReap(browserCommand(url))
+}
+
+func browserCommand(url string) *exec.Cmd {
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("open", url)
+		return exec.Command("open", url)
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		return exec.Command("xdg-open", url)
 	}
-	// A failure to open a browser is not a reason to fail startup; the URL is
-	// already printed above.
-	_ = cmd.Start()
+}
+
+// startAndReap starts cmd and waits for it on its own goroutine, so a process
+// that exits before td-gui does is reaped immediately instead of sitting as a
+// zombie until td-gui's own exit reparents and clears it. The returned
+// channel closes once the wait completes.
+func startAndReap(cmd *exec.Cmd) (<-chan struct{}, error) {
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	return done, nil
 }
