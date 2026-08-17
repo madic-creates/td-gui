@@ -4,18 +4,26 @@ import { fieldErrorFor, unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import type { IssueType, Priority } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
+import { blankDraft, createBodyFrom } from './issueCreate'
+import type { IssueDraft } from './issueDiff'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
 const priorities: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
 
+const fieldClass = 'w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink'
+const legendClass = 'mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted'
+
 export default function IssueForm() {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [type, setType] = useState<IssueType>('task')
-  const [priority, setPriority] = useState<Priority>('P2')
+  // One draft rather than a state per field, and the same shape the edit form
+  // holds — the two forms offer the same fields, so they hold the same object.
+  const [draft, setDraft] = useState<IssueDraft>(blankDraft)
   const create = useCreateIssue()
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
+
+  function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
+    setDraft(current => ({ ...current, [key]: value }))
+  }
 
   // The submit button disables on create.isPending, but that reads from
   // state and doesn't stop the form's native submit event: two submits
@@ -38,48 +46,45 @@ export default function IssueForm() {
         // without this the fields kept their submitted values with nothing
         // stopping a second click from creating a duplicate, and the only way
         // to reach the issue just created was to go find it in the list.
-        create.mutate(
-          { title, description: description || undefined, type, priority },
-          {
-            onSuccess: data => navigate(`/issues/${data.issue.id}`),
-            onSettled: () => { submitting.current = false },
-          },
-        )
+        create.mutate(createBodyFrom(draft), {
+          onSuccess: data => navigate(`/issues/${data.issue.id}`),
+          onSettled: () => { submitting.current = false },
+        })
       }}
     >
       <div>
-        <label htmlFor="title" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Title</label>
+        <label htmlFor="title" className={legendClass}>Title</label>
         <input
-          id="title" value={title} onChange={e => setTitle(e.target.value)}
-          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+          id="title" value={draft.title} onChange={e => set('title', e.target.value)}
+          className={fieldClass}
         />
         <FieldError error={create.error} field="title" />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Description</label>
+        <label htmlFor="description" className={legendClass}>Description</label>
         <textarea
-          id="description" rows={5} value={description}
-          onChange={e => setDescription(e.target.value)}
-          className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+          id="description" rows={5} value={draft.description}
+          onChange={e => set('description', e.target.value)}
+          className={fieldClass}
         />
         <FieldError error={create.error} field="description" />
       </div>
 
       <div className="flex gap-4">
         <div>
-          <label htmlFor="type" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Type</label>
+          <label htmlFor="type" className={legendClass}>Type</label>
           <select
-            id="type" value={type} onChange={e => setType(e.target.value as IssueType)}
+            id="type" value={draft.type} onChange={e => set('type', e.target.value as IssueType)}
             className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
           >
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor="priority" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">Priority</label>
+          <label htmlFor="priority" className={legendClass}>Priority</label>
           <select
-            id="priority" value={priority} onChange={e => setPriority(e.target.value as Priority)}
+            id="priority" value={draft.priority} onChange={e => set('priority', e.target.value as Priority)}
             className="rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
           >
             {priorities.map(p => <option key={p} value={p}>{p}</option>)}

@@ -135,4 +135,24 @@ describe('IssueForm', () => {
     await screen.findByText('issue detail stand-in')
     expect(count).toBe(1)
   })
+
+  // The quick path this form exists for: a title and nothing else. An empty
+  // field must be absent from the body, not sent as "" — td applies its own
+  // default to a field the body omits, and stores the blank for one it carries.
+  it('posts only the fields the user filled', async () => {
+    let received: Record<string, unknown> | null = null
+    server.use(http.post('/v1/issues', async ({ request }) => {
+      received = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm()
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await screen.findByText('issue detail stand-in')
+    expect(received).toEqual({
+      title: 'A sufficiently long issue title', type: 'task', priority: 'P2',
+    })
+  })
 })
