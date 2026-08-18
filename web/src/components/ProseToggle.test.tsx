@@ -21,6 +21,13 @@ describe('ProseToggle', () => {
     ).toBeInTheDocument()
   })
 
+  /* jsdom applies no text-transform, so the class is the only reachable
+     evidence that the label is not written in lower case in the header. */
+  it('writes its label with a capital, like the other header controls', () => {
+    render(<ProseToggle />)
+    expect(screen.getByRole('button').className).toContain('capitalize')
+  })
+
   it('flips the mode on click and back again', async () => {
     const user = userEvent.setup()
     render(<ProseToggle />)

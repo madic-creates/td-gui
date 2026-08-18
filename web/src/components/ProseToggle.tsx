@@ -29,7 +29,7 @@ export default function ProseToggle() {
       onClick={() => setMode(next)}
       aria-label={label}
       title={label}
-      className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
+      className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1 text-[11px] capitalize text-ink-muted"
     >
       <Icon>{icons[mode]}</Icon>
       {mode}

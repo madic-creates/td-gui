@@ -54,7 +54,7 @@ export default function ThemeToggle() {
       }}
       aria-label={`Theme: ${preference}. Switch to ${next}.`}
       title={`Theme: ${preference}. Switch to ${next}.`}
-      className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
+      className="flex items-center gap-1.5 rounded-sm border border-line px-2.5 py-1 text-[11px] capitalize text-ink-muted"
     >
       <Icon>{icons[preference]}</Icon>
       {preference}

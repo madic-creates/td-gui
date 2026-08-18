@@ -28,6 +28,13 @@ describe('ThemeToggle', () => {
     expect(screen.getByRole('button', { name: 'Theme: auto. Switch to light.' })).toBeInTheDocument()
   })
 
+  /* jsdom applies no text-transform, so the class is the only reachable
+     evidence that the label is not written in lower case in the header. */
+  it('writes its label with a capital, like the other header controls', () => {
+    render(<ThemeToggle />)
+    expect(screen.getByRole('button').className).toContain('capitalize')
+  })
+
   it('cycles auto → light → dark → auto on click', async () => {
     const user = userEvent.setup()
     render(<ThemeToggle />)
