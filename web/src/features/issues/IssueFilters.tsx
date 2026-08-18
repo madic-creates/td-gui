@@ -82,7 +82,7 @@ export default function IssueFilters({ params, onChange }: Props) {
         <input
           type="search"
           aria-label="Search"
-          placeholder="search … or ?type = bug for a query"
+          placeholder="search … or ?type = bug for a td query"
           className={`flex-1 rounded-sm border bg-surface-inset px-2.5 py-1.5 text-ink placeholder:text-ink-faint ${
             query === null ? 'border-line' : 'border-accent font-mono'
           }`}
