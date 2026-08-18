@@ -155,7 +155,7 @@ lost.
 
 ### Switching to the source
 
-The **markdown** button in the header switches every one of those fields to the
+The **Markdown** button in the header switches every one of those fields to the
 text td actually stored, and back. It is monospace, keeps the line breaks and
 indentation you typed, and is there when you want to copy the source out, or to
 see what a re-wrapped paragraph or an unindented table looked like before it

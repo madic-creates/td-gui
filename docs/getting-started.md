@@ -89,8 +89,8 @@ itself, and the banner disappears once it succeeds.
 
 ## Theme
 
-The button next to the connection dot cycles through **auto**, **light** and
-**dark**. `auto` follows your operating system. Your choice is stored in the
+The theme button in the header names the theme in use and cycles through
+**auto**, **light** and **dark**. `auto` follows your operating system. Your choice is stored in the
 browser, so it applies per device.
 
 ## Security
