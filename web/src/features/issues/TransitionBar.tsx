@@ -3,6 +3,7 @@ import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import type { Transition } from '../../api/types'
+import MarkdownHint from '../../components/MarkdownHint'
 
 const labels: Record<Transition, string> = {
   start: 'Start',
@@ -276,7 +277,12 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
             value={reason}
             onChange={e => setReason(e.target.value)}
             className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-2 text-ink"
+            aria-describedby="transition-reason-hint"
           />
+          {/* On an approve or a reject this becomes the review summary, which
+              ReviewPanel renders as Markdown, so the hint belongs here too
+              even though the box is small and transient. */}
+          <MarkdownHint id="transition-reason-hint" />
           <div className="mt-2 flex gap-1.5">
             <button
               type="submit"

@@ -1,6 +1,7 @@
 import type { Issue, IssueType, Priority } from '../../api/types'
 import FieldError from '../../components/FieldError'
 import IssueCombobox from '../../components/IssueCombobox'
+import MarkdownHint from '../../components/MarkdownHint'
 import LabelInput from './LabelInput'
 import type { IssueDraft } from './issueDiff'
 
@@ -57,14 +58,18 @@ export default function IssueFields({ idPrefix, error, draft, set, parentCandida
       <div>
         <label htmlFor={id('description')} className={legendClass}>Description</label>
         <textarea id={id('description')} rows={6} value={draft.description}
-          onChange={e => set('description', e.target.value)} className={fieldClass} />
+          onChange={e => set('description', e.target.value)} className={fieldClass}
+          aria-describedby={id('description-hint')} />
+        <MarkdownHint id={id('description-hint')} />
         <FieldError error={error} field="description" />
       </div>
 
       <div>
         <label htmlFor={id('acceptance')} className={legendClass}>Acceptance criteria</label>
         <textarea id={id('acceptance')} rows={4} value={draft.acceptance}
-          onChange={e => set('acceptance', e.target.value)} className={fieldClass} />
+          onChange={e => set('acceptance', e.target.value)} className={fieldClass}
+          aria-describedby={id('acceptance-hint')} />
+        <MarkdownHint id={id('acceptance-hint')} />
         <FieldError error={error} field="acceptance" />
       </div>
 

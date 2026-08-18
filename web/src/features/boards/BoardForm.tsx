@@ -90,9 +90,10 @@ function Body({ board }: { board: Board | null }) {
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
         />
         <FieldError error={mutation.error} field="query" />
-        {/* The one place td-gui leaves the local origin: td documents the
-            grammar, so the form links there instead of restating it. The
-            example stays — it is what most people need without the trip. */}
+        {/* One of two places td-gui leaves the local origin, the other being
+            MarkdownHint: td documents the grammar, so the form links there
+            instead of restating it. The example stays — it is what most people
+            need without the trip. */}
         <p className="mt-1.5 text-[11px] text-ink-faint">
           TDQ, for example <span className="font-mono">priority &lt;= P1 AND type = bug</span>.
           Leave empty to match every issue. See the{' '}

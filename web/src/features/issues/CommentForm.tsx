@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { unboundMessage } from '../../api/client'
 import { useAddComment } from '../../api/mutations'
 import FieldError from '../../components/FieldError'
+import MarkdownHint from '../../components/MarkdownHint'
 
 const boundFields = ['text']
 
@@ -37,7 +38,9 @@ export default function CommentForm({ issueId }: { issueId: string }) {
       <textarea
         id="comment" rows={3} value={text} onChange={e => setText(e.target.value)}
         className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-2 text-ink"
+        aria-describedby="comment-hint"
       />
+      <MarkdownHint id="comment-hint" />
       <FieldError error={add.error} field="text" />
       {/* Everything td says that the textarea above is not already showing. */}
       {panelError && (

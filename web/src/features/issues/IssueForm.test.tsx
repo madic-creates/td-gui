@@ -289,4 +289,19 @@ describe('IssueForm bound fields', () => {
 
     expect(await screen.findAllByText(message)).toHaveLength(1)
   })
+
+  it('tells the author that description and acceptance take GFM', async () => {
+    renderForm()
+
+    const description = await screen.findByLabelText('Description')
+    const acceptance = screen.getByLabelText('Acceptance criteria')
+
+    for (const field of [description, acceptance]) {
+      const hintId = field.getAttribute('aria-describedby')
+      expect(hintId).toBeTruthy()
+      const hint = document.getElementById(hintId!)
+      expect(hint).toHaveTextContent(/GitHub Flavored Markdown/)
+    }
+  })
+
 })

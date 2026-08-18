@@ -101,3 +101,12 @@ describe('CommentForm', () => {
     await expect.poll(() => count).toBe(1)
   })
 })
+
+it('tells the author that a comment takes GFM', () => {
+  renderForm()
+
+  const textarea = screen.getByLabelText('Comment')
+  const hintId = textarea.getAttribute('aria-describedby')
+  expect(hintId).toBeTruthy()
+  expect(document.getElementById(hintId!)).toHaveTextContent(/GitHub Flavored Markdown/)
+})

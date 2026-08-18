@@ -402,3 +402,13 @@ describe('TransitionBar error reporting', () => {
     expect(await screen.findByText(message)).toBeInTheDocument()
   })
 })
+
+it('tells the reviewer that the reason takes GFM', async () => {
+  renderBar(['reject'])
+  await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+
+  const textarea = screen.getByLabelText('Reason')
+  const hintId = textarea.getAttribute('aria-describedby')
+  expect(hintId).toBeTruthy()
+  expect(document.getElementById(hintId!)).toHaveTextContent(/GitHub Flavored Markdown/)
+})
