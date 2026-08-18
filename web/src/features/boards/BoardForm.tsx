@@ -4,7 +4,7 @@ import { unboundMessage } from '../../api/client'
 import { useBoards } from '../../api/boards'
 import { useCreateBoard, useUpdateBoard } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
-import FieldError from '../../components/FieldError'
+import FieldError, { fieldAria } from '../../components/FieldError'
 import SkeletonRows from '../../components/SkeletonRows'
 import type { Board } from '../../api/types'
 
@@ -74,8 +74,9 @@ function Body({ board }: { board: Board | null }) {
         <input
           id="board-name" value={name} onChange={e => setName(e.target.value)}
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+          {...fieldAria(mutation.error, 'name', 'board-name')}
         />
-        <FieldError error={mutation.error} field="name" />
+        <FieldError error={mutation.error} field="name" inputId="board-name" />
       </div>
 
       <div>
@@ -88,8 +89,9 @@ function Body({ board }: { board: Board | null }) {
         <input
           id="board-query" value={query} onChange={e => setQuery(e.target.value)}
           className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 font-mono text-ink"
+          {...fieldAria(mutation.error, 'query', 'board-query')}
         />
-        <FieldError error={mutation.error} field="query" />
+        <FieldError error={mutation.error} field="query" inputId="board-query" />
         {/* One of two places td-gui leaves the local origin, the other being
             MarkdownHint: td documents the grammar, so the form links there
             instead of restating it. The example stays — it is what most people

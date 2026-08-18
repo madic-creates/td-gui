@@ -127,6 +127,48 @@ describe('IssueCombobox', () => {
     expect(screen.getByText('20 of 25 matches — keep typing')).toBeInTheDocument()
   })
 
+  // The notice is only useful if the input actually points at it — it sits in
+  // a floating panel, not next to the field, so nothing else associates them.
+  it('describes the input with the cap notice', async () => {
+    const many = Array.from({ length: 25 }, (_, i) =>
+      makeIssue({ id: `td-${i}`, title: `Issue number ${i}` }))
+    render(
+      <>
+        <label htmlFor="pick">Depends on</label>
+        <IssueCombobox id="pick" value="" onChange={vi.fn()} candidates={many} />
+      </>,
+    )
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+
+    expect(screen.getByLabelText('Depends on'))
+      .toHaveAccessibleDescription('20 of 25 matches — keep typing')
+  })
+
+  // Two descriptions at once, from two owners: the cap notice is this
+  // widget's, the error message its caller's. Neither may take the other's
+  // place — a field error that silences the cap notice, or a cap notice that
+  // silences td's rejection, would each be a new silence.
+  it('keeps both the cap notice and a field error in its description', async () => {
+    const many = Array.from({ length: 25 }, (_, i) =>
+      makeIssue({ id: `td-${i}`, title: `Issue number ${i}` }))
+    render(
+      <>
+        <label htmlFor="pick">Depends on</label>
+        <IssueCombobox id="pick" value="" onChange={vi.fn()} candidates={many}
+          aria={{ 'aria-invalid': true, 'aria-describedby': 'pick-error' }} />
+        <p id="pick-error">parent_id not found: td-zzzzzz</p>
+      </>,
+    )
+
+    await userEvent.click(screen.getByLabelText('Depends on'))
+
+    const input = screen.getByLabelText('Depends on')
+    expect(input).toBeInvalid()
+    expect(input).toHaveAccessibleDescription(
+      'parent_id not found: td-zzzzzz 20 of 25 matches — keep typing')
+  })
+
   it('says nothing about a cap when everything fits', async () => {
     const { input } = renderBox()
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Issue } from '../api/types'
+import type { FieldAria } from './FieldError'
 import StatusTag from './StatusTag'
 
 /** Rows past this stay unrendered, and the list says so rather than lying. */
@@ -12,6 +13,12 @@ interface Props {
   candidates: Issue[]
   placeholder?: string
   className?: string
+  /**
+   * From `fieldAria`. Not spread onto the input: this widget describes itself
+   * with its own cap notice, so the two descriptions are merged below rather
+   * than one of them winning.
+   */
+  aria?: FieldAria
 }
 
 /** Substring, not prefix: "storage" should find a title that carries it. */
@@ -48,7 +55,7 @@ function rank(matched: Issue[], query: string): Issue[] {
  * can hang off it. Callers that need layout wrap the component themselves.
  */
 export default function IssueCombobox({
-  id, value, onChange, candidates, placeholder, className,
+  id, value, onChange, candidates, placeholder, className, aria,
 }: Props) {
   const [open, setOpen] = useState(false)
   // The active row is held by issue id, never by position. `candidates` is
@@ -136,6 +143,13 @@ export default function IssueCombobox({
     }
   }
 
+  // The cap notice only exists while the list is open and cut off; the error
+  // message outlives it. Joined rather than either replacing the other, so
+  // neither goes unread — an empty join has to become undefined, because
+  // aria-describedby="" points at nothing and is not the same as absent.
+  const describedBy = [aria?.['aria-describedby'], expanded && capped ? capNoticeId : null]
+    .filter(Boolean).join(' ') || undefined
+
   return (
     <div className="relative">
       <input
@@ -152,7 +166,8 @@ export default function IssueCombobox({
         onChange={event => { onChange(event.target.value); setOpen(true); setActiveId(null) }}
         onKeyDown={keyDown}
         aria-activedescendant={expanded && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-        aria-describedby={expanded && capped ? capNoticeId : undefined}
+        aria-invalid={aria?.['aria-invalid']}
+        aria-describedby={describedBy}
         className={className}
       />
 
