@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
-import FieldError from '../../components/FieldError'
+import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueFields, { boundFields, fieldClass, legendClass } from './IssueFields'
 import { blankDraft, createBodyFrom } from './issueCreate'
 import type { IssueDraft } from './issueDiff'
@@ -59,8 +59,9 @@ export default function IssueForm() {
         <input
           id="new-title" value={draft.title} onChange={e => set('title', e.target.value)}
           className={fieldClass}
+          {...fieldAria(create.error, 'title', 'new-title')}
         />
-        <FieldError error={create.error} field="title" />
+        <FieldError error={create.error} field="title" inputId="new-title" />
       </div>
 
       <IssueFields

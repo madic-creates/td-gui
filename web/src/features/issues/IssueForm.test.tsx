@@ -7,6 +7,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
 import IssueForm from './IssueForm'
 import { boundFields } from './IssueFields'
+import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
 
 const server = setupServer(
   http.get('/v1/labels', () =>
@@ -288,6 +289,7 @@ describe('IssueForm bound fields', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(await screen.findAllByText(message)).toHaveLength(1)
+    await expectAnnouncedAtItsInput(message)
   })
 
   it('tells the author that description and acceptance take GFM', async () => {

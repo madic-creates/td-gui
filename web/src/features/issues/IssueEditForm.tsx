@@ -4,7 +4,7 @@ import { unboundMessage } from '../../api/client'
 import { useUpdateIssue } from '../../api/mutations'
 import type { Issue } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
-import FieldError from '../../components/FieldError'
+import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueFields, { boundFields, fieldClass } from './IssueFields'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
 import { candidatesFor, childrenOf } from './issueIndex'
@@ -156,10 +156,14 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
           above the issue title would read as part of the issue. */}
       {editing ? (
         <div className="mt-0.5 mb-2">
-          <input aria-label="Title" value={draft.title}
+          {/* The id is not for a <label> — the aria-label above is this
+              field's name. It is there so its error message can point back
+              at it, the one thing an aria-label cannot carry. */}
+          <input id="edit-title" aria-label="Title" value={draft.title}
             onChange={e => set('title', e.target.value)}
-            className={`${fieldClass} text-xl font-semibold leading-snug tracking-tight`} />
-          <FieldError error={update.error} field="title" />
+            className={`${fieldClass} text-xl font-semibold leading-snug tracking-tight`}
+            {...fieldAria(update.error, 'title', 'edit-title')} />
+          <FieldError error={update.error} field="title" inputId="edit-title" />
         </div>
       ) : (
         <h1 className={titleClass}>{issue.title}</h1>

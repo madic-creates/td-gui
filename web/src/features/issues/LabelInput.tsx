@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLabels } from '../../api/queries'
+import type { FieldAria } from '../../components/FieldError'
+
+/**
+ * The entry box's id, exported because the widget's error message is rendered
+ * by the form outside it and has to point back here. Still a constant rather
+ * than a prop: it is fixed in the same way `label-suggestions` below is, and
+ * both are why rendering this widget twice on one page is unsafe today.
+ */
+export const labelEntryId = 'label-entry'
 
 interface Props {
   value: string[]
   onChange: (labels: string[]) => void
+  /**
+   * From `fieldAria`. The form owns the mutation and so owns the error, but
+   * the input it belongs to is in here — a prop is the only way across.
+   */
+  aria?: FieldAria
 }
 
 /** Substring, not prefix: "end" should find both "backend" and "frontend". */
@@ -22,7 +36,7 @@ function matches(label: string, query: string): boolean {
  * shared component: that one is typed on Issue, ranks an exact id match, caps
  * its rows and renders a StatusTag per row, none of which a bare string wants.
  */
-export default function LabelInput({ value, onChange }: Props) {
+export default function LabelInput({ value, onChange, aria }: Props) {
   const [entry, setEntry] = useState('')
   const [open, setOpen] = useState(false)
   // The active row is held by label, never by position: the labels query is
@@ -107,7 +121,7 @@ export default function LabelInput({ value, onChange }: Props) {
 
   return (
     <div>
-      <label htmlFor="label-entry" className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">
+      <label htmlFor={labelEntryId} className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted">
         Labels
       </label>
 
@@ -140,7 +154,7 @@ export default function LabelInput({ value, onChange }: Props) {
             the field rather than off the row that also holds the button. */}
         <div className="relative flex-1">
           <input
-            id="label-entry"
+            id={labelEntryId}
             value={entry}
             role="combobox"
             aria-expanded={expanded}
@@ -153,6 +167,7 @@ export default function LabelInput({ value, onChange }: Props) {
             onChange={e => { setEntry(e.target.value); setOpen(true); setActive(null) }}
             onKeyDown={keyDown}
             className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
+            {...aria}
           />
 
           {expanded && (

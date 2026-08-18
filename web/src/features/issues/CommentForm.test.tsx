@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
 import { delay, http, HttpResponse } from 'msw'
 import CommentForm from './CommentForm'
+import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
 
 const server = setupServer()
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
@@ -62,6 +63,7 @@ describe('CommentForm', () => {
 
     await submit('x')
     expect(await screen.findAllByText(message)).toHaveLength(1)
+    await expectAnnouncedAtItsInput(message)
   })
 
   // Swallowed entirely by the old `code !== 'validation_error'` guard: td's

@@ -7,6 +7,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import BoardForm from './BoardForm'
 import { makeBoard } from './board.fixture'
+import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
 
 const sent: unknown[] = []
 /** Which board each PATCH addressed: the msw route matches any id. */
@@ -119,6 +120,28 @@ describe('BoardForm', () => {
 
     expect(await screen.findByText('invalid TDQ query: unknown field "priorityy"'))
       .toBeInTheDocument()
+    await expectAnnouncedAtItsInput('invalid TDQ query: unknown field "priorityy"')
+  })
+
+  // The other bound field. Both are plain inputs the form owns, so this pins
+  // that the pair was wired at each of them rather than at whichever one a
+  // test happened to reach.
+  it("announces td's message at the name field", async () => {
+    const message = 'name is already taken'
+    server.use(http.post('/v1/boards', () => HttpResponse.json({
+      ok: false,
+      error: {
+        code: 'validation_error',
+        message: 'validation failed',
+        details: { fields: [{ field: 'name', rule: 'unique', value: 'Taken', message }] },
+      },
+    }, { status: 400 })))
+
+    renderForm('/boards/new')
+    await userEvent.type(screen.getByLabelText('Name'), 'Taken')
+    await userEvent.click(screen.getByRole('button', { name: 'Create board' }))
+
+    await expectAnnouncedAtItsInput(message)
   })
 
   // td owns the TDQ grammar, so the form points at td's documentation rather

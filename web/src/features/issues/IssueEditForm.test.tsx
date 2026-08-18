@@ -6,6 +6,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse, delay } from 'msw'
 import IssueEditForm from './IssueEditForm'
 import { boundFields } from './IssueFields'
+import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
 import type { Issue } from '../../api/types'
 
 const issue: Issue = {
@@ -469,6 +470,7 @@ describe('IssueEditForm bound fields', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findAllByText(message)).toHaveLength(1)
+    await expectAnnouncedAtItsInput(message)
   })
 
   // The counterpart: `minor` is the one editable field with no FieldError of

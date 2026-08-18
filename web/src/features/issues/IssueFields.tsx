@@ -1,8 +1,8 @@
 import type { Issue, IssueType, Priority } from '../../api/types'
-import FieldError from '../../components/FieldError'
+import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueCombobox from '../../components/IssueCombobox'
 import MarkdownHint from '../../components/MarkdownHint'
-import LabelInput from './LabelInput'
+import LabelInput, { labelEntryId } from './LabelInput'
 import type { IssueDraft } from './issueDiff'
 
 const types: IssueType[] = ['task', 'feature', 'bug', 'chore', 'epic']
@@ -59,36 +59,38 @@ export default function IssueFields({ idPrefix, error, draft, set, parentCandida
         <label htmlFor={id('description')} className={legendClass}>Description</label>
         <textarea id={id('description')} rows={6} value={draft.description}
           onChange={e => set('description', e.target.value)} className={fieldClass}
-          aria-describedby={id('description-hint')} />
+          {...fieldAria(error, 'description', id('description'), id('description-hint'))} />
         <MarkdownHint id={id('description-hint')} />
-        <FieldError error={error} field="description" />
+        <FieldError error={error} field="description" inputId={id('description')} />
       </div>
 
       <div>
         <label htmlFor={id('acceptance')} className={legendClass}>Acceptance criteria</label>
         <textarea id={id('acceptance')} rows={4} value={draft.acceptance}
           onChange={e => set('acceptance', e.target.value)} className={fieldClass}
-          aria-describedby={id('acceptance-hint')} />
+          {...fieldAria(error, 'acceptance', id('acceptance'), id('acceptance-hint'))} />
         <MarkdownHint id={id('acceptance-hint')} />
-        <FieldError error={error} field="acceptance" />
+        <FieldError error={error} field="acceptance" inputId={id('acceptance')} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
         <div>
           <label htmlFor={id('type')} className={legendClass}>Type</label>
           <select id={id('type')} value={draft.type}
-            onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}>
+            onChange={e => set('type', e.target.value as IssueType)} className={fieldClass}
+            {...fieldAria(error, 'type', id('type'))}>
             {types.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <FieldError error={error} field="type" />
+          <FieldError error={error} field="type" inputId={id('type')} />
         </div>
         <div>
           <label htmlFor={id('priority')} className={legendClass}>Priority</label>
           <select id={id('priority')} value={draft.priority}
-            onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}>
+            onChange={e => set('priority', e.target.value as Priority)} className={fieldClass}
+            {...fieldAria(error, 'priority', id('priority'))}>
             {priorities.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <FieldError error={error} field="priority" />
+          <FieldError error={error} field="priority" inputId={id('priority')} />
         </div>
         <div>
           {/* No min or max: the accepted values are td config, and it names
@@ -96,20 +98,22 @@ export default function IssueFields({ idPrefix, error, draft, set, parentCandida
           <label htmlFor={id('points')} className={legendClass}>Points</label>
           <input id={id('points')} type="number" value={draft.points ?? ''}
             onChange={e => set('points', e.target.value === '' ? null : Number(e.target.value))}
-            className={fieldClass} />
-          <FieldError error={error} field="points" />
+            className={fieldClass} {...fieldAria(error, 'points', id('points'))} />
+          <FieldError error={error} field="points" inputId={id('points')} />
         </div>
         <div>
           <label htmlFor={id('sprint')} className={legendClass}>Sprint</label>
           <input id={id('sprint')} value={draft.sprint}
-            onChange={e => set('sprint', e.target.value)} className={fieldClass} />
-          <FieldError error={error} field="sprint" />
+            onChange={e => set('sprint', e.target.value)} className={fieldClass}
+            {...fieldAria(error, 'sprint', id('sprint'))} />
+          <FieldError error={error} field="sprint" inputId={id('sprint')} />
         </div>
       </div>
 
       <div>
-        <LabelInput value={draft.labels} onChange={labels => set('labels', labels)} />
-        <FieldError error={error} field="labels" />
+        <LabelInput value={draft.labels} onChange={labels => set('labels', labels)}
+          aria={fieldAria(error, 'labels', labelEntryId)} />
+        <FieldError error={error} field="labels" inputId={labelEntryId} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -118,20 +122,23 @@ export default function IssueFields({ idPrefix, error, draft, set, parentCandida
           <IssueCombobox id={id('parent')} value={draft.parent_id}
             onChange={next => set('parent_id', next)}
             candidates={parentCandidates}
-            placeholder="td-…" className={fieldClass} />
-          <FieldError error={error} field="parent_id" />
+            placeholder="td-…" className={fieldClass}
+            aria={fieldAria(error, 'parent_id', id('parent'))} />
+          <FieldError error={error} field="parent_id" inputId={id('parent')} />
         </div>
         <div>
           <label htmlFor={id('due')} className={legendClass}>Due date</label>
           <input id={id('due')} type="date" value={draft.due_date}
-            onChange={e => set('due_date', e.target.value)} className={fieldClass} />
-          <FieldError error={error} field="due_date" />
+            onChange={e => set('due_date', e.target.value)} className={fieldClass}
+            {...fieldAria(error, 'due_date', id('due'))} />
+          <FieldError error={error} field="due_date" inputId={id('due')} />
         </div>
         <div>
           <label htmlFor={id('defer')} className={legendClass}>Defer until</label>
           <input id={id('defer')} type="date" value={draft.defer_until}
-            onChange={e => set('defer_until', e.target.value)} className={fieldClass} />
-          <FieldError error={error} field="defer_until" />
+            onChange={e => set('defer_until', e.target.value)} className={fieldClass}
+            {...fieldAria(error, 'defer_until', id('defer'))} />
+          <FieldError error={error} field="defer_until" inputId={id('defer')} />
         </div>
       </div>
 
