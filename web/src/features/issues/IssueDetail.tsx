@@ -16,6 +16,7 @@ import { childrenOf, resolve } from './issueIndex'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import ErrorPanel from '../../components/ErrorPanel'
+import Markdown from '../../components/Markdown'
 import ConfirmButton from '../../components/ConfirmButton'
 import CopyButton from '../../components/CopyButton'
 import { TrashIcon } from '../../components/Icon'
@@ -154,23 +155,23 @@ function IssueDetailView({ id }: { id: string }) {
           {!editing && issue.description && (
             <section className="mt-6">
               <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Description</h2>
-              <p className="whitespace-pre-wrap leading-relaxed">
-                {issue.description}
-              </p>
+              <Markdown>{issue.description}</Markdown>
             </section>
           )}
 
-          {/* Verbatim, like the description: td stores one text field, and the
-              leading dashes the CLI writes are the author's, not a list this view
-              gets to re-render as markup. */}
+          {/* Markdown, like the description. An earlier revision rendered this
+              verbatim on the reasoning that the leading dashes the CLI writes
+              are "the author's, not a list this view gets to re-render as
+              markup". That held while the field was one opaque blob, but td
+              acceptance criteria are written as a Markdown list and read as
+              one; showing the dashes costs the readability that is the whole
+              reason to look at this in a browser rather than `td show`. */}
           {!editing && issue.acceptance && (
             <section className="mt-6">
               <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">
                 Acceptance criteria
               </h2>
-              <p className="whitespace-pre-wrap leading-relaxed">
-                {issue.acceptance}
-              </p>
+              <Markdown>{issue.acceptance}</Markdown>
             </section>
           )}
 
@@ -260,9 +261,10 @@ function IssueDetailView({ id }: { id: string }) {
                         />
                       </span>
                     </div>
-                    <p className="whitespace-pre-wrap leading-relaxed">
-                      {comment.text}
-                    </p>
+                    {/* compact, not block: a comment sits in a dense stack of
+                        cards, so it gets the same constructs on a tighter
+                        vertical rhythm. */}
+                    <Markdown variant="compact">{comment.text}</Markdown>
                   </li>
                 ))}
               </ul>
@@ -344,7 +346,12 @@ function HandoffPanel({ handoff }: { handoff: Handoff }) {
                 {title}
               </h3>
               <ul className="list-disc pl-4 leading-relaxed">
-                {items.map((item, i) => <li key={i}>{item}</li>)}
+                {/* inline, not block: these are already list items in a
+                    list, so a `-` line inside one would nest a second list and
+                    read as a layout bug. Backticks and links still render. */}
+                {items.map((item, i) => (
+                  <li key={i}><Markdown variant="inline">{item}</Markdown></li>
+                ))}
               </ul>
             </div>
           ))}

@@ -50,6 +50,11 @@ configured:
 
 `remark-gfm` supplies tables, strikethrough and autolinks.
 
+Measured cost of the two dependencies on the production bundle: 331.13 kB to
+487.33 kB raw, 99.76 kB to 146.86 kB gzipped, so roughly 47 kB gzipped. The
+bundle is embedded in the binary and served from loopback, so this is a
+one-off disk cost with no transfer over a network.
+
 ## The component
 
 One new file, `web/src/components/Markdown.tsx`, one component, a `variant`

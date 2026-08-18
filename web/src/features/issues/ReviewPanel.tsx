@@ -1,5 +1,6 @@
 import { relativeTime, shortSession } from '../../lib/format'
 import type { ActiveReview, Review } from '../../api/types'
+import Markdown from '../../components/Markdown'
 
 const decisionTone: Record<string, string> = {
   approved: 'text-success',
@@ -41,9 +42,9 @@ export default function ReviewPanel({
         <p className="mt-1 text-[11px] text-st-review">self-reviewed</p>
       )}
       {active.summary && (
-        <p className="mt-1.5 whitespace-pre-wrap text-[11px] leading-relaxed text-ink">
-          {active.summary}
-        </p>
+        <div className="mt-1.5 text-[11px] text-ink">
+          <Markdown variant="compact">{active.summary}</Markdown>
+        </div>
       )}
 
       {earlier.length > 0 && (
@@ -65,9 +66,9 @@ export default function ReviewPanel({
                   <span className="ml-auto text-ink-faint">{relativeTime(review.created_at)}</span>
                 </div>
                 {review.summary && (
-                  <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed text-ink-muted">
-                    {review.summary}
-                  </p>
+                  <div className="mt-1 text-[11px] text-ink-muted">
+                    <Markdown variant="compact">{review.summary}</Markdown>
+                  </div>
                 )}
               </li>
             ))}

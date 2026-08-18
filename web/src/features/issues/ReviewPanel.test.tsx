@@ -61,3 +61,33 @@ describe('ReviewPanel', () => {
     expect(screen.getByText('self-reviewed')).toBeInTheDocument()
   })
 })
+
+describe('ReviewPanel renders summaries as Markdown', () => {
+  it('renders formatting in the standing review summary', () => {
+    const summary = 'Rejected because `newMux` drops the `--` separator:\n\n- no test\n- no doc'
+    const { container } = render(<ReviewPanel active={{ ...active, summary }} history={[]} />)
+
+    expect(container.querySelector('code')).toHaveTextContent('newMux')
+    expect(container.querySelectorAll('li')).toHaveLength(2)
+    expect(screen.queryByText('- no test')).not.toBeInTheDocument()
+  })
+
+  it('renders formatting in a superseded review summary', async () => {
+    const summary = 'Superseded, see `internal/tdquery`'
+    const { container } = render(
+      <ReviewPanel active={active} history={[older({ summary })]} />,
+    )
+
+    await userEvent.click(screen.getByText(/earlier review/))
+    const codes = [...container.querySelectorAll('code')].map(c => c.textContent)
+    expect(codes).toContain('internal/tdquery')
+  })
+
+  it('does not let a script tag in a summary reach the DOM', () => {
+    const summary = 'ok <script>window.pwned = true</script>'
+    render(<ReviewPanel active={{ ...active, summary }} history={[]} />)
+
+    expect(document.querySelector('script')).toBeNull()
+    expect((window as unknown as { pwned?: boolean }).pwned).toBeUndefined()
+  })
+})

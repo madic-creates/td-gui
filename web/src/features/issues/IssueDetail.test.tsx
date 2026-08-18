@@ -236,7 +236,84 @@ describe('IssueDetail', () => {
 
     renderDetail()
     expect(await screen.findByText('Acceptance criteria')).toBeInTheDocument()
-    expect(screen.getByText('- The panel collapses past ten items')).toBeInTheDocument()
+    // Rendered as a list item, not as the literal source line: the dash the
+    // CLI writes is markup this view now re-renders, which reverses an earlier
+    // deliberate decision. See the comment at the acceptance section.
+    const criterion = screen.getByText('The panel collapses past ten items')
+    expect(criterion.closest('li')).not.toBeNull()
+    expect(screen.queryByText('- The panel collapses past ten items')).not.toBeInTheDocument()
+  })
+
+  describe('long text renders as Markdown', () => {
+    it('renders a description list as a list, not as literal dashes', async () => {
+      const issue = { ...detail.issue, description: 'Intro:\n\n- first\n- second' }
+      server.use(http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { ...detail, issue } })))
+
+      renderDetail()
+      const items = await screen.findAllByRole('listitem')
+      expect(items.map(li => li.textContent)).toEqual(
+        expect.arrayContaining(['first', 'second']),
+      )
+      expect(screen.queryByText('- first')).not.toBeInTheDocument()
+    })
+
+    it('renders a fenced code block in the description', async () => {
+      const issue = { ...detail.issue, description: 'Run:\n\n```\ntd serve --token x\n```' }
+      server.use(http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { ...detail, issue } })))
+
+      const { container } = renderDetail()
+      await screen.findByText('Description')
+      expect(container.querySelector('pre')?.textContent).toContain('td serve --token x')
+    })
+
+    it('renders a comment body as Markdown', async () => {
+      server.use(http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: {
+          ...detail,
+          comments: [{
+            id: 'cm-1', issue_id: 'td-6a0883', session_id: 'ses_d87edf',
+            text: 'See `internal/tdquery` and **note** the fence:\n\n- one',
+            created_at: '2026-08-14T15:04:10+02:00',
+          }],
+        } })))
+
+      const { container } = renderDetail()
+      await screen.findByText('Probe issue for API shape')
+      await waitFor(() => expect(container.querySelector('code')).not.toBeNull())
+      expect(container.querySelector('code')).toHaveTextContent('internal/tdquery')
+      expect(container.querySelector('strong')).toHaveTextContent('note')
+    })
+
+    it('renders handoff bullets inline, without nesting a list inside a list item', async () => {
+      server.use(http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: {
+          ...detail,
+          latest_handoff: { ...detail.latest_handoff, done: ['fixed `newMux` routing'] },
+        } })))
+
+      const { container } = renderDetail()
+      await screen.findByText('Latest handoff')
+      const item = await screen.findByText(/fixed/)
+      expect(item.closest('li')).not.toBeNull()
+      expect(item.closest('li')?.querySelector('ul')).toBeNull()
+      expect(container.querySelector('li code')).toHaveTextContent('newMux')
+    })
+
+    it('does not let a script tag in a description reach the DOM', async () => {
+      const issue = {
+        ...detail.issue,
+        description: 'safe <script>window.pwned = true</script> tail',
+      }
+      server.use(http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { ...detail, issue } })))
+
+      renderDetail()
+      await screen.findByText('Description')
+      expect(document.querySelector('script')).toBeNull()
+      expect((window as unknown as { pwned?: boolean }).pwned).toBeUndefined()
+    })
   })
 
   it('omits the acceptance section when the issue has none', async () => {
