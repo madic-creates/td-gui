@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import Markdown from './Markdown'
+import { setMode } from '../lib/prose'
 
 describe('Markdown', () => {
   it('renders an unordered list as a list, not as literal dashes', () => {
@@ -233,4 +234,76 @@ describe('Markdown link safety holds in every variant', () => {
       expect(link).toHaveAttribute('rel', 'noopener noreferrer')
     },
   )
+})
+
+/*
+ * The raw mode is a second reading of the same text, not a debug view: what
+ * the author typed, with their line breaks and their alignment intact. It is
+ * read from the store inside Markdown, so no call site opts into it and none
+ * can miss it.
+ */
+describe('Markdown in raw mode', () => {
+  const source = '# heading\n\n- item\n\n| a  | bb |\n| -- | -- |'
+
+  beforeEach(() => {
+    setMode('raw')
+  })
+
+  afterEach(() => {
+    setMode('markdown')
+  })
+
+  it('shows the source characters instead of rendering them', () => {
+    const { container } = render(<Markdown>{source}</Markdown>)
+
+    expect(container.querySelector('h1, h2, h3')).toBeNull()
+    expect(container.querySelector('ul')).toBeNull()
+    expect(container.querySelector('table')).toBeNull()
+    expect(container.textContent).toBe(source)
+  })
+
+  it('keeps the author line breaks and indentation of the source', () => {
+    const { container } = render(<Markdown>{source}</Markdown>)
+
+    const pre = container.querySelector('pre')
+    expect(pre).not.toBeNull()
+    expect(pre?.className).toContain('whitespace-pre-wrap')
+    expect(pre?.className).toContain('font-mono')
+  })
+
+  it('emits no block element in the inline variant, which sits inside an li', () => {
+    const { container } = render(<Markdown variant="inline">{source}</Markdown>)
+
+    expect(container.querySelector('pre')).toBeNull()
+    expect(container.querySelector('div')).toBeNull()
+    expect(container.textContent).toBe(source)
+  })
+
+  it('still renders a script tag as text and never as an element', () => {
+    const { container } = render(
+      <Markdown>{'before <script>window.pwned = true</script> after'}</Markdown>,
+    )
+
+    expect(container.querySelector('script')).toBeNull()
+    expect(document.querySelector('script')).toBeNull()
+    expect((window as unknown as { pwned?: boolean }).pwned).toBeUndefined()
+  })
+})
+
+/* The wiring proof: nothing is passed down, so a mounted Markdown has to
+   follow the store on its own. */
+describe('Markdown follows the mode store', () => {
+  afterEach(() => {
+    setMode('markdown')
+  })
+
+  it('re-renders when the mode changes under it', () => {
+    const { container } = render(<Markdown>{'# heading'}</Markdown>)
+    expect(container.querySelector('h3')).not.toBeNull()
+
+    act(() => setMode('raw'))
+
+    expect(container.querySelector('h3')).toBeNull()
+    expect(container.textContent).toBe('# heading')
+  })
 })

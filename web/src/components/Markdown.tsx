@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import { useSyncExternalStore, type ReactNode } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { getMode, subscribe } from '../lib/prose'
 
 /**
  * Renders td's long text fields as Markdown.
@@ -29,6 +30,12 @@ import remarkGfm from 'remark-gfm'
  * delimiter row is reflowed and loses its alignment. Detecting that needs
  * heuristics that misfire on ordinary prose containing a pipe, so the
  * convention is to indent such blocks.
+ *
+ * Which is also why this file has a second mode. Under `raw` it emits the
+ * source characters instead, and the header toggle switches every rendered
+ * surface at once. The mode is read here rather than passed in, so no call
+ * site opts into it and none can be forgotten. Raw output is a React child
+ * too, so the injection surface stays closed on that path as well.
  */
 
 /**
@@ -153,7 +160,33 @@ interface Props {
 }
 
 export default function Markdown({ children, variant = 'block' }: Props) {
+  const mode = useSyncExternalStore(subscribe, getMode)
   const inline = variant === 'inline'
+
+  if (mode === 'raw') {
+    /* `whitespace-pre-wrap`, not `pre`: the author's line breaks and
+       indentation are the content here, so they stay, but an overlong line
+       wraps instead of scrolling the page sideways. Monospace, or the columns
+       of pasted terminal output would not line up, which is one of the reasons
+       to look at the source at all. No border and no inset background, unlike
+       a fenced block: here the whole text is the block, and a box drawn round
+       every description says nothing.
+
+       `block` and `compact` are the same in this mode. Their difference is the
+       vertical rhythm between blocks, and raw text has none.
+
+       The inline variant is a handoff bullet, already an li inside a ul, so it
+       stays a span: a pre there would nest a block in a list item, which is
+       the layout bug that variant exists to avoid. */
+    return inline ? (
+      <span className="whitespace-pre-wrap break-words font-mono">{children}</span>
+    ) : (
+      <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed">
+        {children}
+      </pre>
+    )
+  }
+
   const components = variant === 'compact' ? COMPACT_COMPONENTS : BLOCK_COMPONENTS
   return (
     <ReactMarkdown

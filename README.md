@@ -26,8 +26,9 @@ review policy, and td's own wording whenever it refuses something.
 - **Read text that was written to be read.** Descriptions, acceptance criteria,
   comments and review reasons render as GitHub Flavored Markdown, so a fenced
   block is a code block and a nested list is nested, instead of a wall of
-  backticks. The editor still holds the raw source, and raw HTML is never
-  rendered as markup.
+  backticks. One button in the header switches the whole app back to the source
+  text when you want to copy it or check what td stored. The editor still holds
+  the raw source, and raw HTML is never rendered as markup.
 - **Move work along.** Start, request review, approve, reject, block, unblock,
   close and reopen, with a reason wherever td records one. You are only offered
   the transitions td reports as available.

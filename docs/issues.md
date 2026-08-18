@@ -153,6 +153,18 @@ which preserves pasted terminal output exactly. Aligned columns left
 unindented are treated as a paragraph and re-wrapped, and the alignment is
 lost.
 
+### Switching to the source
+
+The **markdown** button in the header switches every one of those fields to the
+text td actually stored, and back. It is monospace, keeps the line breaks and
+indentation you typed, and is there when you want to copy the source out, or to
+see what a re-wrapped paragraph or an unindented table looked like before it
+was rendered.
+
+The choice is yours and it sticks: it applies to every issue you open and it
+survives a reload, until you press the button again. Editing is unaffected, the
+forms always hold the raw source.
+
 Wide tables and code blocks scroll inside their own box rather than stretching
 the page.
 

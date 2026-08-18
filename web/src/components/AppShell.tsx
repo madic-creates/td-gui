@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import ConnectionBanner from './ConnectionBanner'
+import ProseToggle from './ProseToggle'
 import ThemeToggle from './ThemeToggle'
 
 /**
@@ -34,6 +35,7 @@ export default function AppShell({
           />
           {connected ? 'connected' : 'disconnected'}
         </span>
+        <ProseToggle />
         <ThemeToggle />
         <Link
           to="/boards"

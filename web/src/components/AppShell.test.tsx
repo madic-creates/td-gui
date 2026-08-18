@@ -24,6 +24,11 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: /^Theme: / })).toBeInTheDocument()
   })
 
+  it('offers the prose mode toggle in the header', () => {
+    renderShell(true)
+    expect(screen.getByRole('button', { name: /^Text: / })).toBeInTheDocument()
+  })
+
   it('reports the connected state in the header', () => {
     renderShell(true)
     expect(screen.getByText('connected')).toBeInTheDocument()

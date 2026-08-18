@@ -41,7 +41,7 @@ unrecognised value all degrade to `markdown`, which is what the app does today.
 `theme.ts` needs no subscription because it writes `<html data-theme>` and the
 stylesheet does the rest. React rendering has no such side channel, so
 `prose.ts` also owns a module-level listener set behind `subscribe` /
-`readMode` / `setMode`, consumed with `useSyncExternalStore`. That is the
+`getMode` / `setMode`, consumed with `useSyncExternalStore`. That is the
 equivalent of the DOM attribute, not extra machinery: the header button and
 every mounted `Markdown` have to agree, and a Context provider would have to be
 threaded through the tree and into every test that renders prose in isolation.
@@ -75,7 +75,8 @@ mono stack at `text-[12px] leading-relaxed`.
   the whole text is the block; a box drawn around every description is chrome
   that says nothing.
 
-`block` and `compact` differ only in vertical rhythm, as they do when rendered.
+`block` and `compact` render identically here. Their difference is the vertical
+rhythm between blocks, and raw text has none.
 
 The `inline` variant renders `<span className="whitespace-pre-wrap font-mono">`.
 Its call site is a handoff bullet, already an `<li>` in a `<ul>`; emitting a
