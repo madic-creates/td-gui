@@ -846,10 +846,48 @@ describe('IssueDetail', () => {
     )
     renderDetail()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Delete comment' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete comment 1' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment 1' }))
 
     await waitFor(() => expect(deleted).toBe('cm-1f0a2b3c'))
+  })
+
+  // Both comments come from one session, minutes apart. That is the ordinary
+  // shape of a td thread, and it is what defeats a name built from the author
+  // or the relative time: either would give these two rows one identical name
+  // and leave the ambiguity in place.
+  it('numbers each comment delete control so a thread exposes distinct names', async () => {
+    const twoComments = {
+      ...detail,
+      comments: [
+        detail.comments[0],
+        {
+          id: 'cm-4d5e6f70', issue_id: 'td-6a0883', session_id: 'ses_d87edf',
+          text: 'Second thought from the same session.',
+          created_at: '2026-08-14T15:09:30+02:00',
+        },
+      ],
+    }
+    let deleted = ''
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: twoComments })),
+      http.delete('/v1/issues/td-6a0883/comments/:commentId', ({ params }) => {
+        deleted = String(params.commentId)
+        return HttpResponse.json({ ok: true, data: { deleted: true } })
+      }),
+    )
+    renderDetail()
+
+    expect(await screen.findByRole('button', { name: 'Delete comment 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete comment 2' })).toBeInTheDocument()
+
+    // Arming keeps the number, so the answers stay as distinguishable as the
+    // question was, and the second row's Confirm deletes the second comment.
+    await userEvent.click(screen.getByRole('button', { name: 'Delete comment 2' }))
+    expect(screen.getByRole('button', { name: 'Cancel delete comment 2' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete comment 2' }))
+
+    await waitFor(() => expect(deleted).toBe('cm-4d5e6f70'))
   })
 
   // `blocked_by` holds what waits on this issue, despite its name. Resolving

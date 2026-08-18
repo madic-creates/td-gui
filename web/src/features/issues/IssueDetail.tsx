@@ -238,7 +238,7 @@ function IssueDetailView({ id }: { id: string }) {
               <h2 className="mb-2 text-[11px] uppercase tracking-widest text-ink-muted">Comments</h2>
               {comments.length === 0 && <EmptyLine>No comments yet.</EmptyLine>}
               <ul>
-                {comments.map(comment => (
+                {comments.map((comment, i) => (
                   <li
                     key={comment.id}
                     className="mb-2 rounded-md border border-line bg-surface-raised px-3 py-2.5"
@@ -252,8 +252,18 @@ function IssueDetailView({ id }: { id: string }) {
                             and a time — and the word "Delete" was the only
                             thing in it written to be read. Arming still puts
                             the question and both answers in words. */}
+                        {/* Numbered, because a comment has no short handle of
+                            its own. Neither thing this row shows is one: a
+                            session comments repeatedly, and two of those
+                            comments fall in the same relativeTime bucket, so
+                            either would name several rows alike — the very
+                            ambiguity being fixed. Position is unique by
+                            construction. It trails the label so the armed
+                            button's visible "Confirm delete comment" stays a
+                            substring of its name (WCAG 2.5.3). */}
                         <ConfirmButton
                           label="Delete comment"
+                          ariaLabel={`Delete comment ${i + 1}`}
                           icon={<TrashIcon />}
                           question="Delete this comment?"
                           disabled={deleteComment.isPending}
