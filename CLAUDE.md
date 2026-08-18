@@ -40,6 +40,36 @@ These are load-bearing; changing them changes what td-gui is.
   never a raw status PATCH. The UI renders exactly the transitions td reports
   in `available_transitions`, and renders none when the field is absent.
 
+### One read runs `td query` instead — deliberately
+
+`internal/tdquery` answers `GET /gui/query?q=<tdq>` by running `td query` as a
+subprocess. It is the only path in td-gui that does not go through `td serve`.
+
+This is td's interface, not our choice: `td serve` v0.57.0 exposes no query
+route at all. `/v1/query` is a 404, and `/v1/issues` ignores an unknown `q`,
+`query`, `tdq` or `filter` parameter rather than rejecting it, so a TDQ
+expression sent there silently returns the full, unfiltered list. TDQ lives in
+the CLI.
+
+The invariant above holds literally: no database is opened, no `td init` is
+run, and every write still goes through `td serve`. A query is a read through
+td's own binary, which owns the grammar and phrases the failure. It is still a
+departure from the spirit of the rule, so it is fenced in:
+
+- The route is `/gui/`, never `/v1/`. That prefix is td's API, proxied
+  wholesale; `/gui/` says honestly which half of the surface a caller is on,
+  and marks exactly what gets deleted.
+- The handler returns ids, not issues. `td query -o json` is a lossy subset of
+  the API's issue shape, and the frontend joins the ids against the index it
+  already holds rather than carrying a second issue shape.
+- The query reaches td as one argv element behind a `--`, with no shell. The
+  separator is load-bearing: without it td's flag parser claims a query of
+  `--help` and prints its help text on stdout with exit 0.
+
+Nothing else follows it out of the proxy. When td serve grows a query endpoint
+(td-894042 upstream), switch to it and delete `internal/tdquery`, the route in
+`newMux`, and this section.
+
 ### The token is visible in `ps` — deliberately
 
 `internal/backend/manager.go` spawns the backend as `td serve … --token

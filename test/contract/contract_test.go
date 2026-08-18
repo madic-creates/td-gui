@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"slices"
@@ -16,6 +17,7 @@ import (
 	"github.com/madic-creates/td-gui/internal/backend"
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
+	"github.com/madic-creates/td-gui/internal/tdquery"
 )
 
 // TestMain scrubs inherited GIT_* environment variables before any test in
@@ -1015,5 +1017,133 @@ func TestCreateFieldsContract(t *testing.T) {
 	if blocked := detail.Data.BlockedBy; len(blocked) > 0 {
 		t.Errorf("blocked_by = %v after create — td now honours blocks on "+
 			"POST /v1/issues, so the create form could offer it", blocked)
+	}
+}
+
+// newQueryHandler seeds a throwaway project and fronts it with the real
+// tdquery handler. No `td serve` here: a query is a subprocess precisely
+// because td serve has no route for one.
+func newQueryHandler(t *testing.T) (http.Handler, string) {
+	t.Helper()
+
+	td, err := tdbin.Locate("")
+	if err != nil {
+		t.Skipf("td not available: %v", err)
+	}
+
+	dir := t.TempDir()
+	run := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(td, args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("td %v failed: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	run("init")
+	run("create", "A bug that is critical enough to be found", "--type", "bug", "--priority", "P0")
+	run("create", "A chore that no query in here asks for", "--type", "chore", "--priority", "P3")
+
+	return tdquery.Handler(td, dir), dir
+}
+
+func queryEnvelope(t *testing.T, h http.Handler, q string) (int, queryBody) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/gui/query?"+url.Values{"q": {q}}.Encode(), nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	var body queryBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode %q: %v", rec.Body.String(), err)
+	}
+	return rec.Code, body
+}
+
+type queryBody struct {
+	OK   bool `json:"ok"`
+	Data struct {
+		IDs []string `json:"ids"`
+	} `json:"data"`
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// TestQueryContract pins that a real TDQ expression narrows the result the
+// way `td query` does, which is the whole point of the route: /v1/issues
+// cannot express it.
+func TestQueryContract(t *testing.T) {
+	h, _ := newQueryHandler(t)
+
+	status, body := queryEnvelope(t, h, "type = bug AND priority <= P1")
+
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if !body.OK {
+		t.Fatalf("ok = false: %s", body.Error.Message)
+	}
+	if len(body.Data.IDs) != 1 {
+		t.Fatalf("ids = %v, want exactly the one P0 bug", body.Data.IDs)
+	}
+}
+
+// TestQueryNoMatchContract pins the sentence td prints on stdout, exiting 0,
+// when nothing matches. Read as an id it would surface as a phantom row.
+func TestQueryNoMatchContract(t *testing.T) {
+	h, _ := newQueryHandler(t)
+
+	status, body := queryEnvelope(t, h, "title ~ zzzznothingmatchesthis")
+
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", status)
+	}
+	if len(body.Data.IDs) != 0 {
+		t.Errorf("ids = %v, want none", body.Data.IDs)
+	}
+}
+
+// TestQueryErrorContract pins td's real wording for a broken query. The unit
+// tests use a stub, so without this nothing proves the --json re-run still
+// finds a message in the shape td actually emits.
+func TestQueryErrorContract(t *testing.T) {
+	h, _ := newQueryHandler(t)
+
+	status, body := queryEnvelope(t, h, "status =")
+
+	if status != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (message %q)", status, body.Error.Message)
+	}
+	if body.OK {
+		t.Fatal("ok = true, want false")
+	}
+	if !strings.Contains(body.Error.Message, "parse error") {
+		t.Errorf("message = %q, want td's own parse error", body.Error.Message)
+	}
+	if strings.Contains(body.Error.Message, "\x1b") {
+		t.Errorf("message = %q, want no ANSI escapes", body.Error.Message)
+	}
+	if strings.Contains(body.Error.Message, "Usage:") {
+		t.Errorf("message = %q, want no usage block", body.Error.Message)
+	}
+}
+
+// TestQueryFlagLikeContract proves the -- separator does its job against the
+// real flag parser: without it td reads this query as its own --help, prints
+// the help text on stdout and exits 0, and every line of it comes back as an
+// id.
+func TestQueryFlagLikeContract(t *testing.T) {
+	h, _ := newQueryHandler(t)
+
+	_, body := queryEnvelope(t, h, "--help")
+
+	for _, id := range body.Data.IDs {
+		if !strings.HasPrefix(id, "td-") {
+			t.Fatalf("ids = %v, want only issue ids — td parsed the query as a flag", body.Data.IDs)
+		}
 	}
 }

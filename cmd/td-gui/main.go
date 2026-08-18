@@ -19,6 +19,7 @@ import (
 	"github.com/madic-creates/td-gui/internal/backend"
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
+	"github.com/madic-creates/td-gui/internal/tdquery"
 	"github.com/madic-creates/td-gui/internal/web"
 )
 
@@ -112,10 +113,7 @@ func run() error {
 		fmt.Fprintf(os.Stderr, "td-gui: backend restarted on %s\n", baseURL)
 	})
 
-	mux := http.NewServeMux()
-	mux.Handle("/v1/", apiSwitch)
-	mux.Handle("/health", apiSwitch)
-	mux.Handle("/", assets)
+	mux := newMux(assets, apiSwitch, td, baseDir)
 
 	fmt.Fprintf(os.Stderr, "td-gui is running on %s\n", origin)
 	fmt.Fprintf(os.Stderr, "  project:  %s\n", baseDir)
@@ -135,6 +133,25 @@ func run() error {
 	}
 	fmt.Fprintln(os.Stderr, "td-gui stopped")
 	return nil
+}
+
+// newMux routes the three things td-gui serves.
+//
+// /v1/ and /health are td's, forwarded to td serve untouched. /gui/ is
+// td-gui's own: today only the TDQ query route, which needs a subprocess
+// because td serve v0.57.0 answers no query of any kind. The prefix says
+// honestly which half of the surface a caller is on, and marks what gets
+// deleted once td grows the endpoint itself.
+//
+// OriginGuard wraps the result at the call site, so every route here is
+// covered by it.
+func newMux(assets, api http.Handler, td, baseDir string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.Handle("/v1/", api)
+	mux.Handle("/health", api)
+	mux.Handle("/gui/query", tdquery.Handler(td, baseDir))
+	mux.Handle("/", assets)
+	return mux
 }
 
 // checkMinVersion rejects a td older than minTdVersion. Split out of run() so

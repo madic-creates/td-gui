@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -191,5 +192,30 @@ func TestStartAndReapReturnsStartError(t *testing.T) {
 	cmd := exec.Command("td-gui-nonexistent-binary-for-test")
 	if _, err := startAndReap(cmd); err == nil {
 		t.Error("startAndReap with a nonexistent binary: want error, got nil")
+	}
+}
+
+// TestNewMuxKeepsTheQueryRouteOffTheProxy pins the routing split. /v1/ is
+// td's API and is proxied wholesale; /gui/query is td-gui's own and must
+// never reach td serve, which has no such route and would answer 404.
+func TestNewMuxKeepsTheQueryRouteOffTheProxy(t *testing.T) {
+	var proxied []string
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxied = append(proxied, r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	})
+	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux := newMux(assets, api, "/nonexistent/td", t.TempDir())
+
+	for _, path := range []string{"/v1/issues", "/health", "/gui/query?q=status+%3D+open"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		mux.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	want := []string{"/v1/issues", "/health"}
+	if strings.Join(proxied, ",") != strings.Join(want, ",") {
+		t.Errorf("proxied = %v, want %v", proxied, want)
 	}
 }
