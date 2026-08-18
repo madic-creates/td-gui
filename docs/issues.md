@@ -91,9 +91,9 @@ Click any row to open it. The detail page shows, from top to bottom:
 - **Transitions**: whatever td reports as available for this issue, and nothing
   at all when it reports nothing. See
   [Transitions and reviews](reviews.md).
-- **Description** and **acceptance criteria**, shown exactly as they are
-  stored. Leading dashes that the CLI wrote are part of the author's text, not
-  a list to be re-rendered.
+- **Description** and **acceptance criteria**, rendered as Markdown. A `-`
+  list written at the CLI comes out as a list, a fenced block as a code block.
+  See [Markdown in long text](#markdown-in-long-text).
 - **The latest handoff**, split the way td stores it: done, remaining,
   decisions and uncertain. Sections with nothing in them are left out.
 - **Dependencies**: what this issue is waiting for, with the resolved ones
@@ -103,7 +103,7 @@ Click any row to open it. The detail page shows, from top to bottom:
 - **Activity**: td's log, with each entry tagged by its kind (`progress`,
   `decision`, `blocker`, and so on).
 - **Comments**, with a box for adding one, and a delete button on each that
-  asks once.
+  asks once. Comment bodies are Markdown too.
 
 ![The activity log and comment box](images/issue-activity.png)
 
@@ -117,6 +117,49 @@ means the field is empty.
 Below the sidebar, once a review has been recorded, a review panel shows the
 standing decision and hides earlier ones behind a disclosure marked
 *superseded*.
+
+## Markdown in long text
+
+Issue text is usually written in a terminal, and in practice it is already
+Markdown: headings, `-` lists, backticked identifiers, fenced blocks. td-gui
+renders it rather than showing you the source characters.
+
+It applies to every long field:
+
+| Field | Where you write it |
+| ----- | ------------------ |
+| Description | Create and edit forms |
+| Acceptance criteria | Create and edit forms |
+| Comment body | The box under the comments |
+| Review or transition reason | The form a transition opens |
+
+Handoff bullets render the inline parts only, so backticks and links come out
+formatted. They are already list items, and a list inside one would read as a
+mistake rather than as structure.
+
+The dialect is **GitHub Flavored Markdown**, so tables and strikethrough work
+alongside the CommonMark basics. Each of those fields says so under the box,
+with a link to the spec.
+
+Two consequences are worth knowing, because they are what surprises people:
+
+**A single newline does not break the line.** Paragraphs are joined and
+re-wrapped to the width of the column, which is what you want for text
+hard-wrapped at eighty columns in a terminal. Leave a blank line to start a new
+paragraph.
+
+**Indent anything whose alignment matters.** Four spaces makes a block literal,
+which preserves pasted terminal output exactly. Aligned columns left
+unindented are treated as a paragraph and re-wrapped, and the alignment is
+lost.
+
+Wide tables and code blocks scroll inside their own box rather than stretching
+the page.
+
+Nothing about the stored text changes. The editor still shows the raw source,
+and what you type is what td stores; the rendering happens only when the text
+is displayed. Raw HTML is never rendered as markup: a `<script>` tag in a
+description is shown as the characters you typed.
 
 ## Creating an issue
 
@@ -147,7 +190,7 @@ were reading it, and the rest of the fields open below it.
 
 | Field | Notes |
 | ----- | ----- |
-| Title, description, acceptance criteria | Free text |
+| Title, description, acceptance criteria | Free text. Description and acceptance render as Markdown when displayed; the editor holds the raw source |
 | Type, priority | td's own vocabularies |
 | Points | Leave it empty to clear the estimate |
 | Sprint | Free text |

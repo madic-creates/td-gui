@@ -15,10 +15,19 @@ review policy, and td's own wording whenever it refuses something.
 - **See the whole backlog at once.** Issues are grouped by status, starting
   with what is moving and ending with what is finished. You can sort by id,
   title, priority or last update, filter by status, and search the text.
+- **Ask a real question, not just a search.** Start the search box with `?` and
+  the rest of the line is a TDQ query, the same language boards are built on,
+  so `?type = bug AND priority <= P1` narrows the list to exactly that. td
+  parses the query and phrases any complaint itself.
 - **Open an issue and see everything td knows about it.** Description,
   acceptance criteria, the latest handoff split into done, remaining, decisions
   and uncertain, the activity log, comments, dependencies, the current review,
   and which sessions touched it.
+- **Read text that was written to be read.** Descriptions, acceptance criteria,
+  comments and review reasons render as GitHub Flavored Markdown, so a fenced
+  block is a code block and a nested list is nested, instead of a wall of
+  backticks. The editor still holds the raw source, and raw HTML is never
+  rendered as markup.
 - **Move work along.** Start, request review, approve, reject, block, unblock,
   close and reopen, with a reason wherever td records one. You are only offered
   the transitions td reports as available.
@@ -66,7 +75,7 @@ have already run `td init` in. td-gui will not run `td init` for you.
 | Page | What's in it |
 | ---- | ------------ |
 | [Getting started](docs/getting-started.md) | Starting it, the flags, what the connection dot means, sharing a backend with a running agent |
-| [Working with issues](docs/issues.md) | The list, filters, sorting, the detail page, creating and editing |
+| [Working with issues](docs/issues.md) | The list, filters, sorting, ad-hoc TDQ queries, Markdown in long text, the detail page, creating and editing |
 | [Transitions and reviews](docs/reviews.md) | The status flow, reasons, review attribution, why td sometimes refuses |
 | [Boards](docs/boards.md) | Saved queries, the backlog view and pinning, swimlanes and drag-to-transition |
 

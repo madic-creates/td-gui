@@ -48,6 +48,10 @@ For reject, block and close, td appends the text you type as a progress log
 entry, exactly the way `td reject --reason` does. The text is optional, but it
 is worth writing anyway, because it is what the next session will read.
 
+The text is Markdown, the same as a description or a comment, so a rejection
+that needs a list of what is missing can be written as one. See
+[Markdown in long text](issues.md#markdown-in-long-text).
+
 **Cancel** closes the form and changes nothing. Clicking a different transition
 also discards what you typed.
 
