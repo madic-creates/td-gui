@@ -87,10 +87,16 @@ export default function QueryResults({ params, sort, onSortChange }: Props) {
       sort={sort}
       onSortChange={onSortChange}
       truncated={missing > 0}
+      /* `shown.length`, not `matched.length`: the bar renders directly above
+         these rows, so it has to count the rows it sits on. With a chip active
+         the two differ, and a bar reading "Showing 2 of 3" over one row is the
+         quiet disagreement the count exists to prevent. Both clauses stay
+         individually true — the rest of the gap is the chips, which are on
+         screen and lit while they narrow the answer. */
       notice={
         missing > 0 && (
           <>
-            Showing {matched.length} of {data.ids.length} —{' '}
+            Showing {shown.length} of {data.ids.length} —{' '}
             {missing === 1 ? '1 result is' : `${missing} results are`} outside the
             loaded set.
           </>

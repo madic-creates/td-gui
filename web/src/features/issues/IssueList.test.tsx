@@ -295,6 +295,26 @@ describe('IssueList', () => {
       expect(screen.getByText(/outside the loaded set/i)).toBeInTheDocument()
     })
 
+    it('counts the rows it is sitting on, not the ones a chip just removed', async () => {
+      // The notice bar renders directly above the rows. Counting the query's
+      // resolved hits instead of the rendered ones put "Showing 2 of 3" over a
+      // single row as soon as a chip narrowed the answer.
+      const user = userEvent.setup()
+      serveIndex()
+      serveQuery(['td-bug', 'td-prog', 'td-beyond-the-cache'])
+
+      await runQuery('?type = bug')
+      expect(await screen.findByText(/Showing 2 of 3/)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('checkbox', { name: 'in_progress' }))
+
+      expect(await screen.findByText(/Showing 1 of 3/)).toBeInTheDocument()
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      // The unresolvable hit is still reported: a chip narrows the answer, it
+      // does not make the results outside the loaded set stop existing.
+      expect(screen.getByText(/1 result is outside the loaded set/)).toBeInTheDocument()
+    })
+
     it('lets the status chips trim a query result without re-running it', async () => {
       const user = userEvent.setup()
       let queryRuns = 0
