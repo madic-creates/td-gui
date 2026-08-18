@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { unboundMessage } from '../../api/client'
 import { useAddComment } from '../../api/mutations'
+import ErrorPanel from '../../components/ErrorPanel'
 import FieldError from '../../components/FieldError'
 import MarkdownHint from '../../components/MarkdownHint'
 
@@ -42,9 +43,16 @@ export default function CommentForm({ issueId }: { issueId: string }) {
       />
       <MarkdownHint id="comment-hint" />
       <FieldError error={add.error} field="text" />
-      {/* Everything td says that the textarea above is not already showing. */}
+      {/* Everything td says that the textarea above is not already showing.
+          ErrorPanel is heavier than this three-row form would pick on its own,
+          and that weight is the point: a response can carry a text field error
+          and something unbound at once, and the two channels have to be told
+          apart by eye, not only by role=alert. Every other form draws the same
+          line the same way. */}
       {panelError && (
-        <p className="mt-1.5 text-[11px] text-danger" role="alert">{panelError}</p>
+        <div className="mt-2">
+          <ErrorPanel label="Comment rejected" message={panelError} />
+        </div>
       )}
       <button type="submit" disabled={add.isPending}
         className="mt-2 rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">

@@ -28,6 +28,13 @@ async function submit(text: string) {
   await userEvent.click(screen.getByRole('button', { name: 'Add comment' }))
 }
 
+// The panel channel, found by its caption rather than by role alone: the field
+// channel is an alert too (td-13f058), so `findByRole('alert')` is not enough
+// to say which of td's two messages you got hold of.
+async function panel() {
+  return (await screen.findByText('Comment rejected')).closest('[role="alert"]')
+}
+
 describe('CommentForm', () => {
   it('posts the comment as `text`', async () => {
     let body: unknown
@@ -66,7 +73,7 @@ describe('CommentForm', () => {
         { status: 400 })))
 
     await submit('x')
-    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(await panel()).toHaveTextContent(message)
   })
 
   it("shows td's rejection verbatim when it is not a validation error", async () => {
@@ -76,7 +83,35 @@ describe('CommentForm', () => {
         { status: 404 })))
 
     await submit('x')
-    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(await panel()).toHaveTextContent(message)
+  })
+
+  // The bug this form used to have: the unbound message was a bare red <p>
+  // with the same classes and position as the field message above it, so a
+  // response carrying both stacked two identical lines and only role=alert
+  // told them apart — a distinction nobody sees. ErrorPanel is the cue.
+  it('keeps a field error out of the panel when td returns both', async () => {
+    const field = 'comment text is required'
+    const unbound = 'issue is closed'
+    server.use(http.post('/v1/issues/td-6a0883/comments', () =>
+      HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'validation_error',
+          message: 'Validation failed',
+          details: { fields: [
+            { field: 'text', rule: 'required', value: '', expected: '', message: field },
+            { field: 'issue_id', rule: 'state', value: '', expected: '', message: unbound },
+          ] },
+        },
+      }, { status: 400 })))
+
+    await submit('x')
+
+    const box = await panel()
+    expect(box).toHaveTextContent(unbound)
+    expect(box).not.toHaveTextContent(field)
+    expect(screen.getByText(field)).toBeInTheDocument()
   })
 
   // The Add comment button disables on add.isPending, but that reads from
