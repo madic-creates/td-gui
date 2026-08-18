@@ -178,7 +178,7 @@ func (m *Manager) spawn(ctx context.Context) error {
 	// SIGINT at all, would then outlive td-gui as an orphan. watchChild only
 	// ever calls Wait once per cmd, so the later success path below must not
 	// call it again.
-	m.watchChild(cmd)
+	waitCh := m.watchChild(cmd)
 
 	// td serve writes .todos/serve-port once it is listening. Poll for it,
 	// then confirm with a probe rather than trusting the file alone. The PID
@@ -210,6 +210,15 @@ func (m *Manager) spawn(ctx context.Context) error {
 		case <-ctx.Done():
 			_ = m.Stop()
 			return ctx.Err()
+		case <-waitCh:
+			// The child is gone, so no amount of further polling will find a
+			// port file. Waiting out StartTimeout to then blame reachability
+			// would be both slow and wrong: td serve exiting on a bad flag, a
+			// taken port or a db it cannot open is the far likelier cause, and
+			// its status says so. ProcessState is safe to read here — Wait
+			// sets it before closing this channel.
+			_ = m.Stop()
+			return fmt.Errorf("td serve exited during startup: %s", cmd.ProcessState)
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
@@ -245,10 +254,11 @@ func (m *Manager) Stop() error {
 	}
 }
 
-// watchChild reaps the process in one place. exec.Cmd.Wait may only be called
-// once, so both Stop and Supervise observe this channel instead of calling it
-// themselves.
-func (m *Manager) watchChild(cmd *exec.Cmd) {
+// watchChild reaps the process in one place and returns the channel that
+// closes when it exits. exec.Cmd.Wait may only be called once, so Stop,
+// Supervise and spawn's own startup poll all observe this channel instead of
+// calling it themselves.
+func (m *Manager) watchChild(cmd *exec.Cmd) chan struct{} {
 	ch := make(chan struct{})
 	m.mu.Lock()
 	m.waitCh = ch
@@ -257,6 +267,7 @@ func (m *Manager) watchChild(cmd *exec.Cmd) {
 		_ = cmd.Wait()
 		close(ch)
 	}()
+	return ch
 }
 
 // killChildForTest terminates the spawned process without marking the manager
