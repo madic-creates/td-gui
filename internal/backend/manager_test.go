@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -224,13 +225,31 @@ func TestSpawnAbortsIfStoppedConcurrently(t *testing.T) {
 	}
 }
 
+// buildFakeTd compiles a stub "td" from src and returns its path. Compiled
+// rather than scripted because this package is built for Windows too, where
+// a shebang is not a program.
+func buildFakeTd(t *testing.T, name, src string) string {
+	t.Helper()
+	dir := t.TempDir()
+	srcPath := dir + "/main.go"
+	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bin := dir + "/" + name
+	cmd := exec.Command("go", "build", "-o", bin, srcPath)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("cannot build fake td: %v\n%s", err, out)
+	}
+	return bin
+}
+
 // fakeTdIgnoringSIGINT builds a stub "td" that ignores SIGINT and never
 // becomes healthy, so a Stop landing while it is still starting can only be
 // confirmed by actually watching it exit — a Signal call that merely didn't
 // error is not evidence the child reacted to it.
 func fakeTdIgnoringSIGINT(t *testing.T) string {
 	t.Helper()
-	src := `package main
+	return buildFakeTd(t, "fake-td-stubborn", `package main
 
 import (
 	"os/signal"
@@ -242,18 +261,68 @@ func main() {
 	signal.Ignore(syscall.SIGINT)
 	time.Sleep(time.Hour)
 }
-`
-	dir := t.TempDir()
-	srcPath := dir + "/main.go"
-	if err := os.WriteFile(srcPath, []byte(src), 0o644); err != nil {
+`)
+}
+
+// fakeTdExitingImmediately builds a stub "td" that exits at once without ever
+// writing a port file — td serve meeting a bad flag, a taken port or a db it
+// cannot open. The status is distinctive so a test can tell it apart from a
+// signal.
+func fakeTdExitingImmediately(t *testing.T) string {
+	t.Helper()
+	return buildFakeTd(t, "fake-td-exits", `package main
+
+import "os"
+
+func main() {
+	os.Exit(3)
+}
+`)
+}
+
+// TestSpawnFailsFastWhenChildExitsDuringStartup pins that spawn watches the
+// process it started, rather than only polling for the port file it has not
+// written yet. watchChild already closes a channel the moment the child is
+// reaped; the poll loop used to ignore it and probe a dead pid until
+// StartTimeout ran out, so a td serve that died on a bad flag was reported
+// 15s later as "did not become reachable" — a slow answer, and the wrong one.
+func TestSpawnFailsFastWhenChildExitsDuringStartup(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, ".todos"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	bin := dir + "/fake-td-stubborn"
-	cmd := exec.Command("go", "build", "-o", bin, srcPath)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("cannot build fake td: %v\n%s", err, out)
+
+	m := NewManager(Config{
+		BaseDir:      base,
+		TdPath:       fakeTdExitingImmediately(t),
+		StartTimeout: 10 * time.Second,
+	})
+
+	done := make(chan error, 1)
+	started := time.Now()
+	go func() { done <- m.spawn(context.Background()) }()
+
+	select {
+	case err := <-done:
+		elapsed := time.Since(started)
+		if err == nil {
+			t.Fatal("spawn returned nil for a child that exited without ever listening")
+		}
+		// Generous, because the bug is a factor of a hundred away: noticing
+		// the exit takes one channel receive, polling through to the deadline
+		// takes the full StartTimeout.
+		if elapsed > 2*time.Second {
+			t.Errorf("spawn took %s to notice its child exited; it polled to its StartTimeout instead of watching the process", elapsed)
+		}
+		if !strings.Contains(err.Error(), "exited") {
+			t.Errorf("error = %q, want it to say the child exited, not that it was unreachable", err)
+		}
+		if !strings.Contains(err.Error(), "exit status 3") {
+			t.Errorf("error = %q, want the child's own exit status in it", err)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("spawn never returned at all")
 	}
-	return bin
 }
 
 // TestStopKillsChildStartedButNotYetHealthy pins that a Stop landing while
@@ -319,6 +388,11 @@ func TestStopKillsChildStartedButNotYetHealthy(t *testing.T) {
 		t.Error("child is still alive after Stop returned; it ignores SIGINT and nothing fell back to killing it")
 	}
 
+	// Generous only because spawn watches the child: it returns the moment
+	// Stop kills it. While the poll loop ignored that and ran to its own
+	// StartTimeout, this wait cleared it by ~80ms — the margin that made this
+	// test flake. TestSpawnFailsFastWhenChildExitsDuringStartup is what keeps
+	// it generous.
 	select {
 	case <-spawnErr:
 	case <-time.After(5 * time.Second):
