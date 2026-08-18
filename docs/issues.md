@@ -45,6 +45,37 @@ A single request carries at most 1000 issues, which is td's own cap. If the
 project holds more than that, a note above the list tells you how many of how
 many you are seeing, and the filters are how you narrow it down.
 
+### Queries
+
+Full-text search finds text. It cannot express a condition, such as bugs that
+are P1 or higher. For that, start the search box with a question mark and the
+rest of the line is read as a TDQ query:
+
+```
+?type = bug AND priority <= P1
+```
+
+TDQ is the same query language boards are built on, and the reference is
+linked under the box while you are typing one.
+
+A query runs when you press Enter, not while you type. A half-written query is
+a syntax error, and there is no point reporting one for a line you are still
+writing. If td cannot parse what you pressed Enter on, its own message appears
+above the list, word for word, and the list stays as it was.
+
+The status chips still work in query mode. The query decides which issues
+match, and the chips narrow that answer afterwards, without running the query
+again.
+
+Two limits are worth knowing. A query scans at most 10000 issues, which is td's
+own default. And the results are matched against the issues the page has
+already loaded, so on a project past the 1000-issue cap a query can match an
+issue the page does not hold; the note above the list then says how many
+results are outside the loaded set rather than dropping them quietly.
+
+To go back to full-text search, delete the question mark. There is no way to
+search for text that itself begins with one.
+
 ## Reading an issue
 
 ![An issue detail page](images/issue-detail.png)

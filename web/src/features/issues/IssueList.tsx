@@ -1,93 +1,81 @@
-import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { useState } from 'react'
 import { useIssues, FETCH_LIMIT, type IssueListParams } from '../../api/queries'
 import { ApiError } from '../../api/client'
 import IssueFilters from './IssueFilters'
-import StatusTag from '../../components/StatusTag'
-import PriorityTag from '../../components/PriorityTag'
 import ErrorPanel from '../../components/ErrorPanel'
 import EmptyState from '../../components/EmptyState'
 import SkeletonRows from '../../components/SkeletonRows'
-import IssueGroupHeader from './IssueGroupHeader'
-import IssueListHeader from './IssueListHeader'
-import { DEFAULT_SORT, groupByStatus, type Sort } from './ordering'
-import { relativeTime } from '../../lib/format'
-import { COL, ROW } from './columns'
+import IssueRows from './IssueRows'
+import QueryResults from './QueryResults'
+import { DEFAULT_SORT, type Sort } from './ordering'
 
 export default function IssueList() {
   const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
+
+  // The filters stay mounted in every state, including the two error and
+  // empty ones below — the hint tells the reader to clear them, so the
+  // control it names has to be on screen.
+  return (
+    <div>
+      <IssueFilters params={params} onChange={setParams} />
+      {params.query === undefined ? (
+        <SearchResults params={params} sort={sort} onSortChange={setSort} />
+      ) : (
+        <QueryResults
+          params={{ ...params, query: params.query }}
+          sort={sort}
+          onSortChange={setSort}
+        />
+      )}
+    </div>
+  )
+}
+
+interface ResultsProps {
+  params: IssueListParams
+  sort: Sort
+  onSortChange: (sort: Sort) => void
+}
+
+/** The list, for td's full-text search and the status filters. */
+function SearchResults({ params, sort, onSortChange }: ResultsProps) {
   const { data, error, isPending } = useIssues(params)
 
-  // Assigned rather than early-returned so the filters stay mounted in every
-  // state — the empty-state hint tells the user to clear them.
-  let body: ReactNode
-  if (isPending) {
-    body = <SkeletonRows />
-  } else if (error) {
-    body = (
+  if (isPending) return <SkeletonRows />
+
+  if (error) {
+    return (
       <div className="p-4">
         <ErrorPanel message={error instanceof ApiError ? error.message : String(error)} />
       </div>
     )
-  } else if (data.issues.length === 0) {
-    body = (
+  }
+
+  if (data.issues.length === 0) {
+    return (
       <EmptyState
         message="No issues found."
         hint="Try clearing the status filters, or create the first issue."
       />
     )
-  } else {
-    const groups = groupByStatus(data.issues, sort)
-    const truncated = data.total > data.issues.length
-    body = (
-      <>
-        {truncated && (
-          <p className="border-b border-line bg-surface-inset px-4 py-1.5 text-[11px] text-ink-muted">
-            Showing {data.issues.length} of {data.total} — refine the filters to
-            narrow this down.
-          </p>
-        )}
-        <IssueListHeader sort={sort} onChange={setSort} />
-        {groups.map(group => (
-          <section key={group.status} aria-label={group.status}>
-            <IssueGroupHeader
-              status={group.status}
-              count={group.issues.length}
-              truncated={truncated}
-            />
-            <ul>
-              {group.issues.map(issue => (
-                <li key={issue.id}>
-                  <Link
-                    to={`/issues/${issue.id}`}
-                    className={`${ROW} hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]`}
-                  >
-                    <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>
-                    <span className={`${COL.title} text-ink`}>{issue.title}</span>
-                    <span className={COL.priority}><PriorityTag priority={issue.priority} /></span>
-                    <time
-                      dateTime={issue.updated_at}
-                      title={issue.updated_at}
-                      className={`${COL.updated} text-ink-faint`}
-                    >
-                      {relativeTime(issue.updated_at)}
-                    </time>
-                    <span className={COL.status}><StatusTag status={issue.status} /></span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </>
-    )
   }
 
+  const truncated = data.total > data.issues.length
   return (
-    <div>
-      <IssueFilters params={params} onChange={setParams} />
-      {body}
-    </div>
+    <IssueRows
+      issues={data.issues}
+      sort={sort}
+      onSortChange={onSortChange}
+      truncated={truncated}
+      notice={
+        truncated && (
+          <>
+            Showing {data.issues.length} of {data.total} — refine the filters to
+            narrow this down.
+          </>
+        )
+      }
+    />
   )
 }

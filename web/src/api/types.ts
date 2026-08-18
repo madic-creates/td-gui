@@ -179,6 +179,9 @@ export interface FieldError {
 export type ApiErrorCode =
   | 'validation_error' | 'unauthorized' | 'forbidden'
   | 'not_found' | 'conflict' | 'internal'
+  // Not one of td's: td-gui's own /gui/query returns it for a TDQ expression
+  // td refused to parse. It leaves with the route.
+  | 'invalid_query'
 
 /**
  * One unresolved blocker. td already filters closed blockers out, so every

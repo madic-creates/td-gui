@@ -9,6 +9,15 @@ export interface IssueListParams {
   type?: IssueType[]
   priority?: Priority[]
   search?: string
+  /**
+   * A TDQ expression, run through /gui/query rather than /v1/issues.
+   *
+   * Mutually exclusive with `search` because one input produces one or the
+   * other, never both. `undefined` is what says the list is not in query mode
+   * — an empty string could not, since an empty TDQ is legal and matches
+   * every issue.
+   */
+  query?: string
   limit: number
 }
 
@@ -58,5 +67,34 @@ export function useLabels() {
   return useQuery({
     queryKey: labelKeys.all,
     queryFn: () => apiGet<LabelsResponse>('/v1/labels'),
+  })
+}
+
+export interface QueryIdsResponse {
+  ids: string[]
+}
+
+export const queryKeys = {
+  ids: (query: string) => ['tdq', query] as const,
+}
+
+/**
+ * Runs one ad-hoc TDQ expression and returns the ids it matched.
+ *
+ * Not a /v1 call. td serve v0.57.0 has no query route at all — it ignores an
+ * unknown `q`/`query`/`tdq` parameter and returns the unfiltered list — so
+ * td-gui runs `td query` itself and answers under its own /gui/ prefix. See
+ * internal/tdquery.
+ *
+ * Ids, not issues: `td query -o json` is a lossy subset of the API's issue
+ * shape (omitempty fields, "" where the API sends null, nanosecond
+ * timestamps, no available_transitions). Joining ids against the index the
+ * app already holds beats rebuilding those objects.
+ */
+export function useQueryIds(query: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.ids(query ?? ''),
+    queryFn: () => apiGet<QueryIdsResponse>(`/gui/query?q=${encodeURIComponent(query ?? '')}`),
+    enabled: query !== undefined,
   })
 }

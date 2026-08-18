@@ -198,4 +198,130 @@ describe('IssueList', () => {
     renderList()
     expect(await screen.findByText('just now')).toBeInTheDocument()
   })
+
+  describe('TDQ mode', () => {
+    const indexed = [
+      makeIssue({ id: 'td-bug', status: 'open', type: 'bug', title: 'A real bug' }),
+      makeIssue({ id: 'td-prog', status: 'in_progress', type: 'bug', title: 'A bug in flight' }),
+      makeIssue({ id: 'td-chore', status: 'open', type: 'chore', title: 'A chore' }),
+    ]
+
+    /** Serves the two halves of the index: everything open, and the closed. */
+    function serveIndex(closed: ReturnType<typeof makeIssue>[] = []) {
+      server.use(http.get('/v1/issues', ({ request }) => {
+        const isClosed = new URL(request.url).searchParams.get('status') === 'closed'
+        const issues = isClosed ? closed : indexed
+        return HttpResponse.json({
+          ok: true,
+          data: { issues, limit: 1000, offset: 0, total: issues.length, has_more: false },
+        })
+      }))
+    }
+
+    function serveQuery(ids: string[]) {
+      server.use(http.get('/gui/query', () =>
+        HttpResponse.json({ ok: true, data: { ids } })))
+    }
+
+    async function runQuery(text: string) {
+      const user = userEvent.setup()
+      renderList()
+      await screen.findByText('A real bug')
+      await user.clear(screen.getByLabelText('Search'))
+      await user.type(screen.getByLabelText('Search'), text + '{Enter}')
+    }
+
+    it('lists exactly the issues the query returned, in the usual groups', async () => {
+      serveIndex()
+      serveQuery(['td-bug', 'td-prog'])
+
+      await runQuery('?type = bug')
+
+      expect(await screen.findByText('A bug in flight')).toBeInTheDocument()
+      expect(screen.getByText('A real bug')).toBeInTheDocument()
+      // The chore is in the index but not in the result — the query defines
+      // the set, not the index.
+      expect(screen.queryByText('A chore')).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'in_progress' })).toBeInTheDocument()
+    })
+
+    it('sends the query to td-gui, not to td serve', async () => {
+      let seen: URL | undefined
+      serveIndex()
+      server.use(http.get('/gui/query', ({ request }) => {
+        seen = new URL(request.url)
+        return HttpResponse.json({ ok: true, data: { ids: ['td-bug'] } })
+      }))
+
+      await runQuery('?type = bug AND priority <= P1')
+
+      await screen.findByText('A real bug')
+      expect(seen?.pathname).toBe('/gui/query')
+      expect(seen?.searchParams.get('q')).toBe('type = bug AND priority <= P1')
+    })
+
+    it("shows td's own message for an invalid query, with a link to the grammar", async () => {
+      serveIndex()
+      server.use(http.get('/gui/query', () =>
+        HttpResponse.json({
+          ok: false,
+          error: { code: 'invalid_query', message: 'parse error at line 1, column 9: expected value' },
+        }, { status: 400 })))
+
+      await runQuery('?status =')
+
+      expect(await screen.findByText(/parse error at line 1, column 9/)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /query language/i })).toBeInTheDocument()
+    })
+
+    it('distinguishes a query that matched nothing from a filtered-out list', async () => {
+      serveIndex()
+      serveQuery([])
+
+      await runQuery('?title ~ nothing')
+
+      expect(await screen.findByText(/no issues match this query/i)).toBeInTheDocument()
+      // The status-filter hint would send the reader to the wrong control.
+      expect(screen.queryByText(/clearing the status filters/i)).not.toBeInTheDocument()
+    })
+
+    it('counts the results it could not resolve rather than dropping them quietly', async () => {
+      serveIndex()
+      serveQuery(['td-bug', 'td-beyond-the-cache', 'td-also-beyond'])
+
+      await runQuery('?type = bug')
+
+      expect(await screen.findByText(/Showing 1 of 3/)).toBeInTheDocument()
+      expect(screen.getByText(/outside the loaded set/i)).toBeInTheDocument()
+    })
+
+    it('lets the status chips trim a query result without re-running it', async () => {
+      const user = userEvent.setup()
+      let queryRuns = 0
+      serveIndex()
+      server.use(http.get('/gui/query', () => {
+        queryRuns++
+        return HttpResponse.json({ ok: true, data: { ids: ['td-bug', 'td-prog'] } })
+      }))
+
+      await runQuery('?type = bug')
+      expect(await screen.findByText('A bug in flight')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('checkbox', { name: 'in_progress' }))
+
+      expect(await screen.findByRole('region', { name: 'in_progress' })).toBeInTheDocument()
+      expect(screen.queryByText('A real bug')).not.toBeInTheDocument()
+      expect(queryRuns).toBe(1)
+    })
+
+    it('resolves a query hit that only the closed half of the index holds', async () => {
+      serveIndex([makeIssue({ id: 'td-done', status: 'closed', title: 'A finished bug' })])
+      serveQuery(['td-done'])
+
+      await runQuery('?type = bug')
+
+      expect(await screen.findByText('A finished bug')).toBeInTheDocument()
+      expect(screen.queryByText(/outside the loaded set/i)).not.toBeInTheDocument()
+    })
+  })
 })

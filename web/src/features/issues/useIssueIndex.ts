@@ -28,7 +28,17 @@ import type { Issue } from '../../api/types'
  * one standing. Titles are enrichment, not the detail view's data, so callers
  * fall back to the bare id rather than reporting something they cannot act on.
  */
-export function useIssueIndex(): { index: Map<string, Issue>; issues: Issue[] } {
+export function useIssueIndex(): {
+  index: Map<string, Issue>
+  issues: Issue[]
+  /**
+   * True until at least one half has answered. Callers that only enrich a
+   * reference can ignore it — a missing title falls back to the id. A caller
+   * that reads *absence* as a fact, as the TDQ result count does, cannot: an
+   * index that has not loaded yet would report every hit as unresolvable.
+   */
+  isPending: boolean
+} {
   const open = useIssues({ limit: FETCH_LIMIT })
   const closed = useIssues({ status: ['closed'], limit: FETCH_LIMIT })
 
@@ -37,8 +47,9 @@ export function useIssueIndex(): { index: Map<string, Issue>; issues: Issue[] } 
   // does not do today, but only td decides that — reaches the pickers once.
   // Insertion order keeps the open rows ahead of the closed ones, which is
   // the order candidatesFor then preserves within each group.
+  const isPending = open.isPending || closed.isPending
   return useMemo(() => {
     const index = indexById([...(open.data?.issues ?? []), ...(closed.data?.issues ?? [])])
-    return { index, issues: [...index.values()] }
-  }, [open.data, closed.data])
+    return { index, issues: [...index.values()], isPending }
+  }, [open.data, closed.data, isPending])
 }

@@ -80,4 +80,84 @@ describe('IssueFilters', () => {
     vi.advanceTimersByTime(300)
     expect(onChange).toHaveBeenCalledWith({ limit: FETCH_LIMIT, search: undefined })
   })
+
+  describe('TDQ mode', () => {
+    it('runs nothing while a query is being typed — not even after the debounce', () => {
+      const onChange = vi.fn()
+      vi.useFakeTimers()
+
+      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      fireEvent.change(screen.getByLabelText('Search'), { target: { value: '?status =' } })
+
+      // A half-typed query is a parse error, and a parse error costs a
+      // subprocess and an error panel. Nothing may run before Enter.
+      vi.advanceTimersByTime(1000)
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('runs the query on Enter, with the ? stripped', () => {
+      const onChange = vi.fn()
+
+      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      const input = screen.getByLabelText('Search')
+      fireEvent.change(input, { target: { value: '?type = bug AND priority <= P1' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onChange).toHaveBeenCalledWith({
+        limit: FETCH_LIMIT,
+        query: 'type = bug AND priority <= P1',
+        search: undefined,
+      })
+    })
+
+    it('ignores Enter on a ? with nothing behind it', () => {
+      const onChange = vi.fn()
+      vi.useFakeTimers()
+
+      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      const input = screen.getByLabelText('Search')
+      fireEvent.change(input, { target: { value: '?  ' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      vi.advanceTimersByTime(1000)
+      expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('leaves query mode when the ? is removed, without waiting for Enter', () => {
+      const onChange = vi.fn()
+      vi.useFakeTimers()
+
+      render(
+        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
+      )
+      fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'auth' } })
+
+      vi.advanceTimersByTime(300)
+      expect(onChange).toHaveBeenCalledWith({
+        limit: FETCH_LIMIT, search: 'auth', query: undefined,
+      })
+    })
+
+    it('shows the committed query as the box contents, ? and all', () => {
+      render(
+        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={vi.fn()} />,
+      )
+
+      expect(screen.getByLabelText('Search')).toHaveValue('?type = bug')
+    })
+
+    it('keeps Enter out of full-text search — that path stays debounced', () => {
+      const onChange = vi.fn()
+      vi.useFakeTimers()
+
+      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      const input = screen.getByLabelText('Search')
+      fireEvent.change(input, { target: { value: 'auth' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onChange).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(300)
+      expect(onChange).toHaveBeenCalledWith({ limit: FETCH_LIMIT, search: 'auth' })
+    })
+  })
 })
