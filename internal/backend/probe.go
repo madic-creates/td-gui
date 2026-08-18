@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"io"
 	"net/http"
 )
 
@@ -70,5 +71,10 @@ func get(ctx context.Context, client *http.Client, url string) (int, bool) {
 		return 0, false
 	}
 	defer resp.Body.Close()
+	// Draining lets the transport return this connection to its keep-alive
+	// pool; closing an unread body forces it to be discarded instead, so a
+	// repeated liveness probe like this one would open a fresh TCP connection
+	// every call.
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode, true
 }

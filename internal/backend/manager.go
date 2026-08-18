@@ -192,6 +192,11 @@ func (m *Manager) spawn(ctx context.Context) error {
 			url := fmt.Sprintf("http://127.0.0.1:%d", info.Port)
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url+"/health", nil)
 			if resp, err := m.client.Do(req); err == nil {
+				// Draining before closing lets the transport reuse this
+				// connection for the next poll instead of discarding it —
+				// this loop can hit /health many times a second while the
+				// child comes up.
+				_, _ = io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
 					m.mu.Lock()
