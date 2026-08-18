@@ -60,8 +60,9 @@ linked under the box while you are typing one.
 
 A query runs when you press Enter, not while you type. A half-written query is
 a syntax error, and there is no point reporting one for a line you are still
-writing. If td cannot parse what you pressed Enter on, its own message appears
-above the list, word for word, and the list stays as it was.
+writing. If td cannot parse what you pressed Enter on, its own message takes
+the place of the list, word for word. Correct the query and press Enter again,
+or delete the question mark to go back to searching.
 
 The status chips still work in query mode. The query decides which issues
 match, and the chips narrow that answer afterwards, without running the query
