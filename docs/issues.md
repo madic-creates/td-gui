@@ -77,6 +77,30 @@ results are outside the loaded set rather than dropping them quietly.
 To go back to full-text search, delete the question mark. There is no way to
 search for text that itself begins with one.
 
+### The list is in the address bar
+
+What you filtered, searched, queried and sorted for is in the URL:
+
+```
+/?q=type+%3D+bug&status=open&sort=updated%3Adesc
+```
+
+That is what makes the list survive leaving it. Open an issue and come back,
+whether through `← back to list` or the browser's back button, and the list
+you left is the list you get. Reload it and nothing is lost. Send the link to
+someone else and they see the same list, because the URL says which one it is.
+An unfiltered list stays a plain `/`, so nothing is in the address bar that you
+did not ask for.
+
+Changing a filter does not add a history entry. The back button takes you to
+the page you were on before the list, not through every state the filters have
+been in — the search box is debounced, and each pause in typing would
+otherwise be its own entry to press back through.
+
+A URL you edited yourself is read as far as it makes sense: a status td does
+not have is ignored, and a sort it cannot read falls back to priority
+ascending.
+
 ## Reading an issue
 
 ![An issue detail page](images/issue-detail.png)

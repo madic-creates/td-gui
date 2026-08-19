@@ -49,10 +49,11 @@ of the URL — it is `FETCH_LIMIT`, not a setting.
 
 A URL is user input. Values are validated on the way in: a status the app does
 not know is dropped rather than forwarded to td serve, and an unparseable
-`sort` falls back to `DEFAULT_SORT`. The status vocabulary is already
-hardcoded in `IssueFilters`; that list stays the single source and is exported
-rather than copied. This is not the frontend second-guessing td's validation —
-these are the app's own view parameters, and td never sees them.
+`sort` falls back to `DEFAULT_SORT`. Both vocabularies live in `ordering.ts` —
+`STATUS_ORDER` already, and the sort keys and directions, which become exported
+value arrays with the type derived from them rather than a second copy. This is
+not the frontend second-guessing td's validation: these are the list's own view
+parameters, and td never sees them.
 
 ## What changes
 
@@ -79,8 +80,10 @@ changed, not the contract. Their tests stay green untouched.
 
 **The back link** carries the filter. `IssueRows` attaches
 `state={{ from: location.search }}` to each row link when the search is not
-empty, and `IssueDetail` builds its `← back to list` target from that,
-falling back to `/` when there is no state.
+empty, and `IssueDetail` builds its `← back to list` target from that, falling
+back to `/` when there is no state. Both sides go through `listStateFor` and
+`listPathFrom` in the same module, so the key and the check on it are written
+once; state that is not a query string this app wrote is not followed.
 
 This is deliberately narrow. Only list rows set `from`. A jump from one detail
 to another through `RelatedIssues` or `MetaPanel` does not carry it further,

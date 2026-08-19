@@ -1,7 +1,11 @@
 import type { Issue, IssueStatus, Priority } from '../../api/types'
 
-export type SortKey = 'id' | 'title' | 'priority' | 'updated'
-export type SortDirection = 'asc' | 'desc'
+/** Values, not only a type: the url has to be checked against them at runtime. */
+export const SORT_KEYS = ['id', 'title', 'priority', 'updated'] as const
+export const SORT_DIRECTIONS = ['asc', 'desc'] as const
+
+export type SortKey = (typeof SORT_KEYS)[number]
+export type SortDirection = (typeof SORT_DIRECTIONS)[number]
 
 export interface Sort {
   key: SortKey
