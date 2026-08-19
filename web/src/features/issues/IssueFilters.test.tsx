@@ -160,4 +160,62 @@ describe('IssueFilters', () => {
       expect(onChange).toHaveBeenCalledWith({ limit: FETCH_LIMIT, search: 'auth' })
     })
   })
+  describe('the clear button', () => {
+    it('offers nothing to clear while the box is empty', () => {
+      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={vi.fn()} />)
+
+      expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    })
+
+    it('empties the box and the params on the click, without waiting for the debounce', () => {
+      const onChange = vi.fn()
+      vi.useFakeTimers()
+      render(
+        <IssueFilters
+          params={{ limit: FETCH_LIMIT, search: 'auth', status: ['open'] }}
+          onChange={onChange}
+        />,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(screen.getByLabelText('Search')).toHaveValue('')
+      expect(onChange).toHaveBeenCalledTimes(1)
+      // The chips are a separate control and are left alone.
+      expect(onChange).toHaveBeenCalledWith({
+        limit: FETCH_LIMIT, status: ['open'], search: undefined, query: undefined,
+      })
+    })
+
+    it('leaves query mode on the same click', () => {
+      const onChange = vi.fn()
+      render(
+        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
+      )
+      expect(screen.getByLabelText('Search')).toHaveValue('?type = bug')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(onChange).toHaveBeenCalledWith({
+        limit: FETCH_LIMIT, search: undefined, query: undefined,
+      })
+      expect(screen.queryByText(/press Enter to run/)).not.toBeInTheDocument()
+    })
+
+    it('leaves the cursor in the box, ready for the next search', () => {
+      render(<IssueFilters params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(screen.getByLabelText('Search')).toHaveFocus()
+    })
+
+    it('goes away once there is nothing left to clear', () => {
+      render(<IssueFilters params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    })
+  })
 })

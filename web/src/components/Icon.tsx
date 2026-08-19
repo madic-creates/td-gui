@@ -43,6 +43,15 @@ export function CopyIcon() {
   )
 }
 
+/** Two strokes crossing, the same 16-box as every other icon. */
+export function ClearIcon() {
+  return (
+    <Icon>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </Icon>
+  )
+}
+
 /** Lid, handle, body, and the two ribs that keep it from reading as a cup. */
 export function TrashIcon() {
   return (

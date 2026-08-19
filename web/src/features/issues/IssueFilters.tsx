@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ClearIcon } from '../../components/Icon'
 import type { IssueListParams } from '../../api/queries'
 import type { IssueStatus } from '../../api/types'
 
@@ -41,6 +42,22 @@ interface Props {
 export default function IssueFilters({ params, onChange }: Props) {
   const [text, setText] = useState(() => textFor(params))
   const query = queryIn(text)
+  const input = useRef<HTMLInputElement>(null)
+
+  /**
+   * Empties the box in one click, whichever mode it is in.
+   *
+   * It does not wait for the debounce: the reader has said what they want in
+   * full, so there is no half-typed state left to protect them from, and a
+   * query would not be cleared by the timer at all — that path never runs one.
+   * The focus goes back where the cursor already was, so the next search is
+   * typed rather than aimed at.
+   */
+  function clear() {
+    setText('')
+    onChange({ ...params, search: undefined, query: undefined })
+    input.current?.focus()
+  }
 
   // Refs, not deps, so the debounce timer always applies to the latest
   // params/onChange (e.g. a status checkbox toggled mid-typing) without
@@ -79,17 +96,33 @@ export default function IssueFilters({ params, onChange }: Props) {
   return (
     <div className="border-b border-line px-4 py-2.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <input
-          type="search"
-          aria-label="Search"
-          placeholder="search … or ?type = bug for a td query"
-          className={`flex-1 rounded-sm border bg-surface-inset px-2.5 py-1.5 text-ink placeholder:text-ink-faint ${
-            query === null ? 'border-line' : 'border-accent font-mono'
-          }`}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
+        {/* The input keeps `type="search"` for its semantics, but Chrome's own
+            cancel button is hidden: it answers the mouse only, and two crosses
+            side by side would be the worst of both. */}
+        <div className="relative flex flex-1 items-center">
+          <input
+            ref={input}
+            type="search"
+            aria-label="Search"
+            placeholder="search … or ?type = bug for a td query"
+            className={`w-full rounded-sm border bg-surface-inset py-1.5 pl-2.5 pr-8 text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none ${
+              query === null ? 'border-line' : 'border-accent font-mono'
+            }`}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          {text !== '' && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onClick={clear}
+              className="absolute right-1.5 rounded-sm p-1 text-ink-faint hover:bg-transparent hover:text-ink"
+            >
+              <ClearIcon />
+            </button>
+          )}
+        </div>
         {statuses.map(status => {
           const active = params.status?.includes(status) ?? false
           return (
