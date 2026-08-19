@@ -251,3 +251,25 @@ export interface BoardResponse {
 export interface BoardCreateResponse {
   board: Board
 }
+
+/**
+ * GET /gui/about — td-gui's own route, not td's.
+ *
+ * Everything but `backend` is fixed for the life of the process. `backend`
+ * moves when Supervise respawns a backend that died, which is why the server
+ * nests it rather than flattening the whole thing.
+ */
+export interface About {
+  project: string
+  td_gui: string
+  td: string
+  td_path: string
+  go: string
+  platform: string
+  source: string
+  license: string
+  backend: {
+    url: string
+    owned: boolean
+  }
+}

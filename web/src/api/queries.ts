@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet, encodeId } from './client'
 import type {
-  IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority,
+  About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority,
 } from './types'
 
 export interface IssueListParams {
@@ -96,5 +96,21 @@ export function useQueryIds(query: string | undefined) {
     queryKey: queryKeys.ids(query ?? ''),
     queryFn: () => apiGet<QueryIdsResponse>(`/gui/query?q=${encodeURIComponent(query ?? '')}`),
     enabled: query !== undefined,
+  })
+}
+
+/**
+ * GET /gui/about — what this td-gui process is.
+ *
+ * Default staleness on purpose. `AppShell` mounts this once for the project
+ * name in the header, and `AboutPage` mounts it again on navigation, which
+ * refetches — so the one value in the payload that moves, `backend.owned`,
+ * is re-read exactly when it is about to be on screen. Anything longer-lived
+ * would need a second key to keep that honest.
+ */
+export function useAbout() {
+  return useQuery({
+    queryKey: ['about'] as const,
+    queryFn: () => apiGet<About>('/gui/about'),
   })
 }
