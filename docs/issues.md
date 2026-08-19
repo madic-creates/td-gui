@@ -35,6 +35,10 @@ The five status chips next to it are independent toggles: if none is active,
 no status filter is applied, and if several are active, issues matching any of
 them are shown.
 
+The ✕ at the right edge of the box empties it in one click, whether it holds
+a search or a query, and leaves the cursor there for the next one. The status
+chips are a separate control and stay as they are.
+
 Search and filters narrow the same request, so an empty result usually means
 the filters are tighter than you meant them to be:
 
