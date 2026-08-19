@@ -74,6 +74,24 @@ export function UnpinIcon() {
   )
 }
 
+/**
+ * Circle, dot, stem — an ⓘ rather than a `?`.
+ *
+ * A question mark promises help or documentation in nearly every application
+ * that has one, and the About page is neither. It also draws worse at this
+ * size: the bowl and tail of a `?` close up into a blot at 12px, while three
+ * separated shapes stay legible.
+ */
+export function AboutIcon() {
+  return (
+    <Icon>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 7.25v3.75" />
+      <path d="M8 5.05v.01" />
+    </Icon>
+  )
+}
+
 export function ArrowUpIcon() {
   return <Icon><path d="M8 13V3.5M4.25 7.25L8 3.5l3.75 3.75" /></Icon>
 }

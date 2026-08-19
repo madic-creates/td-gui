@@ -117,4 +117,24 @@ describe('CopyButton', () => {
 
     expect(screen.getByText('copied')).toBeInTheDocument()
   })
+
+  /**
+   * A page-level action needs a visible label; a copy sitting beside the value
+   * it copies does not. `text` is what separates the two, and the accessible
+   * name has to keep matching what is on screen — a control labelled one thing
+   * and named another cannot be asked for by the name a user can see.
+   */
+  it('shows a visible label when given one, without changing its name', () => {
+    render(<CopyButton value="…" label="Copy diagnostics" text="Copy diagnostics" />)
+
+    const button = screen.getByRole('button', { name: 'Copy diagnostics' })
+
+    expect(button).toHaveTextContent('Copy diagnostics')
+  })
+
+  it('stays icon-only when given no text', () => {
+    render(<CopyButton value="td-6a0883" label="Copy issue id" />)
+
+    expect(screen.getByRole('button', { name: 'Copy issue id' }).textContent).toBe('')
+  })
 })

@@ -195,10 +195,10 @@ func TestStartAndReapReturnsStartError(t *testing.T) {
 	}
 }
 
-// TestNewMuxKeepsTheQueryRouteOffTheProxy pins the routing split. /v1/ is
-// td's API and is proxied wholesale; /gui/query is td-gui's own and must
-// never reach td serve, which has no such route and would answer 404.
-func TestNewMuxKeepsTheQueryRouteOffTheProxy(t *testing.T) {
+// TestNewMuxKeepsTheGuiRoutesOffTheProxy pins the routing split. /v1/ is
+// td's API and is proxied wholesale; the /gui/ routes are td-gui's own and
+// must never reach td serve, which has no such route and would answer 404.
+func TestNewMuxKeepsTheGuiRoutesOffTheProxy(t *testing.T) {
 	var proxied []string
 	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxied = append(proxied, r.URL.Path)
@@ -207,9 +207,14 @@ func TestNewMuxKeepsTheQueryRouteOffTheProxy(t *testing.T) {
 	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	mux := newMux(assets, api, "/nonexistent/td", t.TempDir())
+	aboutHits := 0
+	aboutHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		aboutHits++
+		w.WriteHeader(http.StatusOK)
+	})
+	mux := newMux(assets, api, aboutHandler, "/nonexistent/td", t.TempDir())
 
-	for _, path := range []string{"/v1/issues", "/health", "/gui/query?q=status+%3D+open"} {
+	for _, path := range []string{"/v1/issues", "/health", "/gui/query?q=status+%3D+open", "/gui/about"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		mux.ServeHTTP(httptest.NewRecorder(), req)
 	}
@@ -217,5 +222,8 @@ func TestNewMuxKeepsTheQueryRouteOffTheProxy(t *testing.T) {
 	want := []string{"/v1/issues", "/health"}
 	if strings.Join(proxied, ",") != strings.Join(want, ",") {
 		t.Errorf("proxied = %v, want %v", proxied, want)
+	}
+	if aboutHits != 1 {
+		t.Errorf("about handler hits = %d, want 1", aboutHits)
 	}
 }

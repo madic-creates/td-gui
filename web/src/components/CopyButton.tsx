@@ -14,6 +14,15 @@ interface Props {
    * nothing about what, so this has to: `Copy issue id`, not `Copy`.
    */
   label: string
+  /**
+   * Visible text inside the button, for a page-level action that has no
+   * nearby value to explain it. Omitted, the button stays icon-only.
+   *
+   * Must read the same as `label` where both are set: `label` becomes the
+   * accessible name and would otherwise override the words on screen, leaving
+   * a control that cannot be asked for by the name a user can see.
+   */
+  text?: string
   className?: string
 }
 
@@ -34,7 +43,7 @@ interface Props {
  * look exactly like a successful copy, and the next paste would produce
  * whatever the clipboard held before.
  */
-export default function CopyButton({ value, label, className = '' }: Props) {
+export default function CopyButton({ value, label, text, className = '' }: Props) {
   const [outcome, setOutcome] = useState<Outcome>('idle')
 
   // Cleared on every settle, so a second click restarts the window instead of
@@ -63,9 +72,12 @@ export default function CopyButton({ value, label, className = '' }: Props) {
             settle('failed')
           }
         }}
-        className="inline-flex items-center rounded-sm border border-line p-1 text-ink-muted"
+        className={`inline-flex items-center rounded-sm border border-line text-ink-muted ${
+          text ? 'gap-1.5 px-2.5 py-1 text-[11px]' : 'p-1'
+        }`}
       >
         <CopyIcon />
+        {text}
       </button>
       {/* Mounted in every state and empty while idle. A live region that
           appears with its message already inside it is not reliably

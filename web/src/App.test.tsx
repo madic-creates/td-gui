@@ -31,4 +31,11 @@ describe('App routing', () => {
     expect(screen.getByText('Page not found')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'back to list' })).toHaveAttribute('href', '/')
   })
+
+  // Reachable by URL, not only through the header — the whole reason About is
+  // a route rather than a popover is that it can be linked to and reloaded.
+  it('matches /about rather than falling through to not-found', () => {
+    renderApp('/about')
+    expect(screen.queryByText('Page not found')).not.toBeInTheDocument()
+  })
 })

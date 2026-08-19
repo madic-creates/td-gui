@@ -70,6 +70,28 @@ Nothing else follows it out of the proxy. When td serve grows a query endpoint
 (td-894042 upstream), switch to it and delete `internal/tdquery`, the route in
 `newMux`, and this section.
 
+### `/gui/about` is the other kind of `/gui/` route
+
+`internal/about` answers `GET /gui/about` with what this td-gui process is:
+project directory, td-gui and td versions, the located td binary, Go and
+platform, source and license, plus the live backend URL and whether we started
+it.
+
+It shares the prefix with `/gui/query` and nothing else. It runs no
+subprocess, opens no database and reads nothing of td's — every value is
+either a constant or something `run()` already resolved at startup and used to
+print to stderr. The two routes have opposite lifetimes: `/gui/query` is
+scaffolding to delete, `/gui/about` is permanent, because td will never have
+an opinion about td-gui's own build version. That is also why it cannot live
+under `/v1/`.
+
+The token stays out of it structurally, not by care: the handler takes an
+`about.BackendState` interface naming only `BaseURL()` and `Owned()`, so the
+`*backend.Manager` it is handed arrives with `Token()` out of reach. A test
+asserts the response body contains neither a token value nor the word. Keep
+both — this is the one route that reports td-gui's own internals, so it is
+where a leak would come from.
+
 ### The token is visible in `ps` — deliberately
 
 `internal/backend/manager.go` spawns the backend as `td serve … --token
