@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/madic-creates/td-gui/internal/about"
 	"github.com/madic-creates/td-gui/internal/backend"
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
@@ -30,6 +31,14 @@ const minTdVersion = "v0.57.0"
 // buildVersion is stamped by the release job via
 // -ldflags "-X main.buildVersion=v1.2.3". Every other build reports "dev".
 var buildVersion = "dev"
+
+// What the About page says about where this program came from. Constants
+// rather than build flags: neither changes per build, and a release job that
+// forgot to stamp them would leave the page blank.
+const (
+	sourceURL = "https://github.com/madic-creates/td-gui"
+	license   = "Apache-2.0"
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -113,7 +122,16 @@ func run() error {
 		fmt.Fprintf(os.Stderr, "td-gui: backend restarted on %s\n", baseURL)
 	})
 
-	mux := newMux(assets, apiSwitch, td, baseDir)
+	mux := newMux(assets, apiSwitch, about.Handler(about.Info{
+		Project:  baseDir,
+		TdGui:    buildVersion,
+		Td:       version,
+		TdPath:   td,
+		Go:       runtime.Version(),
+		Platform: runtime.GOOS + "/" + runtime.GOARCH,
+		Source:   sourceURL,
+		License:  license,
+	}, mgr), td, baseDir)
 
 	fmt.Fprintf(os.Stderr, "td-gui is running on %s\n", origin)
 	fmt.Fprintf(os.Stderr, "  project:  %s\n", baseDir)
@@ -135,21 +153,27 @@ func run() error {
 	return nil
 }
 
-// newMux routes the three things td-gui serves.
+// newMux routes the four things td-gui serves.
 //
 // /v1/ and /health are td's, forwarded to td serve untouched. /gui/ is
-// td-gui's own: today only the TDQ query route, which needs a subprocess
-// because td serve v0.57.0 answers no query of any kind. The prefix says
-// honestly which half of the surface a caller is on, and marks what gets
-// deleted once td grows the endpoint itself.
+// td-gui's own, and holds two routes with opposite lifetimes: the TDQ query
+// route needs a subprocess because td serve v0.57.0 answers no query of any
+// kind, and disappears once td grows the endpoint itself; /gui/about reports
+// this process's own versions and paths, which td will never have an opinion
+// about. The prefix says honestly which half of the surface a caller is on.
+//
+// The about handler arrives built rather than assembled from ingredients
+// here: it needs the startup facts and the live backend state, and passing
+// both through this signature would say less about the routing than it costs.
 //
 // OriginGuard wraps the result at the call site, so every route here is
 // covered by it.
-func newMux(assets, api http.Handler, td, baseDir string) *http.ServeMux {
+func newMux(assets, api, aboutHandler http.Handler, td, baseDir string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", api)
 	mux.Handle("/health", api)
 	mux.Handle("/gui/query", tdquery.Handler(td, baseDir))
+	mux.Handle("/gui/about", aboutHandler)
 	mux.Handle("/", assets)
 	return mux
 }
