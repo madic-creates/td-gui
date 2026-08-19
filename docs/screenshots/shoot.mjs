@@ -315,16 +315,24 @@ async function main() {
 		await p.goto('/')
 		await p.shoot('issue-list', await p.pageClip())
 
-		// 2. The detail page, down to where the activity shot picks up.
+		// 2. The saved-query menu, open over the list it filters. Clipped to the
+		// menu rather than to the content, so the shot is the control and its
+		// context and not another photograph of the whole list. `[role=menu]` is
+		// a semantic role, not a Tailwind class, so it survives a styling edit
+		// the way the text lookups do.
+		await p.click('Saved queries')
+		await p.shoot('saved-queries', await p.pageClip({ endExpr: "document.querySelector('[role=menu]')" }))
+
+		// 3. The detail page, down to where the activity shot picks up.
 		await p.goto(`/issues/${hero}`)
 		await p.shoot('issue-detail', await p.pageClip({ endExpr: section('Activity'), endEdge: 'top', pad: 0 }))
 
-		// 3. Activity and the comment box, further down the same page. Anchored on
+		// 4. Activity and the comment box, further down the same page. Anchored on
 		// Comments rather than on Metadata: Metadata is in the sidebar and starts
 		// near the top of the page, which would ask for a negative height.
 		await p.shoot('issue-activity', await p.regionClip(section('Activity'), section('Comments')))
 
-		// 4. The approve form, with its attribution radio group. No padding at all:
+		// 5. The approve form, with its attribution radio group. No padding at all:
 		// the sidebar's first card begins one pixel under the form, so any pad drags
 		// a slice of its rounded border into the shot.
 		await p.click('Approve')
@@ -333,12 +341,12 @@ async function main() {
 			await p.pageClip({ endExpr: `document.querySelector('input[type=radio]')?.closest('form')`, pad: 0 }),
 		)
 
-		// 5. The editor, opened in place on the detail page.
+		// 6. The editor, opened in place on the detail page.
 		await p.goto(`/issues/${hero}`)
 		await p.click('Edit')
 		await p.shoot('issue-edit', await p.pageClip())
 
-		// 6. The create form, every field td accepts at creation. Filled in rather
+		// 7. The create form, every field td accepts at creation. Filled in rather
 		// than blank: an empty form shows the fields exist but not what any of them
 		// takes, and the parent field is only meaningful with an id in it. Nothing
 		// is submitted — the form is populated and photographed, not sent.
@@ -366,19 +374,19 @@ async function main() {
 		await p.pickFirstOption()
 		await p.shoot('issue-new', await p.pageClip())
 
-		// 7. The board list, builtin board included.
+		// 8. The board list, builtin board included.
 		await p.goto('/boards')
 		await p.shoot('board-list', await p.pageClip())
 
-		// 8. The backlog view: a pinned block and a query-ordered one.
+		// 9. The backlog view: a pinned block and a query-ordered one.
 		await p.goto(`/boards/${board.id}?view=backlog`)
 		await p.shoot('board-backlog', await p.pageClip())
 
-		// 9. Swimlanes.
+		// 10. Swimlanes.
 		await p.goto(`/boards/${board.id}?view=swimlanes`)
 		await p.shoot('board-swimlanes', await p.pageClip())
 
-		// 10. The About page, reached from the icon in the header. Every value on
+		// 11. The About page, reached from the icon in the header. Every value on
 		// it comes from the process that is being photographed, so the td path is
 		// whichever binary this run was given — see README.md for why that must not
 		// be one under a home directory.

@@ -83,6 +83,8 @@ search for text that itself begins with one.
 
 ### Saving a query
 
+![The saved-query menu](images/saved-queries.png)
+
 A query you worked out is worth keeping, and **Saved queries** under the box is
 where it goes. It opens a menu of everything the project has saved, and picking
 one puts it in the box and runs it straight away.

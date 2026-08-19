@@ -1,6 +1,6 @@
 # Regenerating the documentation screenshots
 
-The ten images in [../images](../images) are shot against a seeded demo
+The eleven images in [../images](../images) are shot against a seeded demo
 project, not against td-gui's own backlog. Two scripts do it:
 
 ```bash
@@ -36,11 +36,12 @@ browser window.
 It reads the issue and board ids off the running instance, so a fresh seed with
 different ids needs no edit here.
 
-## The ten images
+## The eleven images
 
 | Image | Where it comes from |
 | ----- | ------------------- |
 | `issue-list` | `/`, whole page |
+| `saved-queries` | `/` with the saved-query menu open, clipped to the menu |
 | `issue-detail` | the hero issue, down to the Activity heading |
 | `issue-activity` | the same page, Activity through Comments |
 | `issue-review` | the same page after clicking **Approve** |
