@@ -60,7 +60,7 @@ rest of the line is read as a TDQ query:
 ```
 
 TDQ is the same query language boards are built on, and the reference is
-linked under the box while you are typing one.
+linked under the box at all times, whether or not you are writing a query.
 
 A query runs when you press Enter, not while you type. A half-written query is
 a syntax error, and there is no point reporting one for a line you are still

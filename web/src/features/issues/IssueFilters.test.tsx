@@ -225,7 +225,7 @@ describe('IssueFilters', () => {
       expect(onChange).toHaveBeenCalledWith({
         limit: FETCH_LIMIT, search: undefined, query: undefined,
       })
-      expect(screen.queryByText(/press Enter to run/)).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Search')).toHaveValue('')
     })
 
     it('leaves the cursor in the box, ready for the next search', () => {
@@ -242,6 +242,26 @@ describe('IssueFilters', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
 
       expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('the TDQ hint', () => {
+    it('stands under the box before anyone has typed a query', () => {
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={vi.fn()} />)
+
+      // The hint is how a reader learns the box takes a query at all, so it
+      // cannot wait for the one thing it is there to teach.
+      expect(screen.getByText(/press Enter to run/)).toBeInTheDocument()
+    })
+
+    it('stays put once a query is running', () => {
+      render(
+        <IssueFilters
+          {...bar} params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByText(/press Enter to run/)).toBeInTheDocument()
     })
   })
 

@@ -182,18 +182,21 @@ export default function IssueFilters({ params, board, onChange, onPick, onSaved 
         <SavedQueryBar
           query={params.query} board={board} onPick={pick} onSaved={onSaved}
         />
-        {query !== null && (
-          <p className="text-[11px] text-ink-faint">
-            TDQ — press Enter to run. See the{' '}
-            <a
-              href="https://td.haplab.com/docs/query-language"
-              target="_blank" rel="noreferrer"
-              className="text-ink-muted underline"
-            >
-              query language reference
-            </a>.
-          </p>
-        )}
+        {/* Always on. It used to appear with the leading ?, which meant the
+            one sentence explaining that the box takes a query at all was
+            hidden from everyone who did not already know. It therefore has to
+            read true in both modes — hence "start with ?" rather than an
+            instruction aimed at a query that is already being typed. */}
+        <p className="text-[11px] text-ink-faint">
+          TDQ — start with ? and press Enter to run. See the{' '}
+          <a
+            href="https://td.haplab.com/docs/query-language"
+            target="_blank" rel="noreferrer"
+            className="text-ink-muted underline"
+          >
+            query language reference
+          </a>.
+        </p>
       </div>
     </div>
   )
