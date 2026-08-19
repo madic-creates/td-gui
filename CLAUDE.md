@@ -1,4 +1,92 @@
-# td-gui — Project Conventions
+# td-gui
+
+Always check if you are running in Sidecar: run sidecar --agents for capabilities.
+
+## What this repository is
+
+td-gui is a local web UI for [td](https://github.com/marcus/td), an issue
+tracker built for work that is handed from one session to the next: agents and
+humans pass tasks to each other through handoffs and reviews, and td keeps the
+record. This repo dogfoods td on itself, so `.todos/` at the root is real
+project state, not a fixture.
+
+It ships as **one binary**: a Go server with the React single-page app embedded
+in it. The server does not implement an issue tracker. It finds or starts td's
+own `td serve` HTTP API and reverse-proxies to it, so the browser is really
+talking to td, and every write passes through td's migrations, action log and
+review policy.
+
+Two things this implies, and they explain most of the design:
+
+- td-gui owns **presentation**, td owns **truth**. Validation limits, available
+  transitions, review attribution rules and error wording all come from td over
+  the wire; the frontend renders the answer instead of predicting it.
+- td-gui is a **client of a CLI tool it does not control**. Where td's interface
+  is awkward (no query endpoint, token only as a flag), the workaround is
+  documented and fenced in rather than hidden. See the two "deliberately"
+  sections below.
+
+Runtime requirements: `td` v0.57.0 or newer on `PATH` (the minimum is pinned as
+`minTdVersion` in `cmd/td-gui/main.go` and checked at startup), plus a project
+someone has already run `td init` in. td-gui refuses rather than initialising
+one.
+
+`README.md` and `docs/` describe what the app does from a user's point of view;
+read those for feature behaviour. This file is about how the code is built and
+what must not change.
+
+## How a request flows
+
+```
+browser
+  -> td-gui listener            127.0.0.1, free port or --port
+     -> OriginGuard             rejects a foreign Origin/Referer
+        -> mux
+           /v1/, /health  -> reverse proxy -> td serve   (token injected here)
+           /gui/query     -> `td query` subprocess       (the one exception)
+           /gui/about     -> this process's own versions and paths
+           /              -> embedded SPA, index.html fallback for client routes
+```
+
+The browser never sees the bearer token: the proxy strips any client-supplied
+`Authorization` header and sets its own. Live updates ride td's SSE stream at
+`/v1/events`; the proxy flushes unbuffered so the stream is not swallowed, and
+the SPA invalidates its whole query cache on each `refresh` event rather than
+applying deltas.
+
+If a `td serve` is already running for the project (an agent, `td monitor`),
+td-gui probes it and reuses it, and leaves it running on exit. A backend td-gui
+started itself is stopped by td-gui, and restarted once if it dies. A restart
+means a new port and a new token, so the proxy handler is hot-swapped behind
+`proxy.Switch` instead of rebuilding the listener, which would drop the SSE
+connection.
+
+Loopback is not a boundary against the browser: any page can call localhost,
+so `OriginGuard` checks `Origin`/`Referer` and lets header-less non-browser
+clients through, since those could run the td CLI anyway.
+
+## Repository map
+
+| Path | What lives there |
+| ---- | ---------------- |
+| `cmd/td-gui/main.go` | Flags, startup order, the version gate, `newMux`, listener, browser open, shutdown |
+| `internal/tdbin` | Locating the td binary and parsing/comparing `td --version` |
+| `internal/backend` | `.todos/serve-port` discovery, probing an existing instance for reuse, spawning and supervising our own |
+| `internal/proxy` | Reverse proxy with token injection and SSE-safe flushing, `Switch` for restarts, `OriginGuard` |
+| `internal/tdquery` | `GET /gui/query`, the only path that shells out instead of proxying |
+| `internal/about` | `GET /gui/about`, td-gui's own versions, paths and backend state |
+| `internal/web` | `go:embed` of the Vite bundle and the SPA fallback handler |
+| `test/contract` | End-to-end against a **real** td binary; skips itself when td is absent |
+| `web/src/api` | Typed client (`ApiError` carries td's code, message and field errors), TanStack Query hooks, the SSE hook |
+| `web/src/features/issues` | Issue list, filters, detail, forms, transitions, review panel |
+| `web/src/features/boards` | Saved TDQ boards: backlog view with pinning, swimlanes with drag-to-transition |
+| `web/src/components`, `web/src/lib` | Shared UI (Markdown, prose toggle, tags, error panels) and helpers (theme, formatting) |
+| `docs/` | User documentation; `docs/superpowers/specs` holds per-feature design notes, which are history, not usage docs |
+
+Stack: Go standard library only on the server. React 19, react-router,
+TanStack Query, Tailwind 4, Vite, TypeScript on the frontend, tested with
+Vitest and Testing Library. Tests sit next to the code they cover, as
+`*_test.go` and `*.test.ts(x)`.
 
 ## Language: English only
 
