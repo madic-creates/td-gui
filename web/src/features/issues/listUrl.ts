@@ -42,7 +42,22 @@ function readSort(value: string | null): Sort {
   return { key, direction }
 }
 
-export function readListUrl(search: URLSearchParams): { params: IssueListParams; sort: Sort } {
+export interface ListUrl {
+  params: IssueListParams
+  sort: Sort
+  /**
+   * The board the query in `params.query` was loaded from, if it was loaded
+   * from one. Provenance, not a request: `q` is what runs, and this only says
+   * where it came from, so the bar can offer to write a change back.
+   *
+   * Whether a board still answers to this id is not decided here. These two
+   * functions see no board list and are not going to grow one — an id nothing
+   * matches reaches `SavedQueryBar`, which treats it as no board at all.
+   */
+  board?: string
+}
+
+export function readListUrl(search: URLSearchParams): ListUrl {
   const params: IssueListParams = { limit: FETCH_LIMIT }
 
   // `q` is read with `get`, not truthiness: an empty TDQ is legal and matches
@@ -59,19 +74,33 @@ export function readListUrl(search: URLSearchParams): { params: IssueListParams;
   const status = search.getAll('status').filter(isStatus)
   if (status.length) params.status = status
 
-  return { params, sort: readSort(search.get('sort')) }
+  // Only beside a query. A `board` on a full-text search or a bare list names
+  // nothing that ran, and looking its query up would make the url say
+  // something other than what is on screen.
+  const board = params.query !== undefined ? (search.get('board') ?? undefined) : undefined
+
+  return { params, sort: readSort(search.get('sort')), board }
 }
 
 /**
  * The url for a list state. `limit` stays out — it is `FETCH_LIMIT`, not a
  * setting — and so do `type` and `priority`, which no control sets today;
  * when one does, it belongs here beside the status chips.
+ *
+ * `board` follows the query and is dropped without one, so the two parameters
+ * can only ever be written in a combination `readListUrl` reads back.
  */
-export function writeListUrl(params: IssueListParams, sort: Sort): URLSearchParams {
+export function writeListUrl(
+  params: IssueListParams,
+  sort: Sort,
+  board?: string,
+): URLSearchParams {
   const search = new URLSearchParams()
 
-  if (params.query !== undefined) search.set('q', params.query)
-  else if (params.search) search.set('search', params.search)
+  if (params.query !== undefined) {
+    search.set('q', params.query)
+    if (board) search.set('board', board)
+  } else if (params.search) search.set('search', params.search)
 
   params.status?.forEach(status => search.append('status', status))
 

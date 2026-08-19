@@ -7,8 +7,14 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import IssueList from './IssueList'
 import { makeIssue } from './issue.fixture'
+import { makeBoard } from '../boards/board.fixture'
 
-const server = setupServer()
+/* The filter row carries the saved-query bar, so every case asks for boards
+   whether it cares about them or not. */
+const server = setupServer(
+  http.get('/v1/boards', () =>
+    HttpResponse.json({ ok: true, data: { boards: [makeBoard()] } })),
+)
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -482,6 +488,59 @@ describe('IssueList', () => {
 
       expect(router.state.location.search).toBe('?status=in_progress')
       expect(router.state.historyAction).toBe('REPLACE')
+    })
+  })
+
+  describe('saved queries', () => {
+    const emptyList = http.get('/v1/issues', () => HttpResponse.json({
+      ok: true,
+      data: { issues: [], limit: 50, offset: 0, total: 0, has_more: false },
+    }))
+
+    it('puts a picked query and the board it came from in the url', async () => {
+      server.use(emptyList, http.get('/gui/query', () =>
+        HttpResponse.json({ ok: true, data: { ids: [] } })))
+
+      renderList()
+      await userEvent.click(screen.getByRole('button', { name: 'Saved queries' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: /Sprint 1/ }))
+
+      await waitFor(() => expect(url()).toBe('?q=priority+%3C%3D+P1&board=bd-sprint1'))
+    })
+
+    it('names the new board in the url once the query has been saved', async () => {
+      server.use(http.get('/gui/query', () => HttpResponse.json({ ok: true, data: { ids: [] } })),
+        http.post('/v1/boards', () => HttpResponse.json(
+          { ok: true, data: { board: makeBoard({ id: 'bd-new' }) } }, { status: 201 })))
+
+      renderList('/?q=type+%3D+bug')
+      await userEvent.click(await screen.findByRole('button', { name: 'Save' }))
+      await userEvent.type(screen.getByLabelText('Board name'), 'Bugs')
+      await userEvent.click(screen.getByRole('button', { name: 'Save board' }))
+
+      await waitFor(() => expect(url()).toBe('?q=type+%3D+bug&board=bd-new'))
+    })
+
+    it('keeps the board while the query is edited, so the change can be written back', async () => {
+      server.use(http.get('/gui/query', () => HttpResponse.json({ ok: true, data: { ids: [] } })))
+
+      renderList('/?q=priority+%3C%3D+P1&board=bd-sprint1')
+      const input = await screen.findByLabelText('Search')
+      await userEvent.clear(input)
+      await userEvent.type(input, '?priority <= P0{Enter}')
+
+      await waitFor(() => expect(url()).toBe('?q=priority+%3C%3D+P0&board=bd-sprint1'))
+      expect(await screen.findByRole('button', { name: 'Update "Sprint 1"' })).toBeInTheDocument()
+    })
+
+    it('drops the board when the query goes, since it names nothing then', async () => {
+      server.use(emptyList, http.get('/gui/query', () =>
+        HttpResponse.json({ ok: true, data: { ids: [] } })))
+
+      renderList('/?q=priority+%3C%3D+P1&board=bd-sprint1')
+      await userEvent.click(await screen.findByRole('button', { name: 'Clear search' }))
+
+      await waitFor(() => expect(url()).toBe(''))
     })
   })
 })

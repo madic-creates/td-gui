@@ -56,6 +56,20 @@ describe('readListUrl', () => {
   it('reads an empty search as no search at all', () => {
     expect(read('search=').params.search).toBeUndefined()
   })
+
+  it('reads the board a query was saved as', () => {
+    expect(read('q=type+%3D+bug&board=bd-sprint1').board).toBe('bd-sprint1')
+  })
+
+  it('drops a board id arriving without a query, since it names nothing that ran', () => {
+    expect(read('board=bd-sprint1').board).toBeUndefined()
+    expect(read('search=oauth&board=bd-sprint1').board).toBeUndefined()
+  })
+
+  it('keeps the board out of the params td sees', () => {
+    expect(read('q=type+%3D+bug&board=bd-sprint1').params)
+      .toEqual({ limit: FETCH_LIMIT, query: 'type = bug' })
+  })
 })
 
 describe('writeListUrl', () => {
@@ -85,6 +99,16 @@ describe('writeListUrl', () => {
   it('writes an empty query, which is a query and not an absent one', () => {
     expect(write({ limit: FETCH_LIMIT, query: '' }, DEFAULT_SORT)).toBe('q=')
   })
+
+  it('writes the board beside the query it came from', () => {
+    expect(write({ limit: FETCH_LIMIT, query: 'type = bug' }, DEFAULT_SORT, 'bd-sprint1'))
+      .toBe('q=type+%3D+bug&board=bd-sprint1')
+  })
+
+  it('writes no board without a query to attach it to', () => {
+    expect(write({ limit: FETCH_LIMIT, search: 'oauth' }, DEFAULT_SORT, 'bd-sprint1'))
+      .toBe('search=oauth')
+  })
 })
 
 describe('the two together', () => {
@@ -92,6 +116,12 @@ describe('the two together', () => {
     const params = { limit: FETCH_LIMIT, query: 'type = bug AND priority <= P1', status: ['open' as const] }
     const sort = { key: 'title' as const, direction: 'desc' as const }
     expect(readListUrl(writeListUrl(params, sort))).toEqual({ params, sort })
+  })
+
+  it('round trips a query saved as a board', () => {
+    const params = { limit: FETCH_LIMIT, query: 'type = bug' }
+    expect(readListUrl(writeListUrl(params, DEFAULT_SORT, 'bd-sprint1')))
+      .toEqual({ params, sort: DEFAULT_SORT, board: 'bd-sprint1' })
   })
 
   it('round trips a full-text search', () => {

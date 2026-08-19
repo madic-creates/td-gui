@@ -16,6 +16,10 @@ empty query, and td fills it with the whole project.
 **New board** creates one. Deleting a board asks once and removes only the
 board itself; the issues it selected are untouched.
 
+Boards are also where the issue list's saved queries live. A query saved from
+the search box is a board like any other and appears in this list; see
+[Saving a query](issues.md#saving-a-query).
+
 ## Creating a board
 
 A board needs a name and a TDQ query:

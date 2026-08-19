@@ -67,6 +67,10 @@ renders:
 | present | equal | nothing to save |
 | present | different | **Update "Bugs P1"** and **Save as new** |
 
+Until the board list arrives there is a fourth, momentary state: the url names
+a board and nothing can yet be said about it. The bar offers nothing there
+rather than flashing **Save** at a query that already has a home.
+
 The comparison is on the exact string. Whitespace differences count as a
 change, which is the conservative direction: it offers a write that turns out
 to be a no-op, rather than hiding one the reader wanted.
@@ -77,6 +81,12 @@ A button beside the search box opens a menu of the project's boards, each
 shown as name over query, the way the boards list shows them. Choosing one
 sets `q` and `board` and runs immediately, without Enter: a saved query is
 finished by definition, and the Enter rule exists to protect half-typed ones.
+It also goes into the box, `?` and all — the box is the one control that says
+what is running, and it seeds itself from the url only once.
+
+The menu is there whether or not a query is running. An empty box is exactly
+where a saved query is wanted, so nothing about the picker waits for one; only
+the write buttons do.
 
 **Boards with an empty query are not listed.** An empty query means two
 different things depending on the board, and neither of them survives the trip
@@ -133,12 +143,18 @@ own.
 **`listUrl.ts`** reads and writes `board`, with the "only beside `q`" rule in
 `readListUrl`.
 
-**`IssueFilters.tsx`** renders the bar beside its input and passes changes to
-the same `onChange` it already has. Its own behaviour — the `?` prefix, the
-debounce, Enter, the clear button — is untouched.
+**`IssueFilters.tsx`** renders the bar under its input and grows three props:
+`board`, and an `onPick`/`onSaved` pair. `onPick` is separate from the
+`onChange` it already had because a pick is the one change that also names a
+board, and because the box has to follow it — the text state seeds itself from
+the url once and would otherwise keep showing the query that was replaced. Its
+own behaviour — the `?` prefix, the debounce, Enter, the clear button — is
+untouched, and its existing tests pass unchanged.
 
-**`IssueList.tsx`** is unchanged beyond what `readListUrl`/`writeListUrl`
-already carry for it.
+**`IssueList.tsx`** reads `board` out of the url and defaults it back into
+every write, so editing a query keeps the board it came from. Nothing has to
+clear it on the way out of query mode: `writeListUrl` drops a board with no
+query to belong to.
 
 Nothing changes on the Go side: no route, no subprocess, and the board calls
 go through the proxy to `td serve` like every other write.
@@ -147,13 +163,16 @@ go through the proxy to `td serve` like every other write.
 
 - `listUrl.test.ts` — `board` round-trips beside `q`; a `board` without a `q`
   is dropped.
-- `SavedQueryBar.test.tsx` — the three states of the bar; an id that names no
-  board falls back to the first of them; a board with an empty query is absent
-  from the menu; choosing one sets query and id;
-  Save posts and reports the new id; Update patches with the board's name;
-  a name td rejects renders td's message under the field.
-- `IssueFilters.test.tsx` — the bar appears only when the box holds a query,
-  and the existing search behaviour is unaffected.
+- `SavedQueryBar.test.tsx` — the three states of the bar, plus the momentary
+  fourth; an id that names no board falls back to **Save**; a board with an
+  empty query is absent from the menu; choosing one reports query and id; Save
+  posts and reports the new id; Update patches with the board's name; a name
+  td rejects renders td's message under the field.
+- `IssueFilters.test.tsx` — the picker is there with an empty box, and a
+  picked query lands in the box with its `?`.
+- `IssueList.test.tsx` — a pick writes `q` and `board`; a save writes the new
+  `board`; editing the query keeps the board so the change can be written
+  back; clearing the box drops both.
 
 ## Documentation
 

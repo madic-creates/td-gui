@@ -1,7 +1,33 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render as rtlRender, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { setupServer } from 'msw/node'
+import { http, HttpResponse } from 'msw'
 import IssueFilters from './IssueFilters'
 import { FETCH_LIMIT } from '../../api/queries'
+import { makeBoard } from '../boards/board.fixture'
+
+// The filters carry SavedQueryBar, which asks td for the project's boards.
+const server = setupServer(
+  http.get('/v1/boards', () =>
+    HttpResponse.json({ ok: true, data: { boards: [makeBoard()] } })),
+)
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
+
+/** Every case renders the bar too, so every case needs a query client. */
+function Providers({ children }: { children: React.ReactNode }) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+}
+const render = (ui: React.ReactElement) => rtlRender(ui, { wrapper: Providers })
+
+/** The handlers the saved-query bar needs, for cases that ignore it. */
+const bar = { onPick: vi.fn(), onSaved: vi.fn() }
 
 afterEach(() => {
   vi.useRealTimers()
@@ -12,7 +38,7 @@ describe('IssueFilters', () => {
     const onChange = vi.fn()
     vi.useFakeTimers()
 
-    render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+    render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
     const input = screen.getByLabelText('Search')
     fireEvent.change(input, { target: { value: 'a' } })
     fireEvent.change(input, { target: { value: 'au' } })
@@ -31,7 +57,7 @@ describe('IssueFilters', () => {
     const onChange = vi.fn()
     vi.useFakeTimers()
 
-    render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+    render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
     const input = screen.getByLabelText('Search')
 
     fireEvent.change(input, { target: { value: 'a' } })
@@ -52,14 +78,14 @@ describe('IssueFilters', () => {
     vi.useFakeTimers()
 
     const { rerender } = render(
-      <IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />,
+      <IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />,
     )
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'x' } })
 
     // A status filter is toggled directly (not through the debounced path)
     // while the search debounce is still pending.
     rerender(
-      <IssueFilters params={{ limit: FETCH_LIMIT, status: ['open'] }} onChange={onChange} />,
+      <IssueFilters {...bar} params={{ limit: FETCH_LIMIT, status: ['open'] }} onChange={onChange} />,
     )
 
     vi.advanceTimersByTime(300)
@@ -73,7 +99,7 @@ describe('IssueFilters', () => {
     vi.useFakeTimers()
 
     render(
-      <IssueFilters params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={onChange} />,
+      <IssueFilters {...bar} params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={onChange} />,
     )
     fireEvent.change(screen.getByLabelText('Search'), { target: { value: '' } })
 
@@ -86,7 +112,7 @@ describe('IssueFilters', () => {
       const onChange = vi.fn()
       vi.useFakeTimers()
 
-      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
       fireEvent.change(screen.getByLabelText('Search'), { target: { value: '?status =' } })
 
       // A half-typed query is a parse error, and a parse error costs a
@@ -98,7 +124,7 @@ describe('IssueFilters', () => {
     it('runs the query on Enter, with the ? stripped', () => {
       const onChange = vi.fn()
 
-      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
       const input = screen.getByLabelText('Search')
       fireEvent.change(input, { target: { value: '?type = bug AND priority <= P1' } })
       fireEvent.keyDown(input, { key: 'Enter' })
@@ -114,7 +140,7 @@ describe('IssueFilters', () => {
       const onChange = vi.fn()
       vi.useFakeTimers()
 
-      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
       const input = screen.getByLabelText('Search')
       fireEvent.change(input, { target: { value: '?  ' } })
       fireEvent.keyDown(input, { key: 'Enter' })
@@ -128,7 +154,7 @@ describe('IssueFilters', () => {
       vi.useFakeTimers()
 
       render(
-        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
+        <IssueFilters {...bar} params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
       )
       fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'auth' } })
 
@@ -140,7 +166,7 @@ describe('IssueFilters', () => {
 
     it('shows the committed query as the box contents, ? and all', () => {
       render(
-        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={vi.fn()} />,
+        <IssueFilters {...bar} params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={vi.fn()} />,
       )
 
       expect(screen.getByLabelText('Search')).toHaveValue('?type = bug')
@@ -150,7 +176,7 @@ describe('IssueFilters', () => {
       const onChange = vi.fn()
       vi.useFakeTimers()
 
-      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} />)
       const input = screen.getByLabelText('Search')
       fireEvent.change(input, { target: { value: 'auth' } })
       fireEvent.keyDown(input, { key: 'Enter' })
@@ -162,7 +188,7 @@ describe('IssueFilters', () => {
   })
   describe('the clear button', () => {
     it('offers nothing to clear while the box is empty', () => {
-      render(<IssueFilters params={{ limit: FETCH_LIMIT }} onChange={vi.fn()} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={vi.fn()} />)
 
       expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
     })
@@ -171,7 +197,7 @@ describe('IssueFilters', () => {
       const onChange = vi.fn()
       vi.useFakeTimers()
       render(
-        <IssueFilters
+        <IssueFilters {...bar}
           params={{ limit: FETCH_LIMIT, search: 'auth', status: ['open'] }}
           onChange={onChange}
         />,
@@ -190,7 +216,7 @@ describe('IssueFilters', () => {
     it('leaves query mode on the same click', () => {
       const onChange = vi.fn()
       render(
-        <IssueFilters params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
+        <IssueFilters {...bar} params={{ limit: FETCH_LIMIT, query: 'type = bug' }} onChange={onChange} />,
       )
       expect(screen.getByLabelText('Search')).toHaveValue('?type = bug')
 
@@ -203,7 +229,7 @@ describe('IssueFilters', () => {
     })
 
     it('leaves the cursor in the box, ready for the next search', () => {
-      render(<IssueFilters params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
 
@@ -211,11 +237,38 @@ describe('IssueFilters', () => {
     })
 
     it('goes away once there is nothing left to clear', () => {
-      render(<IssueFilters params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT, search: 'auth' }} onChange={vi.fn()} />)
 
       fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
 
       expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('saved queries', () => {
+    it('offers the saved queries beside the box, whether or not one is running', () => {
+      render(<IssueFilters {...bar} params={{ limit: FETCH_LIMIT }} onChange={vi.fn()} />)
+
+      expect(screen.getByRole('button', { name: 'Saved queries' })).toBeInTheDocument()
+    })
+
+    it('puts a picked query in the box, ? and all, and runs it', async () => {
+      const onChange = vi.fn()
+      const onPick = vi.fn()
+      render(
+        <IssueFilters
+          {...bar} params={{ limit: FETCH_LIMIT }} onChange={onChange} onPick={onPick}
+        />,
+      )
+
+      await userEvent.click(screen.getByRole('button', { name: 'Saved queries' }))
+      await userEvent.click(await screen.findByRole('menuitem', { name: /Sprint 1/ }))
+
+      // The box is the one control that says what is running, so it follows a
+      // pick even though nothing was typed into it.
+      expect(screen.getByLabelText('Search')).toHaveValue('?priority <= P1')
+      expect(onPick).toHaveBeenCalledWith('priority <= P1', 'bd-sprint1')
+      expect(onChange).not.toHaveBeenCalled()
     })
   })
 })

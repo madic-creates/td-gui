@@ -81,6 +81,38 @@ results are outside the loaded set rather than dropping them quietly.
 To go back to full-text search, delete the question mark. There is no way to
 search for text that itself begins with one.
 
+### Saving a query
+
+A query you worked out is worth keeping, and **Saved queries** under the box is
+where it goes. It opens a menu of everything the project has saved, and picking
+one puts it in the box and runs it straight away.
+
+A saved query is a [board](boards.md). There is no second kind of saved search:
+the menu lists the project's boards, and saving one from here creates a board
+like **New board** does. That also means the CLI sees it, and so does every
+other browser looking at this project.
+
+**Save** appears beside the menu as soon as a query is running, and asks for a
+name. td decides whether it likes the name, and says so under the field.
+
+Once a query came from a board, the box remembers which one. Change the query,
+press Enter, and the buttons change with it:
+
+- **Update "Sprint 1"** writes the query on screen back to that board. It does
+  not ask first — the query is in the box and its results are underneath it.
+- **Save as new** keeps the original board as it was and asks for a name for
+  the new one.
+
+Renaming and deleting a saved query happen on the Boards page, and so does
+placing cards on it by hand.
+
+Two things the menu deliberately leaves out. A board with an empty query is not
+listed: on the builtin *All Issues* an empty query means the whole project, on
+a board of your own it means only the cards you placed there, and neither of
+those is what an empty query would do in the search box. And the status chips
+and the sort order are not part of a saved query. A board holds a name and a
+query, that is all td stores, so the chips stay yours to turn afterwards.
+
 ### The list is in the address bar
 
 What you filtered, searched, queried and sorted for is in the URL:

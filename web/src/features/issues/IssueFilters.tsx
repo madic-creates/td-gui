@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ClearIcon } from '../../components/Icon'
+import SavedQueryBar from './SavedQueryBar'
 import type { IssueListParams } from '../../api/queries'
 import type { IssueStatus } from '../../api/types'
 
@@ -36,10 +37,20 @@ function textFor(params: IssueListParams): string {
 
 interface Props {
   params: IssueListParams
+  /** The board `params.query` was loaded from, if it was loaded from one. */
+  board?: string
   onChange: (next: IssueListParams) => void
+  /**
+   * A saved query was picked. Separate from `onChange` because this is the one
+   * change that also names a board; everything else the box does leaves the
+   * board where it is, and leaving query mode drops it on its own.
+   */
+  onPick: (query: string, board: string) => void
+  /** The running query has just been saved as this board. */
+  onSaved: (board: string) => void
 }
 
-export default function IssueFilters({ params, onChange }: Props) {
+export default function IssueFilters({ params, board, onChange, onPick, onSaved }: Props) {
   const [text, setText] = useState(() => textFor(params))
   const query = queryIn(text)
   const input = useRef<HTMLInputElement>(null)
@@ -83,6 +94,18 @@ export default function IssueFilters({ params, onChange }: Props) {
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(handle)
   }, [text])
+
+  /**
+   * A saved query goes into the box as well as into the url.
+   *
+   * The box seeds itself from `params` exactly once, so nothing else would
+   * make it follow a change that came from outside it — and the box is the
+   * one control on the page that says what is running.
+   */
+  function pick(saved: string, savedBoard: string) {
+    setText(QUERY_PREFIX + saved)
+    onPick(saved, savedBoard)
+  }
 
   // The input sits in no form, so Enter has no default to prevent.
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -150,6 +173,11 @@ export default function IssueFilters({ params, onChange }: Props) {
             </label>
           )
         })}
+      </div>
+      <div className="mt-2">
+        <SavedQueryBar
+          query={params.query} board={board} onPick={pick} onSaved={onSaved}
+        />
       </div>
       {query !== null && (
         <p className="mt-1.5 text-[11px] text-ink-faint">

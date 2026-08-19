@@ -25,17 +25,30 @@ import { readListUrl, writeListUrl } from './listUrl'
  */
 export default function IssueList() {
   const [search, setSearch] = useSearchParams()
-  const { params, sort } = useMemo(() => readListUrl(search), [search])
+  const { params, sort, board } = useMemo(() => readListUrl(search), [search])
 
-  const apply = (nextParams: IssueListParams, nextSort: Sort) =>
-    setSearch(writeListUrl(nextParams, nextSort), { replace: true })
+  /**
+   * `board` defaults to the one already in the url, so editing a query keeps
+   * the board it was loaded from and the bar can offer to write the change
+   * back. Leaving query mode needs no special case: `writeListUrl` drops a
+   * board that has no query to belong to.
+   */
+  const apply = (nextParams: IssueListParams, nextSort: Sort, nextBoard = board) =>
+    setSearch(writeListUrl(nextParams, nextSort, nextBoard), { replace: true })
 
   // The filters stay mounted in every state, including the two error and
   // empty ones below — the hint tells the reader to clear them, so the
   // control it names has to be on screen.
   return (
     <div>
-      <IssueFilters params={params} onChange={next => apply(next, sort)} />
+      <IssueFilters
+        params={params}
+        board={board}
+        onChange={next => apply(next, sort)}
+        onPick={(query, picked) =>
+          apply({ ...params, query, search: undefined }, sort, picked)}
+        onSaved={saved => apply(params, sort, saved)}
+      />
       {params.query === undefined ? (
         <SearchResults
           params={params}
