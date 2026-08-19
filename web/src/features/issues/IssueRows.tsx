@@ -1,10 +1,11 @@
 import { type ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import StatusTag from '../../components/StatusTag'
 import PriorityTag from '../../components/PriorityTag'
 import IssueGroupHeader from './IssueGroupHeader'
 import IssueListHeader from './IssueListHeader'
 import { groupByStatus, type Sort } from './ordering'
+import { listStateFor } from './listUrl'
 import { relativeTime } from '../../lib/format'
 import { COL, ROW } from './columns'
 import type { Issue } from '../../api/types'
@@ -33,6 +34,9 @@ interface Props {
  */
 export default function IssueRows({ issues, sort, onSortChange, truncated, notice }: Props) {
   const groups = groupByStatus(issues, sort)
+  // The filter the reader is looking at, handed to the detail view so its
+  // back link returns to this list rather than an unfiltered one.
+  const fromList = listStateFor(useLocation().search)
   return (
     <>
       {notice && (
@@ -53,6 +57,7 @@ export default function IssueRows({ issues, sort, onSortChange, truncated, notic
               <li key={issue.id}>
                 <Link
                   to={`/issues/${issue.id}`}
+                  state={fromList}
                   className={`${ROW} hover:bg-surface-hover hover:shadow-[inset_2px_0_0_var(--color-accent)]`}
                 >
                   <span className={`${COL.id} font-mono text-ink-faint`}>{issue.id}</span>

@@ -69,13 +69,14 @@ const detail = {
  * once and tears down on cleanup is dead from the second mount on — which is
  * what `npm run dev` actually runs.
  */
-function renderDetail({ strict = false } = {}) {
+function renderDetail({ strict = false, from }: { strict?: boolean; from?: string } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const Wrapper = strict ? StrictMode : Fragment
+  const entry = { pathname: '/issues/td-6a0883', state: from === undefined ? null : { from } }
   return { qc, ...render(
     <Wrapper>
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/issues/td-6a0883']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/issues/:id" element={<IssueDetail />} />
           {/* A stand-in for the list route, so a delete's navigate('/') has
@@ -113,6 +114,30 @@ describe('IssueDetail', () => {
     const back = await screen.findByRole('link', { name: '← back to list' })
 
     expect(back.parentElement).toBe(screen.getByText('td-6a0883').parentElement)
+  })
+
+  // The list keeps its filter in the url, so the way back has to carry it:
+  // landing on the unfiltered list is exactly the bug this replaced.
+  it('goes back to the filtered list the reader came from', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail({ from: '?status=open' })
+
+    expect(await screen.findByRole('link', { name: '← back to list' }))
+      .toHaveAttribute('href', '/?status=open')
+  })
+
+  // A bookmark, a link from a board card, a reload — nothing said where the
+  // reader came from, so the link means the whole list.
+  it('goes to the whole list when nothing said which one', async () => {
+    server.use(http.get('/v1/issues/td-6a0883', () =>
+      HttpResponse.json({ ok: true, data: detail })))
+
+    renderDetail()
+
+    expect(await screen.findByRole('link', { name: '← back to list' }))
+      .toHaveAttribute('href', '/')
   })
 
   // The id is what gets carried back to a terminal, so it is copyable from

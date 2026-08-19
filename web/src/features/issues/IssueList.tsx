@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { useIssues, FETCH_LIMIT, type IssueListParams } from '../../api/queries'
+import { useMemo } from 'react'
+import { useSearchParams } from 'react-router'
+import { useIssues, type IssueListParams } from '../../api/queries'
 import { ApiError } from '../../api/client'
 import IssueFilters from './IssueFilters'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -7,25 +8,45 @@ import EmptyState from '../../components/EmptyState'
 import SkeletonRows from '../../components/SkeletonRows'
 import IssueRows from './IssueRows'
 import QueryResults from './QueryResults'
-import { DEFAULT_SORT, type Sort } from './ordering'
+import { type Sort } from './ordering'
+import { readListUrl, writeListUrl } from './listUrl'
 
+/**
+ * The list state lives in the url, not in this component.
+ *
+ * Opening an issue unmounts the list, so state held here is state the reader
+ * loses on the way back. In the address bar it survives that, a reload, and a
+ * link sent to someone else, and the browser's back button lands on the list
+ * that was left rather than an unfiltered one.
+ *
+ * Every write replaces: the search box is debounced, and pushing one entry
+ * per typing pause would bury the issue the reader came from under a stack of
+ * half-typed searches.
+ */
 export default function IssueList() {
-  const [params, setParams] = useState<IssueListParams>({ limit: FETCH_LIMIT })
-  const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
+  const [search, setSearch] = useSearchParams()
+  const { params, sort } = useMemo(() => readListUrl(search), [search])
+
+  const apply = (nextParams: IssueListParams, nextSort: Sort) =>
+    setSearch(writeListUrl(nextParams, nextSort), { replace: true })
 
   // The filters stay mounted in every state, including the two error and
   // empty ones below — the hint tells the reader to clear them, so the
   // control it names has to be on screen.
   return (
     <div>
-      <IssueFilters params={params} onChange={setParams} />
+      <IssueFilters params={params} onChange={next => apply(next, sort)} />
       {params.query === undefined ? (
-        <SearchResults params={params} sort={sort} onSortChange={setSort} />
+        <SearchResults
+          params={params}
+          sort={sort}
+          onSortChange={next => apply(params, next)}
+        />
       ) : (
         <QueryResults
           params={{ ...params, query: params.query }}
           sort={sort}
-          onSortChange={setSort}
+          onSortChange={next => apply(params, next)}
         />
       )}
     </div>

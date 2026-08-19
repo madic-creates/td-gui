@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { useIssue } from '../../api/queries'
 import { useDeleteComment } from '../../api/mutations'
 import { ApiError } from '../../api/client'
@@ -13,6 +13,7 @@ import MetaPanel from './MetaPanel'
 import ReviewPanel from './ReviewPanel'
 import { useIssueIndex } from './useIssueIndex'
 import { childrenOf, resolve } from './issueIndex'
+import { listPathFrom } from './listUrl'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -38,6 +39,9 @@ export default function IssueDetail() {
 }
 
 function IssueDetailView({ id }: { id: string }) {
+  // Where the back link goes: the list this view was opened from, filter and
+  // all, or the whole list when nothing said which one.
+  const backToList = listPathFrom(useLocation().state)
   const [editing, setEditing] = useState(false)
   // The node IssueEditForm portals Save and Cancel into — see the slot below.
   const [editorFooter, setEditorFooter] = useState<HTMLElement | null>(null)
@@ -83,7 +87,7 @@ function IssueDetailView({ id }: { id: string }) {
           control, which is why the row is now the id's row and not only the
           back link's. */}
       <div className="flex items-baseline gap-2 text-[11px]">
-        <Link to="/" className="text-ink-muted">← back to list</Link>
+        <Link to={backToList} className="text-ink-muted">← back to list</Link>
         <span aria-hidden="true" className="text-ink-faint">·</span>
         <span className="font-mono text-ink-faint">{issue.id}</span>
         <CopyButton value={issue.id} label="Copy issue id" />

@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
+import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import IssueList from './IssueList'
@@ -13,11 +13,21 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderList() {
+/** The list's own query string, so a test can read what it wrote. */
+function CurrentUrl() {
+  return <span data-testid="url">{useLocation().search}</span>
+}
+
+const url = () => screen.getByTestId('url').textContent
+
+function renderList(entry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter><IssueList /></MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
+        <IssueList />
+        <CurrentUrl />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -342,6 +352,136 @@ describe('IssueList', () => {
 
       expect(await screen.findByText('A finished bug')).toBeInTheDocument()
       expect(screen.queryByText(/outside the loaded set/i)).not.toBeInTheDocument()
+    })
+  })
+  describe('the url carries the list state', () => {
+    const bug = makeIssue({ id: 'td-bug', status: 'open', type: 'bug', title: 'A real bug' })
+
+    function serveList(issues = [bug]) {
+      server.use(http.get('/v1/issues', () =>
+        HttpResponse.json({
+          ok: true,
+          data: { issues, limit: 1000, offset: 0, total: issues.length, has_more: false },
+        })))
+    }
+
+    it('runs a query that was in the address bar on mount', async () => {
+      let seen: URL | undefined
+      serveList()
+      server.use(http.get('/gui/query', ({ request }) => {
+        seen = new URL(request.url)
+        return HttpResponse.json({ ok: true, data: { ids: ['td-bug'] } })
+      }))
+
+      renderList('/?q=type+%3D+bug')
+
+      expect(await screen.findByText('A real bug')).toBeInTheDocument()
+      expect(seen?.searchParams.get('q')).toBe('type = bug')
+      // The box shows the query it ran, prefix and all.
+      expect(screen.getByLabelText('Search')).toHaveValue('?type = bug')
+    })
+
+    it('sends a search that was in the address bar to td serve', async () => {
+      let seen: URL | undefined
+      server.use(http.get('/v1/issues', ({ request }) => {
+        seen = new URL(request.url)
+        return HttpResponse.json({
+          ok: true,
+          data: { issues: [bug], limit: 1000, offset: 0, total: 1, has_more: false },
+        })
+      }))
+
+      renderList('/?search=oauth')
+
+      expect(await screen.findByText('A real bug')).toBeInTheDocument()
+      expect(seen?.searchParams.get('search')).toBe('oauth')
+      expect(screen.getByLabelText('Search')).toHaveValue('oauth')
+    })
+
+    it('lights the status chips the address bar names', async () => {
+      serveList()
+      renderList('/?status=open&status=blocked')
+
+      await screen.findByText('A real bug')
+      expect(screen.getByRole('checkbox', { name: 'open' })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: 'blocked' })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: 'closed' })).not.toBeChecked()
+    })
+
+    it('sorts the way the address bar says', async () => {
+      serveMixed()
+      renderList('/?sort=title:desc')
+
+      await screen.findByRole('region', { name: 'in_progress' })
+      expect(renderedIds()).toEqual(['td-prog', 'td-open-a', 'td-open-c', 'td-open-b'])
+    })
+
+    it('puts a toggled status chip in the url', async () => {
+      const user = userEvent.setup()
+      serveList()
+      renderList()
+      await screen.findByText('A real bug')
+
+      await user.click(screen.getByRole('checkbox', { name: 'in_progress' }))
+
+      expect(url()).toBe('?status=in_progress')
+    })
+
+    it('puts a typed search in the url once the typing pauses', async () => {
+      const user = userEvent.setup()
+      serveList()
+      renderList()
+      await screen.findByText('A real bug')
+
+      await user.type(screen.getByLabelText('Search'), 'oauth')
+
+      await waitFor(() => expect(url()).toBe('?search=oauth'))
+    })
+
+    it('puts a query in the url when it is run', async () => {
+      const user = userEvent.setup()
+      serveList()
+      server.use(http.get('/gui/query', () =>
+        HttpResponse.json({ ok: true, data: { ids: ['td-bug'] } })))
+      renderList()
+      await screen.findByText('A real bug')
+
+      await user.type(screen.getByLabelText('Search'), '?type = bug{Enter}')
+
+      await waitFor(() => expect(url()).toBe('?q=type+%3D+bug'))
+    })
+
+    it('puts the sort in the url, and leaves the default one out of it', async () => {
+      const user = userEvent.setup()
+      serveMixed()
+      renderList()
+      await screen.findByRole('region', { name: 'in_progress' })
+
+      await user.click(screen.getByRole('button', { name: 'Sort by updated, ascending' }))
+      expect(url()).toBe('?sort=updated%3Aasc')
+
+      await user.click(screen.getByRole('button', { name: 'Sort by priority, ascending' }))
+      expect(url()).toBe('')
+    })
+
+    it('replaces rather than pushes, so back still reaches the page before the list', async () => {
+      const user = userEvent.setup()
+      serveList()
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const router = createMemoryRouter([{ path: '/', element: <IssueList /> }], {
+        initialEntries: ['/'],
+      })
+      render(
+        <QueryClientProvider client={qc}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>,
+      )
+      await screen.findByText('A real bug')
+
+      await user.click(screen.getByRole('checkbox', { name: 'in_progress' }))
+
+      expect(router.state.location.search).toBe('?status=in_progress')
+      expect(router.state.historyAction).toBe('REPLACE')
     })
   })
 })
