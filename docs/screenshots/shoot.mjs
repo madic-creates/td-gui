@@ -378,6 +378,13 @@ async function main() {
 		await p.goto(`/boards/${board.id}?view=swimlanes`)
 		await p.shoot('board-swimlanes', await p.pageClip())
 
+		// 10. The About page, reached from the icon in the header. Every value on
+		// it comes from the process that is being photographed, so the td path is
+		// whichever binary this run was given — see README.md for why that must not
+		// be one under a home directory.
+		await p.goto('/about')
+		await p.shoot('about', await p.pageClip())
+
 		// No post-processing step: chromium's own PNG encoding came out smaller than
 		// re-encoding it through ImageMagick, so these files are final.
 		console.log(`\nWritten to ${OUT}.`)

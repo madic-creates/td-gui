@@ -5,7 +5,7 @@ begin with [Getting started](getting-started.md).
 
 | Page | What's in it |
 | ---- | ------------ |
-| [Getting started](getting-started.md) | Starting it, the flags, the connection dot, sharing a backend with a running agent, troubleshooting |
+| [Getting started](getting-started.md) | Starting it, the flags, the connection dot, sharing a backend with a running agent, the About page, troubleshooting |
 | [Working with issues](issues.md) | The list, filters and sorting, ad-hoc TDQ queries, Markdown in long text, the detail page, creating and editing |
 | [Transitions and reviews](reviews.md) | The status flow, reasons, review attribution, why td sometimes refuses |
 | [Boards](boards.md) | Saved TDQ queries, the backlog view and pinning, swimlanes and drag-to-transition |

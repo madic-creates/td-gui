@@ -1,11 +1,12 @@
 # Regenerating the documentation screenshots
 
-The nine images in [../images](../images) are shot against a seeded demo
+The ten images in [../images](../images) are shot against a seeded demo
 project, not against td-gui's own backlog. Two scripts do it:
 
 ```bash
 docs/screenshots/seed.sh /tmp/shoebox                       # build the demo project
-./td-gui --work-dir /tmp/shoebox --port 7777 --no-open &    # serve it
+mkdir -p /tmp/td-bin && cp "$(command -v td)" /tmp/td-bin/  # see "the td path" below
+./td-gui --work-dir /tmp/shoebox --port 7777 --no-open --td /tmp/td-bin/td &
 node docs/screenshots/shoot.mjs http://127.0.0.1:7777 docs/images
 ```
 
@@ -35,7 +36,7 @@ browser window.
 It reads the issue and board ids off the running instance, so a fresh seed with
 different ids needs no edit here.
 
-## The nine images
+## The ten images
 
 | Image | Where it comes from |
 | ----- | ------------------- |
@@ -48,6 +49,7 @@ different ids needs no edit here.
 | `board-list` | `/boards` |
 | `board-backlog` | the *Current work* board, `?view=backlog` |
 | `board-swimlanes` | the same board, `?view=swimlanes` |
+| `about` | `/about`, whole page |
 
 The hero issue is *Thumbnail generation blocks the upload response*: it is the
 one seeded with a four-part handoff, activity of three kinds, two comments from
@@ -58,7 +60,19 @@ Anchors are text lookups (`Activity`, `Approve`, `Add label`) rather than class
 names, because the classes are Tailwind utilities that change with any styling
 edit.
 
-## Two things worth knowing before you re-shoot
+## Three things worth knowing before you re-shoot
+
+**The td path lands in an image.** `about.png` photographs the running process,
+and one of its rows is the td binary that process located. Started without
+`--td`, that is wherever the person re-shooting keeps td, which on most machines
+is a path under their home directory — and these images are published. Copying
+td somewhere neutral first and pointing `--td` at the copy keeps a username out
+of the repository. Nothing else in the shots reads a path: the project is
+`/tmp/shoebox` because that is where the seed put it.
+
+The version on the same page reads `dev`, and should stay that way. It is what
+any build from source reports, so re-shooting reproduces it; a stamped release
+tag would go stale on the next release.
 
 **Every timestamp reads the same.** The seed writes all twenty issues within a
 few seconds, so the relative times are uniform: "just now" if you shoot

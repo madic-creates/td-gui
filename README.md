@@ -42,9 +42,13 @@ review policy, and td's own wording whenever it refuses something.
   change.
 - **Let it keep itself current.** When an agent writes from the CLI in another
   terminal, the page follows along without a reload.
+- **Know what you are running.** An About page names the project, the td-gui
+  and td versions, the td binary in use and the backend it reached, and copies
+  the lot as one block for a bug report.
 
 It is a single binary with a light and a dark theme, its controls can be
-reached from the keyboard, and nothing ever leaves `127.0.0.1`.
+reached from the keyboard, and nothing ever leaves `127.0.0.1`. One window per
+project, each naming its own in the header and the browser tab.
 
 ## Quick start
 

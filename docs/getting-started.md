@@ -68,7 +68,8 @@ token td-gui does not know; stop it, or start td-gui against a different project
 
 To work on two projects at the same time, run one td-gui per project. Give each
 one its own `--work-dir`, and its own `--port` if you want bookmarks that keep
-working.
+working. Each window names its project beside the brand in the header, and puts
+the same name in the browser tab, so several of them stay tellable apart.
 
 ## Staying up to date
 
@@ -92,6 +93,28 @@ itself, and the banner disappears once it succeeds.
 The theme button in the header names the theme in use and cycles through
 **auto**, **light** and **dark**. `auto` follows your operating system. Your choice is stored in the
 browser, so it applies per device.
+
+## About
+
+The information icon in the header opens **About**: what this td-gui process
+actually is.
+
+![The About page](images/about.png)
+
+The page describes the process serving it, which is what a bug report needs:
+
+- **Project** is the directory td-gui was started against, with a button that
+  copies it.
+- **td-gui** is the version of this binary. Released builds show their tag;
+  anything built from source shows `dev`, the same string `--version` prints.
+- **td** and **td path** are the version and the location of the binary td-gui
+  found, which is what `--td` overrides.
+- **Backend** is the `td serve` this instance is talking to, and whether td-gui
+  started it or reused one that was already running — the same distinction the
+  `backend:` startup line draws.
+
+**Copy diagnostics** puts all of it on the clipboard as one Markdown table,
+ready to paste into a bug report.
 
 ## Security
 
