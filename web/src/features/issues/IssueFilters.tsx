@@ -174,23 +174,27 @@ export default function IssueFilters({ params, board, onChange, onPick, onSaved 
           )
         })}
       </div>
-      <div className="mt-2">
+      {/* One row: the saved-query controls are short and the hint is one line,
+          so stacking them left a band of empty space under the box. They wrap
+          onto separate lines when the buttons grow — the name field, or a long
+          board name in "Update". */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <SavedQueryBar
           query={params.query} board={board} onPick={pick} onSaved={onSaved}
         />
+        {query !== null && (
+          <p className="text-[11px] text-ink-faint">
+            TDQ — press Enter to run. See the{' '}
+            <a
+              href="https://td.haplab.com/docs/query-language"
+              target="_blank" rel="noreferrer"
+              className="text-ink-muted underline"
+            >
+              query language reference
+            </a>.
+          </p>
+        )}
       </div>
-      {query !== null && (
-        <p className="mt-1.5 text-[11px] text-ink-faint">
-          TDQ — press Enter to run. See the{' '}
-          <a
-            href="https://td.haplab.com/docs/query-language"
-            target="_blank" rel="noreferrer"
-            className="text-ink-muted underline"
-          >
-            query language reference
-          </a>.
-        </p>
-      )}
     </div>
   )
 }
