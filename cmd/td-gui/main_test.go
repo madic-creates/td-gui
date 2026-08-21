@@ -204,7 +204,9 @@ func TestNewMuxKeepsTheGuiRoutesOffTheProxy(t *testing.T) {
 		proxied = append(proxied, r.URL.Path)
 		w.WriteHeader(http.StatusOK)
 	})
+	assetHits := 0
 	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assetHits++
 		w.WriteHeader(http.StatusOK)
 	})
 	aboutHits := 0
@@ -225,5 +227,40 @@ func TestNewMuxKeepsTheGuiRoutesOffTheProxy(t *testing.T) {
 	}
 	if aboutHits != 1 {
 		t.Errorf("about handler hits = %d, want 1", aboutHits)
+	}
+	if assetHits != 0 {
+		t.Errorf("asset handler hits = %d, want 0 — a /gui/ route fell through to the SPA", assetHits)
+	}
+}
+
+// The status route writes, so its own handler must own it. Unregistered it
+// would fall through to the SPA's catch-all, which answers index.html with a
+// 200 — a write silently turning into a page.
+func TestNewMuxRoutesTheStatusChangeToItsOwnHandler(t *testing.T) {
+	proxied := 0
+	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		proxied++
+		w.WriteHeader(http.StatusOK)
+	})
+	assetHits := 0
+	assets := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assetHits++
+		w.WriteHeader(http.StatusOK)
+	})
+	about := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	mux := newMux(assets, api, about, "/nonexistent/td", t.TempDir())
+
+	req := httptest.NewRequest(http.MethodPost, "/gui/status",
+		strings.NewReader(`{"id":"td-a1b2","status":"open"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if proxied != 0 || assetHits != 0 {
+		t.Fatalf("proxied = %d, asset hits = %d, want 0 and 0", proxied, assetHits)
+	}
+	// The td path does not exist, so the handler answers a failure rather than
+	// a success — what matters here is that it, and not the SPA, answered.
+	if rec.Code == http.StatusOK {
+		t.Errorf("status = 200 from a missing td binary, want the status handler's own failure")
 	}
 }

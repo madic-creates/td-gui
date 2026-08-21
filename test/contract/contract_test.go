@@ -18,6 +18,7 @@ import (
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
 	"github.com/madic-creates/td-gui/internal/tdquery"
+	"github.com/madic-creates/td-gui/internal/tdstatus"
 )
 
 // TestMain scrubs inherited GIT_* environment variables before any test in
@@ -1145,5 +1146,204 @@ func TestQueryFlagLikeContract(t *testing.T) {
 		if !strings.HasPrefix(id, "td-") {
 			t.Fatalf("ids = %v, want only issue ids — td parsed the query as a flag", body.Data.IDs)
 		}
+	}
+}
+
+// newStatusProject seeds a throwaway project and fronts it with the real
+// tdstatus handler, plus a runner for driving an issue into a given status.
+// No `td serve` here, for the same reason as the query handler's: a status
+// change leaves the proxy precisely because td serve has no route for one.
+func newStatusProject(t *testing.T) (h http.Handler, seed func(status string) string, statusOf func(id string) string, showText func(id string) string) {
+	t.Helper()
+
+	td, err := tdbin.Locate("")
+	if err != nil {
+		t.Skipf("td not available: %v", err)
+	}
+
+	dir := t.TempDir()
+	run := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(td, args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("td %v failed: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	run("init")
+
+	// td drives every one of these itself, so a seeded issue is in a state td
+	// agrees it is in — not one this test arranged behind its back.
+	drive := map[string]string{
+		"in_progress": "start", "in_review": "review",
+		"blocked": "block", "closed": "close",
+	}
+
+	seed = func(status string) string {
+		t.Helper()
+		var created struct {
+			ID string `json:"id"`
+		}
+		out := run("create", "Status contract issue seeded into "+status, "--json")
+		if err := json.Unmarshal([]byte(out), &created); err != nil {
+			t.Fatalf("decode create %q: %v", out, err)
+		}
+		if cmd, ok := drive[status]; ok {
+			run(cmd, created.ID)
+		}
+		return created.ID
+	}
+
+	statusOf = func(id string) string {
+		t.Helper()
+		var shown struct {
+			Status string `json:"status"`
+		}
+		out := run("show", id, "--json")
+		if err := json.Unmarshal([]byte(out), &shown); err != nil {
+			t.Fatalf("decode show %q: %v", out, err)
+		}
+		return shown.Status
+	}
+
+	showText = func(id string) string {
+		t.Helper()
+		return run("show", id)
+	}
+
+	return tdstatus.Handler(td, dir), seed, statusOf, showText
+}
+
+func statusEnvelope(t *testing.T, h http.Handler, id, status string) (int, statusBody) {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"id": id, "status": status})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/gui/status", strings.NewReader(string(payload)))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	var body statusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode %q: %v", rec.Body.String(), err)
+	}
+	return rec.Code, body
+}
+
+type statusBody struct {
+	OK   bool `json:"ok"`
+	Data struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	} `json:"data"`
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// TestStatusMatrixContract pins which jumps td actually makes.
+//
+// This is the assumption the whole feature rests on, and it is td's to
+// change: `td update --status` is not a free set, it enforces its own rules,
+// and they are wider than the transitions td serve reports but not by much.
+// The edit form offers every status and lets td refuse the rest in its own
+// words — this test is what notices when "the rest" moves.
+func TestStatusMatrixContract(t *testing.T) {
+	cases := []struct {
+		from, to string
+		want     bool
+	}{
+		{"open", "in_progress", true}, {"open", "in_review", true},
+		{"open", "blocked", true}, {"open", "closed", true},
+
+		{"in_progress", "open", true}, {"in_progress", "in_review", true},
+		{"in_progress", "blocked", true}, {"in_progress", "closed", true},
+
+		{"in_review", "open", true}, {"in_review", "in_progress", true},
+		{"in_review", "blocked", false}, {"in_review", "closed", true},
+
+		{"blocked", "open", true}, {"blocked", "in_progress", true},
+		{"blocked", "in_review", false}, {"blocked", "closed", true},
+
+		{"closed", "open", true}, {"closed", "in_progress", false},
+		{"closed", "in_review", false}, {"closed", "blocked", false},
+	}
+
+	h, seed, statusOf, _ := newStatusProject(t)
+
+	for _, c := range cases {
+		t.Run(c.from+"_to_"+c.to, func(t *testing.T) {
+			id := seed(c.from)
+
+			code, body := statusEnvelope(t, h, id, c.to)
+
+			if body.OK != c.want {
+				t.Fatalf("ok = %v, want %v (status %d, message %q)",
+					body.OK, c.want, code, body.Error.Message)
+			}
+			if c.want {
+				if got := statusOf(id); got != c.to {
+					t.Errorf("issue is %s, want %s — td answered ok without moving it", got, c.to)
+				}
+				return
+			}
+			if got := statusOf(id); got != c.from {
+				t.Errorf("issue is %s, want it untouched at %s", got, c.from)
+			}
+			if body.Error.Message == "" {
+				t.Error("a refusal came back without td's reason")
+			}
+		})
+	}
+}
+
+// TestStatusRefusalWordingContract pins td's real wording for a refused jump.
+// The unit tests use a stub, so without this nothing proves the prefix and
+// colour stripping still finds a message in the shape td actually emits.
+func TestStatusRefusalWordingContract(t *testing.T) {
+	h, seed, _, _ := newStatusProject(t)
+	id := seed("closed")
+
+	code, body := statusEnvelope(t, h, id, "blocked")
+
+	if code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (message %q)", code, body.Error.Message)
+	}
+	if !strings.Contains(body.Error.Message, "invalid transition") {
+		t.Errorf("message = %q, want td's own refusal", body.Error.Message)
+	}
+	if strings.Contains(body.Error.Message, "\x1b") {
+		t.Errorf("message = %q, want no ANSI escapes", body.Error.Message)
+	}
+	for _, prefix := range []string{"Warning:", "ERROR:"} {
+		if strings.HasPrefix(body.Error.Message, prefix) {
+			t.Errorf("message = %q, want td's sentence without its %s label", body.Error.Message, prefix)
+		}
+	}
+}
+
+// TestStatusUnstartLogsTheRevertContract pins why the route reaches for
+// unstart at all: `td update --status open` reaches the same status and
+// records nothing, so the entry td writes to the session log is the whole
+// difference between the two commands.
+func TestStatusUnstartLogsTheRevertContract(t *testing.T) {
+	h, seed, statusOf, showText := newStatusProject(t)
+	id := seed("in_progress")
+
+	if _, body := statusEnvelope(t, h, id, "open"); !body.OK {
+		t.Fatalf("ok = false: %s", body.Error.Message)
+	}
+
+	if got := statusOf(id); got != "open" {
+		t.Fatalf("issue is %s, want open", got)
+	}
+	if !strings.Contains(showText(id), "Reverted to open") {
+		t.Errorf("session log = %q, want td's own record of the revert — "+
+			"the route used update --status open, which writes none",
+			showText(id))
 	}
 }

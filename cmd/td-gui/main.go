@@ -21,6 +21,7 @@ import (
 	"github.com/madic-creates/td-gui/internal/proxy"
 	"github.com/madic-creates/td-gui/internal/tdbin"
 	"github.com/madic-creates/td-gui/internal/tdquery"
+	"github.com/madic-creates/td-gui/internal/tdstatus"
 	"github.com/madic-creates/td-gui/internal/web"
 )
 
@@ -153,14 +154,16 @@ func run() error {
 	return nil
 }
 
-// newMux routes the four things td-gui serves.
+// newMux routes the five things td-gui serves.
 //
 // /v1/ and /health are td's, forwarded to td serve untouched. /gui/ is
-// td-gui's own, and holds two routes with opposite lifetimes: the TDQ query
-// route needs a subprocess because td serve v0.57.0 answers no query of any
-// kind, and disappears once td grows the endpoint itself; /gui/about reports
-// this process's own versions and paths, which td will never have an opinion
-// about. The prefix says honestly which half of the surface a caller is on.
+// td-gui's own, and holds three routes with opposite lifetimes. Two need a
+// subprocess because td serve v0.57.0 has no route for what they do: /gui/query
+// answers no query of any kind, and /gui/status cannot set a status or unstart
+// an issue. Both disappear once td grows those endpoints itself. /gui/about
+// reports this process's own versions and paths, which td will never have an
+// opinion about, and stays. The prefix says honestly which half of the surface
+// a caller is on.
 //
 // The about handler arrives built rather than assembled from ingredients
 // here: it needs the startup facts and the live backend state, and passing
@@ -173,6 +176,7 @@ func newMux(assets, api, aboutHandler http.Handler, td, baseDir string) *http.Se
 	mux.Handle("/v1/", api)
 	mux.Handle("/health", api)
 	mux.Handle("/gui/query", tdquery.Handler(td, baseDir))
+	mux.Handle("/gui/status", tdstatus.Handler(td, baseDir))
 	mux.Handle("/gui/about", aboutHandler)
 	mux.Handle("/", assets)
 	return mux
