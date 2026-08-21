@@ -3,7 +3,8 @@ import { apiSend, encodeId } from './client'
 import { issueKeys } from './queries'
 import { boardKeys } from './boards'
 import type {
-  BoardCreateResponse, IssueCreateResponse, IssueType, IssuePatch, Priority, Transition,
+  BoardCreateResponse, IssueCreateResponse, IssueStatus, IssueType, IssuePatch, Priority,
+  Transition,
 } from './types'
 
 /**
@@ -53,6 +54,24 @@ export function useTransition(id: string) {
   return useMutation({
     mutationFn: ({ action, ...body }: TransitionInput) =>
       apiSend('POST', `/v1/issues/${encodeId(id)}/${action}`, body),
+    onSuccess: () => invalidateIssueData(qc),
+  })
+}
+
+/**
+ * Sets a status td serve has no route for.
+ *
+ * Not a raw status PATCH — there is no such thing: PATCH /v1/issues/{id}
+ * answers ok and silently ignores a status field, and POST .../unstart is a
+ * 404. /gui/status is td-gui's own route, which runs td's CLI, and it is used
+ * only for the three jumps td's transitions cannot express. Everything td
+ * reports in available_transitions still goes through useTransition.
+ */
+export function useSetStatus(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ status }: { status: IssueStatus }) =>
+      apiSend('POST', '/gui/status', { id, status }),
     onSuccess: () => invalidateIssueData(qc),
   })
 }

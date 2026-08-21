@@ -39,6 +39,30 @@ each individual issue, and it can differ: for a minor issue, under a different
 review policy, or with a future version of td. The UI follows whatever td says,
 without needing a change here.
 
+## Setting the status from the editor
+
+The transition buttons are one way in. The other is the **Status** field in
+the issue editor, which lists all five statuses and works out which transition
+you meant: **closed** on an issue awaiting review is Approve, **open** is
+Reject, and it says so before you save. The buttons and the field do the same
+thing through the same endpoints; the field is there for the moves that read
+more naturally as "put this back to `open`" than as "reject this".
+
+Three moves have no transition of their own, because td serve offers none:
+
+| From | To | What runs |
+| ---- | -- | --------- |
+| `in_progress` | `open` | `td unstart`, which records the revert in the session log |
+| `in_review` | `in_progress` | `td update --status`, which records nothing beyond the timestamp |
+| `blocked` | `in_progress` | `td update --status`, which records nothing beyond the timestamp |
+
+For those, td-gui runs td's own CLI and asks you to confirm first, naming what
+the move leaves behind. Everything else goes through td's endpoints as usual.
+
+Five combinations td refuses outright — `in_review` to `blocked`, `blocked` to
+`in_review`, and `closed` to anything but `open`. The field offers them
+anyway, and td answers for itself.
+
 ## Reasons
 
 Four transitions open a small form instead of firing immediately: **Reject**,

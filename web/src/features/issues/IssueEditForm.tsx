@@ -1,11 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { unboundMessage } from '../../api/client'
-import { useUpdateIssue } from '../../api/mutations'
-import type { Issue } from '../../api/types'
+import { useSetStatus, useTransition, useUpdateIssue } from '../../api/mutations'
+import type { Issue, IssueStatus } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
 import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueFields, { boundFields, fieldClass } from './IssueFields'
+import StatusField from './StatusField'
+import { planFor, type StatusPlan } from './statusChange'
+import { attributionIncomplete, attributionOf, type ApproveMode } from './transitions'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
 import { candidatesFor, childrenOf } from './issueIndex'
 import { useIssueIndex } from './useIssueIndex'
@@ -63,6 +66,22 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
   const [original, setOriginal] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
+  // A status change is never part of td's PATCH: transitions are td's own
+  // endpoints and the three jumps it has none for leave the proxy. So the
+  // status is held beside the draft rather than in it, and diffIssue never
+  // sees it.
+  const [target, setTarget] = useState<IssueStatus>(issue.status)
+  const [reason, setReason] = useState('')
+  const [mode, setMode] = useState<ApproveMode>('independent')
+  const [reviewedBy, setReviewedBy] = useState('')
+  const [acknowledged, setAcknowledged] = useState(false)
+  // Held rather than read off the mutation, because it outlives the request
+  // that produced it: the form stays open on a refusal so the choice can be
+  // retried or taken back.
+  const [statusError, setStatusError] = useState<unknown>(null)
+  const [fieldsSaved, setFieldsSaved] = useState(false)
+  const transition = useTransition(issue.id)
+  const setStatus = useSetStatus(issue.id)
   // Names the form so the portalled Save can point back at it.
   const formId = useId()
   // The same query the detail view already has in cache — the parent picker
@@ -78,6 +97,13 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
     if (editing) {
       setOriginal(issue)
       setDraft(draftFrom(issue))
+      setTarget(issue.status)
+      setReason('')
+      setMode('independent')
+      setReviewedBy('')
+      setAcknowledged(false)
+      setStatusError(null)
+      setFieldsSaved(false)
     }
   }
 
@@ -108,23 +134,68 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
     setDraft(current => ({ ...current, [key]: value }))
   }
 
-  const submit = (event: React.FormEvent) => {
+  // What Save will do about the status, decided from td's own answer: the
+  // transitions td reports for this issue. null means nothing to do — the
+  // issue is already in the chosen status, or td did not say.
+  const plan = planFor(target, issue.status, issue.available_transitions)
+
+  // A question the user has been asked and has not answered yet. Saving with
+  // one outstanding would send the change without the confirm the override
+  // needs, or an approval attributed to nobody.
+  const unanswered = plan?.kind === 'override'
+    ? !acknowledged
+    : plan?.action === 'approve' && attributionIncomplete(mode, reviewedBy)
+
+  /** The status half of a save. Throws td's rejection for submit to hold. */
+  const applyStatus = async (chosen: StatusPlan) => {
+    if (chosen.kind === 'override') {
+      await setStatus.mutateAsync({ status: target })
+      return
+    }
+    const note = reason.trim()
+    await transition.mutateAsync({
+      action: chosen.action,
+      ...(note ? { reason: note } : {}),
+      ...(chosen.action === 'approve' ? attributionOf(mode, reviewedBy) : {}),
+    })
+  }
+
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (submitting.current) return
+    if (submitting.current || unanswered) return
     const patch = diffIssue(original, draft)
     // Nothing changed — close rather than issue an empty PATCH.
-    if (isEmptyPatch(patch)) {
+    if (isEmptyPatch(patch) && !plan) {
       onDone()
       return
     }
     submitting.current = true
-    update.mutate(patch, {
-      onSuccess: onDone,
-      onSettled: () => { submitting.current = false },
-    })
+    setStatusError(null)
+    setFieldsSaved(false)
+
+    // The fields go first, so a status change td refuses lands on an issue
+    // whose edits are already stored. That is reported as what it is rather
+    // than as one failed save: the fields did save.
+    let phase: 'fields' | 'status' = 'fields'
+    try {
+      if (!isEmptyPatch(patch)) {
+        await update.mutateAsync(patch)
+        setFieldsSaved(true)
+      }
+      phase = 'status'
+      if (plan) await applyStatus(plan)
+      onDone()
+    } catch (err) {
+      // A rejected PATCH already renders through update.error and its field
+      // errors; only the status half has nowhere else to be shown.
+      if (phase === 'status') setStatusError(err)
+    } finally {
+      submitting.current = false
+    }
   }
 
   const panelError = unboundMessage(update.error, boundFields)
+  const statusMessage = unboundMessage(statusError)
 
   // Still the form's submit button once it portals out of the <form>: the
   // `form` attribute is what associates a control with a form it does not sit
@@ -134,7 +205,7 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
   const footer = (
     <div className="mt-4 space-y-4">
       <div className="flex gap-1.5">
-        <button type="submit" form={formId} disabled={update.isPending}
+        <button type="submit" form={formId} disabled={update.isPending || unanswered}
           className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40">
           Save changes
         </button>
@@ -145,6 +216,17 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
       </div>
 
       {panelError && <ErrorPanel label="Update rejected" message={panelError} />}
+
+      {/* td phrases a refused status change precisely — "invalid transition
+          from closed to blocked", "you implemented this issue, so you cannot
+          approve it". Its sentence is shown unchanged, next to what did
+          happen to the fields. */}
+      {statusMessage && (
+        <ErrorPanel
+          label={fieldsSaved ? 'Fields saved. Status change refused' : 'Status change refused'}
+          message={statusMessage}
+        />
+      )}
     </div>
   )
 
@@ -171,6 +253,17 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
 
       {editing && (
         <div className="mt-4 space-y-4 border-t border-line-subtle pt-4">
+          <StatusField
+            current={issue.status}
+            available={issue.available_transitions}
+            plan={plan}
+            target={target} setTarget={setTarget}
+            reason={reason} setReason={setReason}
+            mode={mode} setMode={setMode}
+            reviewedBy={reviewedBy} setReviewedBy={setReviewedBy}
+            acknowledged={acknowledged} setAcknowledged={setAcknowledged}
+          />
+
           <IssueFields
             idPrefix="edit" error={update.error} draft={draft} set={set}
             // Excludes the issue itself (it cannot be its own parent) and its

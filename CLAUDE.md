@@ -14,7 +14,8 @@ It ships as **one binary**: a Go server with the React single-page app embedded
 in it. The server does not implement an issue tracker. It finds or starts td's
 own `td serve` HTTP API and reverse-proxies to it, so the browser is really
 talking to td, and every write passes through td's migrations, action log and
-review policy.
+review policy. Two reads and one write run td's CLI instead, because td serve
+has no route for what they do; they are named and fenced below.
 
 Two things this implies, and they explain most of the design:
 
@@ -22,9 +23,9 @@ Two things this implies, and they explain most of the design:
   transitions, review attribution rules and error wording all come from td over
   the wire; the frontend renders the answer instead of predicting it.
 - td-gui is a **client of a CLI tool it does not control**. Where td's interface
-  is awkward (no query endpoint, token only as a flag), the workaround is
-  documented and fenced in rather than hidden. See the two "deliberately"
-  sections below.
+  is awkward (no query endpoint, no status endpoint, token only as a flag), the
+  workaround is documented and fenced in rather than hidden. See the
+  "deliberately" sections below.
 
 Runtime requirements: `td` v0.57.0 or newer on `PATH` (the minimum is pinned as
 `minTdVersion` in `cmd/td-gui/main.go` and checked at startup), plus a project
@@ -43,7 +44,8 @@ browser
      -> OriginGuard             rejects a foreign Origin/Referer
         -> mux
            /v1/, /health  -> reverse proxy -> td serve   (token injected here)
-           /gui/query     -> `td query` subprocess       (the one exception)
+           /gui/query     -> `td query` subprocess       (exception, read)
+           /gui/status    -> `td unstart`/`td update`    (exception, write)
            /gui/about     -> this process's own versions and paths
            /              -> embedded SPA, index.html fallback for client routes
 ```
@@ -73,7 +75,8 @@ clients through, since those could run the td CLI anyway.
 | `internal/tdbin` | Locating the td binary and parsing/comparing `td --version` |
 | `internal/backend` | `.todos/serve-port` discovery, probing an existing instance for reuse, spawning and supervising our own |
 | `internal/proxy` | Reverse proxy with token injection and SSE-safe flushing, `Switch` for restarts, `OriginGuard` |
-| `internal/tdquery` | `GET /gui/query`, the only path that shells out instead of proxying |
+| `internal/tdquery` | `GET /gui/query`, a read that shells out instead of proxying |
+| `internal/tdstatus` | `POST /gui/status`, the one write that shells out, for the three status jumps td serve cannot express |
 | `internal/about` | `GET /gui/about`, td-gui's own versions, paths and backend state |
 | `internal/web` | `go:embed` of the Vite bundle and the SPA fallback handler |
 | `test/contract` | End-to-end against a **real** td binary; skips itself when td is absent |
@@ -116,8 +119,10 @@ pin this behaviour — keep them green.
 These are load-bearing; changing them changes what td-gui is.
 
 - td-gui **never** opens `.todos/issues.db` and never runs `td init`. Every
-  write goes through `td serve`, so td's migrations, action log and review
-  policy stay intact.
+  write goes through `td serve` — with one fenced exception, `/gui/status`,
+  which runs td's own CLI because td serve has no route for it. Either way the
+  write is td's own code, so its migrations, action log and review policy stay
+  intact.
 - All listeners bind `127.0.0.1` only, never `0.0.0.0`.
 - The bearer token must never appear in a response body, a response header,
   or a log line. It **is** visible in the process table — see below.
@@ -125,13 +130,21 @@ These are load-bearing; changing them changes what td-gui is.
   and similar bounds are per-project td config — the server validates and the
   form displays the server's answer.
 - Transitions go through td's own endpoints (`start`, `review`, `approve`, …),
-  never a raw status PATCH. The UI renders exactly the transitions td reports
-  in `available_transitions`, and renders none when the field is absent.
+  never a raw status PATCH — there is no such thing, td serve ignores a
+  `status` field silently. The UI renders exactly the transitions td reports
+  in `available_transitions`, and renders none when the field is absent. The
+  three jumps td reports no transition for go through `/gui/status`; see
+  below.
 
-### One read runs `td query` instead — deliberately
+### Two routes run `td` instead of proxying — deliberately
+
+Both are under `/gui/`, both shell out, and both leave when td serve grows the
+endpoint they stand in for. One reads, one writes.
+
+#### `/gui/query` — the read
 
 `internal/tdquery` answers `GET /gui/query?q=<tdq>` by running `td query` as a
-subprocess. It is the only path in td-gui that does not go through `td serve`.
+subprocess, rather than going through `td serve`.
 
 This is td's interface, not our choice: `td serve` v0.57.0 exposes no query
 route at all. `/v1/query` is a 404, and `/v1/issues` ignores an unknown `q`,
@@ -154,9 +167,58 @@ departure from the spirit of the rule, so it is fenced in:
   separator is load-bearing: without it td's flag parser claims a query of
   `--help` and prints its help text on stdout with exit 0.
 
-Nothing else follows it out of the proxy. When td serve grows a query endpoint
-(td-894042 upstream), switch to it and delete `internal/tdquery`, the route in
-`newMux`, and this section.
+When td serve grows a query endpoint (td-894042 upstream), switch to it and
+delete `internal/tdquery`, the route in `newMux`, and this section.
+
+#### `/gui/status` — the write
+
+`internal/tdstatus` answers `POST /gui/status` by running `td unstart` or
+`td update --status` as a subprocess. It is the only write in td-gui that does
+not go through `td serve`.
+
+This is td's interface, not our choice. td serve v0.57.0 has no route that
+sets a status: `POST /v1/issues/{id}/unstart` is a 404, and
+`PATCH /v1/issues/{id}` answers `ok` while silently ignoring a `status` field —
+no error, no change. Three moves therefore have no API at all:
+
+| From | Target with no transition |
+| ---- | ------------------------- |
+| `in_progress` | `open` |
+| `in_review` | `in_progress` |
+| `blocked` | `in_progress` |
+
+Everything else still goes through td's transition endpoints, and the edit
+form picks between the two by reading `available_transitions` — never from a
+status graph of its own.
+
+The fencing mirrors `tdquery`'s, plus what a write needs:
+
+- The route is `/gui/`, never `/v1/`, and it requires POST.
+- The status is validated against td's five before anything spawns. That is
+  the one value reaching td's argv as a flag argument, and it is not a
+  prediction of td's answer: which jumps are legal stays td's to refuse, in
+  td's own words. The five combinations td rejects are offered by the UI and
+  refused by td, not greyed out from a table here.
+- The id reaches td as one argv element behind a `--`, with no shell, for the
+  reason `tdquery` documents.
+- `td unstart` is preferred when the target is `open` because it is the only
+  command that records the move (`Reverted to open` in the session log) — but
+  it reverts from `in_progress` alone, so a refusal falls back to
+  `td update --status open`. A refusal wrote nothing, which is what makes the
+  fallback the first write rather than a second one.
+- td exits 0 whether it applied the change or refused it, and a refusal under
+  `--json` is silent on both streams. So the plain form runs, and the streams
+  decide: stdout confirms, stderr refuses, and silence on both is neither and
+  is reported as a failure.
+
+`test/contract` pins all twenty jumps against a real td, because the shape of
+that matrix is td's to change: `td update --status` enforces its own rules,
+wider than `available_transitions` but not by much.
+
+Nothing else follows these two out of the proxy. When td serve grows a status
+or unstart endpoint (`td-2b4bc9` proposes it upstream), switch to it and
+delete `internal/tdstatus`, the route in `newMux`, the override branch in
+`statusChange.ts`, and this section.
 
 ### `/gui/about` is the other kind of `/gui/` route
 
@@ -165,11 +227,12 @@ project directory, td-gui and td versions, the located td binary, Go and
 platform, source and license, plus the live backend URL and whether we started
 it.
 
-It shares the prefix with `/gui/query` and nothing else. It runs no
+It shares the prefix with those two and nothing else. It runs no
 subprocess, opens no database and reads nothing of td's — every value is
 either a constant or something `run()` already resolved at startup and used to
-print to stderr. The two routes have opposite lifetimes: `/gui/query` is
-scaffolding to delete, `/gui/about` is permanent, because td will never have
+print to stderr. The routes have opposite lifetimes: `/gui/query` and
+`/gui/status` are scaffolding to delete, `/gui/about` is permanent, because
+td will never have
 an opinion about td-gui's own build version. That is also why it cannot live
 under `/v1/`.
 

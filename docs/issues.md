@@ -265,6 +265,7 @@ were reading it, and the rest of the fields open below it.
 
 | Field | Notes |
 | ----- | ----- |
+| Status | The five td statuses. Not an ordinary field — see below |
 | Title, description, acceptance criteria | Free text. Description and acceptance render as Markdown when displayed; the editor holds the raw source |
 | Type, priority | td's own vocabularies |
 | Points | Leave it empty to clear the estimate |
@@ -277,3 +278,29 @@ were reading it, and the rest of the fields open below it.
 Only the fields you actually changed are sent. **Cancel** discards the draft,
 and **Save changes** submits it. Anything td complains about appears next to
 the field it names.
+
+### The status is not an ordinary field
+
+td has no "set the status" operation: a status changes by making one of td's
+transitions, and each has its own rules and its own record. So picking a
+status here tells the form which transition to run, and it says which one
+before you save:
+
+- Picking **closed** on an issue awaiting review runs **Approve**, and asks
+  who reviewed it, exactly as the Approve button does.
+- Picking **open** on that same issue runs **Reject**, and asks for a reason,
+  which td keeps as the review summary.
+- Three moves have no transition at all — `in_progress` back to `open`,
+  and `in_review` or `blocked` to `in_progress`. td-gui runs td's CLI for
+  those, and asks you to confirm first, because they record less: only the
+  revert to `open` leaves an entry in the session log.
+
+Some combinations td simply refuses, `closed` to `blocked` among them. They
+are offered anyway rather than greyed out, and td answers in its own words:
+`invalid transition from closed to blocked`.
+
+Because the status is a separate operation, a save that changes both the
+fields and the status is two requests. The fields go first. If td then refuses
+the status change, the form says so precisely — *Fields saved. Status change
+refused* — keeps your choice, and stays open so you can retry it or set it
+back. See [Transitions and reviews](reviews.md).

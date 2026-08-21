@@ -493,3 +493,227 @@ describe('IssueEditForm bound fields', () => {
     expect(await screen.findAllByText(message)).toHaveLength(1)
   })
 })
+
+// The status select. td serve has no route that sets a status: transitions are
+// its own endpoints, and three moves have none at all. The select therefore
+// answers to two different backends, and which one it picks is td's answer to
+// read, not ours to assume.
+describe('IssueEditForm status', () => {
+  const withStatus = (status: Issue['status'], available?: Issue['available_transitions']) =>
+    ({ ...issue, status, available_transitions: available }) as Issue
+
+  function renderStatusForm(next: Issue, onDone = vi.fn()) {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={qc}>
+        <IssueEditForm issue={next} editing onDone={onDone} />
+      </QueryClientProvider>,
+    )
+    return { onDone }
+  }
+
+  const save = () => userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+  it('offers every status and starts on the one the issue has', async () => {
+    renderStatusForm(withStatus('in_progress', ['review', 'block', 'close']))
+
+    const select = screen.getByLabelText('Status') as HTMLSelectElement
+
+    expect(select.value).toBe('in_progress')
+    expect([...select.options].map(o => o.value)).toEqual([
+      'open', 'in_progress', 'in_review', 'blocked', 'closed',
+    ])
+  })
+
+  // Same rule as the transition buttons: td-gui renders no transition it was
+  // not told about, and without available_transitions there is nothing to
+  // decide from.
+  it('disables the select when td did not report the transitions', async () => {
+    renderStatusForm(withStatus('open', undefined))
+
+    expect(screen.getByLabelText('Status')).toBeDisabled()
+  })
+
+  it('runs td own transition for a status td reports a transition to', async () => {
+    let hits = 0
+    server.use(http.post('/v1/issues/td-6a0883/start', () => {
+      hits += 1
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    const { onDone } = renderStatusForm(withStatus('open', ['start', 'review', 'block', 'close']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    await save()
+
+    await waitFor(() => expect(hits).toBe(1))
+    expect(onDone).toHaveBeenCalled()
+  })
+
+  // Picking "open" on an issue awaiting review means td's reject, which
+  // records a rejection. Saying so is the difference between the user
+  // choosing that and discovering it afterwards.
+  it('names the transition a target maps to', async () => {
+    renderStatusForm(withStatus('in_review', ['approve', 'reject']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'open')
+
+    expect(screen.getByText(/Reject/)).toBeInTheDocument()
+  })
+
+  it('sends the reason a reject takes', async () => {
+    let body: unknown
+    server.use(http.post('/v1/issues/td-6a0883/reject', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    renderStatusForm(withStatus('in_review', ['approve', 'reject']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'open')
+    await userEvent.type(screen.getByLabelText('Reason'), 'needs error handling')
+    await save()
+
+    await waitFor(() => expect(body).toEqual({ reason: 'needs error handling' }))
+  })
+
+  // Closing an issue that is awaiting review is td's approve, and td's
+  // trusted mode asks who reviewed it.
+  it('asks who reviewed when closing an issue awaiting review', async () => {
+    let body: unknown
+    server.use(http.post('/v1/issues/td-6a0883/approve', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { issue } })
+    }))
+    renderStatusForm(withStatus('in_review', ['approve', 'reject']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'closed')
+    await userEvent.click(screen.getByRole('radio', { name: 'Reviewed by someone else' }))
+    await userEvent.type(screen.getByLabelText('Reviewer'), 'reviewer sub-agent')
+    await save()
+
+    await waitFor(() => expect(body).toEqual({ reviewed_by: 'reviewer sub-agent' }))
+  })
+
+  // in_progress -> open has no transition at all: unstart is a 404 on td
+  // serve. It leaves the proxy, and the confirm is what makes that visible
+  // before it happens rather than after.
+  it('will not run an override until its warning is acknowledged', async () => {
+    let hits = 0
+    server.use(http.post('/gui/status', () => {
+      hits += 1
+      return HttpResponse.json({ ok: true, data: { id: 'td-6a0883', status: 'open' } })
+    }))
+    renderStatusForm(withStatus('in_progress', ['review', 'block', 'close']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'open')
+    await save()
+    expect(hits).toBe(0)
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Change it anyway' }))
+    await save()
+
+    await waitFor(() => expect(hits).toBe(1))
+  })
+
+  // Saving with the confirm outstanding does nothing, and a button that does
+  // nothing when clicked reads as a broken form rather than as a question.
+  it('holds Save closed while the override confirm is outstanding', async () => {
+    renderStatusForm(withStatus('in_progress', ['review', 'block', 'close']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'open')
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Change it anyway' }))
+    expect(screen.getByRole('button', { name: 'Save changes' })).not.toBeDisabled()
+  })
+
+  it('asks the status route for the jump td serve cannot make', async () => {
+    let body: unknown
+    server.use(http.post('/gui/status', async ({ request }) => {
+      body = await request.json()
+      return HttpResponse.json({ ok: true, data: { id: 'td-6a0883', status: 'in_progress' } })
+    }))
+    renderStatusForm(withStatus('blocked', ['unblock', 'close']))
+
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Change it anyway' }))
+    await save()
+
+    await waitFor(() => expect(body).toEqual({ id: 'td-6a0883', status: 'in_progress' }))
+  })
+
+  // The two override paths differ in what they leave behind: td unstart
+  // records the revert, td update --status records nothing.
+  it('says which override leaves a record and which leaves none', async () => {
+    const { rerender } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <IssueEditForm issue={withStatus('in_progress', ['review', 'block', 'close'])}
+          editing onDone={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'open')
+    expect(screen.getByText(/session log/)).toBeInTheDocument()
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <IssueEditForm issue={withStatus('blocked', ['unblock', 'close'])}
+          editing onDone={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    expect(screen.getByText(/no trace/)).toBeInTheDocument()
+  })
+
+  // A status change is never part of td's PATCH, so a save that carries both
+  // is two requests and the second one can be refused on its own. Reporting
+  // that as one failed save would be a lie about the fields.
+  it('reports a refused status change next to the fields it already saved', async () => {
+    server.use(
+      http.patch('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: { issue } })),
+      http.post('/gui/status', () => HttpResponse.json({
+        ok: false,
+        error: { code: 'invalid_status', message: 'invalid transition from blocked to in_review' },
+      }, { status: 400 })),
+    )
+    const { onDone } = renderStatusForm(withStatus('blocked', ['unblock', 'close']))
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_review')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Change it anyway' }))
+    await save()
+
+    // td's wording, unrewritten, next to what did happen.
+    expect(await screen.findByText('invalid transition from blocked to in_review')).toBeInTheDocument()
+    expect(screen.getByText(/Fields saved/)).toBeInTheDocument()
+    // The form stays open on the choice that was refused, so it can be
+    // retried or taken back.
+    expect(onDone).not.toHaveBeenCalled()
+    expect((screen.getByLabelText('Status') as HTMLSelectElement).value).toBe('in_review')
+  })
+
+  it('saves the fields and the status change together', async () => {
+    let patched: unknown
+    let transitioned = 0
+    server.use(
+      http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+        patched = await request.json()
+        return HttpResponse.json({ ok: true, data: { issue } })
+      }),
+      http.post('/v1/issues/td-6a0883/start', () => {
+        transitioned += 1
+        return HttpResponse.json({ ok: true, data: { issue } })
+      }),
+    )
+    renderStatusForm(withStatus('open', ['start', 'review', 'block', 'close']))
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    await save()
+
+    await waitFor(() => expect(transitioned).toBe(1))
+    expect(patched).toEqual({ title: 'A brand new title for it' })
+  })
+})

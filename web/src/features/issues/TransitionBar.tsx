@@ -3,39 +3,15 @@ import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import type { Transition } from '../../api/types'
+import { AttributionFieldset, ReasonField } from './TransitionInputs'
 import {
-  AttributionFieldset, ReasonField, attributionIncomplete, attributionOf,
-  type ApproveMode,
-} from './TransitionInputs'
-
-const labels: Record<Transition, string> = {
-  start: 'Start',
-  review: 'Request review',
-  approve: 'Approve',
-  reject: 'Reject',
-  block: 'Block',
-  unblock: 'Unblock',
-  close: 'Close',
-  reopen: 'Reopen',
-}
+  attributionIncomplete, attributionOf, takesReason, transitionLabels, type ApproveMode,
+} from './transitions'
 
 const tone: Partial<Record<Transition, string>> = {
   approve: 'border-success/40 text-success',
   reject: 'border-danger/40 text-danger',
   block: 'border-danger/40 text-danger',
-}
-
-/**
- * Transitions that confirm through a form. For reject, block and close td
- * appends the note as a progress log entry, so dropping it would make the GUI
- * strictly worse than `td reject --reason`; approve additionally carries the
- * review attribution td's trusted mode asks for.
- */
-const takesReason: Partial<Record<Transition, true>> = {
-  reject: true,
-  block: true,
-  close: true,
-  approve: true,
 }
 
 interface Props {
@@ -180,7 +156,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
               transition.mutate({ action }, { onSuccess: () => onDone?.() })
             }}
           >
-            {labels[action] ?? action}
+            {transitionLabels[action] ?? action}
           </button>
         ))}
       </div>
