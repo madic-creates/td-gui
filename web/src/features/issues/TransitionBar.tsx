@@ -3,7 +3,10 @@ import { unboundMessage } from '../../api/client'
 import { useRecordReview, useTransition, type Attribution } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import type { Transition } from '../../api/types'
-import MarkdownHint from '../../components/MarkdownHint'
+import {
+  AttributionFieldset, ReasonField, attributionIncomplete, attributionOf,
+  type ApproveMode,
+} from './TransitionInputs'
 
 const labels: Record<Transition, string> = {
   start: 'Start',
@@ -34,19 +37,6 @@ const takesReason: Partial<Record<Transition, true>> = {
   close: true,
   approve: true,
 }
-
-/**
- * How the approval is attributed. `attributed` and `self` map to td's
- * reviewed_by and self_review, which it rejects together with a 400 — a radio
- * group keeps that state unreachable.
- */
-type ApproveMode = 'independent' | 'attributed' | 'self'
-
-const approveModes: [ApproveMode, string][] = [
-  ['independent', 'I reviewed this independently'],
-  ['attributed', 'Reviewed by someone else'],
-  ['self', 'I reviewed my own work'],
-]
 
 interface Props {
   issueId: string
@@ -88,13 +78,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
   if (!available?.length) return null
 
   const busy = transition.isPending || record.isPending
-  // td only rejects a whitespace-only reviewed_by (trims to empty but arrives
-  // non-empty); a genuinely empty string passes its validation and is
-  // recorded as an unattributed review — silently not what "Reviewed by
-  // someone else" promised. Block that here rather than let it round-trip
-  // into a mislabeled approval.
-  const attributionIncomplete =
-    pending === 'approve' && mode === 'attributed' && !reviewedBy.trim()
+  const incomplete = pending === 'approve' && attributionIncomplete(mode, reviewedBy)
   const error =
     lastAction === 'transition' ? transition.error
     : lastAction === 'record' ? record.error
@@ -135,16 +119,11 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
     onDone?.()
   }
 
-  /** Only ever sets one of reviewed_by / self_review — never both. */
-  const attribution = (): Omit<Attribution, 'reason'> => {
-    if (pending !== 'approve') return {}
-    if (mode === 'attributed') return { reviewed_by: reviewedBy.trim() }
-    if (mode === 'self') return { self_review: true }
-    return {}
-  }
+  const attribution = (): Omit<Attribution, 'reason'> =>
+    pending === 'approve' ? attributionOf(mode, reviewedBy) : {}
 
   const submit = () => {
-    if (submitting.current || attributionIncomplete) return
+    if (submitting.current || incomplete) return
     submitting.current = true
     const note = reason.trim()
     if (recordOnly) {
@@ -215,43 +194,13 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
           }}
         >
           {pending === 'approve' && (
-            <fieldset className="mb-3">
-              <legend className="mb-1.5 text-[11px] uppercase tracking-widest text-ink-muted">
-                Attribution
-              </legend>
-              {approveModes.map(([value, label]) => (
-                <label key={value} className="flex items-center gap-2 py-0.5">
-                  <input
-                    type="radio"
-                    name="approve-mode"
-                    value={value}
-                    checked={mode === value}
-                    onChange={() => setMode(value)}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-              {mode === 'attributed' && (
-                <div className="mt-2">
-                  <label
-                    htmlFor="reviewed-by"
-                    className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted"
-                  >
-                    Reviewer
-                  </label>
-                  {/* A single-line input rules out the newlines td rejects.
-                      The length cap is an affordance only — td validates. */}
-                  <input
-                    id="reviewed-by"
-                    type="text"
-                    maxLength={120}
-                    value={reviewedBy}
-                    onChange={e => setReviewedBy(e.target.value)}
-                    className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-1.5 text-ink"
-                  />
-                </div>
-              )}
-
+            <AttributionFieldset
+              idPrefix="transition"
+              mode={mode}
+              onMode={setMode}
+              reviewedBy={reviewedBy}
+              onReviewedBy={setReviewedBy}
+            >
               {/* Attest without closing, so the implementer or orchestrator
                   closes later. td calls the note a summary and requires it. */}
               <label className="mt-2 flex items-center gap-2">
@@ -262,31 +211,14 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
                 />
                 <span>Record only, do not close</span>
               </label>
-            </fieldset>
+            </AttributionFieldset>
           )}
 
-          <label
-            htmlFor="transition-reason"
-            className="mb-1.5 block text-[11px] uppercase tracking-widest text-ink-muted"
-          >
-            Reason
-          </label>
-          <textarea
-            id="transition-reason"
-            rows={2}
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-            className="w-full rounded-sm border border-line bg-surface-inset px-2.5 py-2 text-ink"
-            aria-describedby="transition-reason-hint"
-          />
-          {/* On an approve or a reject this becomes the review summary, which
-              ReviewPanel renders as Markdown, so the hint belongs here too
-              even though the box is small and transient. */}
-          <MarkdownHint id="transition-reason-hint" />
+          <ReasonField idPrefix="transition" value={reason} onChange={setReason} />
           <div className="mt-2 flex gap-1.5">
             <button
               type="submit"
-              disabled={busy || attributionIncomplete}
+              disabled={busy || incomplete}
               className="rounded-sm border border-accent px-3 py-1 text-[11px] text-accent disabled:opacity-40"
             >
               {recordOnly ? 'Record review' : `Confirm ${pending}`}
