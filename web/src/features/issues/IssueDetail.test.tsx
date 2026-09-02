@@ -966,16 +966,34 @@ describe('IssueDetail', () => {
     expect(screen.queryByText('Unrelated')).not.toBeInTheDocument()
   })
 
-  it('lists no tasks for an issue that is not an epic', async () => {
+  // td's own parent_id carries no restriction to epic parents — a chore can
+  // have a chore for a child — so Tasks keys off having children, not off the
+  // parent's type. `detail.issue` here is type 'feature', the fixture default.
+  it('lists the children of a non-epic issue', async () => {
     server.use(
       http.get('/v1/issues/td-6a0883', () =>
         HttpResponse.json({ ok: true, data: detail })),
       http.get('/v1/issues', () => HttpResponse.json({
         ok: true,
         data: {
-          issues: [makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' })],
+          issues: [makeIssue({ id: 'td-child0', title: 'A subtask', parent_id: 'td-6a0883' })],
           limit: 1000, offset: 0, total: 1, has_more: false,
         },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('Tasks (1)')).toBeInTheDocument()
+    expect(screen.getByText('A subtask')).toBeInTheDocument()
+  })
+
+  it('lists no tasks for an issue with no children', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: detail })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
       })),
     )
 

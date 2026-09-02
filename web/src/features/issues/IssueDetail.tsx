@@ -73,9 +73,9 @@ function IssueDetailView({ id }: { id: string }) {
   // `blocked_by` holds the rows where this issue is the one being waited for,
   // so it answers "what does this block" — the opposite of what its name says.
   const blocks = resolve(blocked_by, index, 'issue_id')
-  const tasks = issue.type === 'epic'
-    ? childrenOf(issues, issue.id).map(child => ({ id: child.id, issue: child }))
-    : []
+  // td's own parent_id carries no restriction to epic parents, so Tasks keys
+  // off having children rather than off this issue's own type.
+  const tasks = childrenOf(issues, issue.id).map(child => ({ id: child.id, issue: child }))
 
   return (
     <div className="px-5 py-4 pb-6">
