@@ -39,10 +39,15 @@ export function useIssueIndex(): {
    */
   isPending: boolean
   /**
-   * True when either half came back at td's page size, which is the most one
-   * request can carry and the only page either query asks for. A full half
-   * means the index is a part of the project rather than all of it, so
-   * anything counted off it — an epic's rollup above all — is a lower bound.
+   * True when td says either half has more rows than it sent. Each query asks
+   * for one page at td's maximum, so a truncated half means the index is a
+   * part of the project rather than all of it, and anything counted off it —
+   * an epic's rollup above all — is a lower bound.
+   *
+   * Read from td's own `has_more` rather than inferred from a full page.
+   * Whether a list is complete is td's answer to give, and a page that happens
+   * to land exactly on the limit is not the same fact as a page with rows
+   * behind it.
    *
    * Callers that only enrich a reference can ignore this the way they ignore
    * `isPending`; a caller that presents a derived number as fact cannot. A
@@ -60,12 +65,11 @@ export function useIssueIndex(): {
   // the order candidatesFor then preserves within each group.
   const isPending = open.isPending || closed.isPending
   return useMemo(() => {
-    const halves = [open.data?.issues ?? [], closed.data?.issues ?? []]
-    const index = indexById(halves.flat())
-    // Measured per half, before the Map merges them: a duplicate across the
-    // two would shrink the merged size below the cap and hide the very
-    // truncation this reports.
-    const capped = halves.some(half => half.length >= FETCH_LIMIT)
+    const index = indexById([...(open.data?.issues ?? []), ...(closed.data?.issues ?? [])])
+    // Taken per half, since the two are paged independently and either can be
+    // the truncated one. A half that has not answered yet reports nothing
+    // rather than false: `isPending` already covers that state.
+    const capped = Boolean(open.data?.has_more || closed.data?.has_more)
     return { index, issues: [...index.values()], isPending, capped }
   }, [open.data, closed.data, isPending])
 }

@@ -89,24 +89,39 @@ describe('useIssueIndex', () => {
     expect(limits).toEqual([String(FETCH_LIMIT), String(FETCH_LIMIT)])
   })
 
-  // A full page is the most one request can carry, so it means the index holds
-  // part of the project. Callers deriving a number from it — the epic rollup —
-  // have to be able to say so rather than present a lower bound as a total.
-  it('reports the index as capped when a half fills its page', async () => {
+  // Truncation is td's own answer, read from `has_more` rather than inferred
+  // from a page that happens to be full. Callers deriving a number from the
+  // index — the epic rollup — have to be able to say the total is a lower
+  // bound rather than present it as a fact.
+  it.each([['', 'the open half'], ['closed', 'the closed half']])(
+    'reports the index as capped when td says %s has more',
+    async truncated => {
+      server.use(http.get('/v1/issues', ({ request }) => {
+        const status = new URL(request.url).searchParams.getAll('status').join(',')
+        return HttpResponse.json({
+          ok: true,
+          data: {
+            issues: [makeIssue({ id: `td-${status || 'open'}` })],
+            limit: 1000, offset: 0, total: 2, has_more: status === truncated,
+          },
+        })
+      }))
+
+      const { result } = renderHook(() => useIssueIndex(), { wrapper })
+
+      await waitFor(() => expect(result.current.capped).toBe(true))
+    },
+  )
+
+  // A full page is not the same fact as a page with rows behind it: td pages
+  // to its own limit, so landing exactly on it is ordinary.
+  it('reports the index as complete when td reports no more, even at a full page', async () => {
     const full = Array.from({ length: FETCH_LIMIT }, (_, i) => makeIssue({ id: `td-${i}` }))
     stubList({ '': full })
 
     const { result } = renderHook(() => useIssueIndex(), { wrapper })
 
-    await waitFor(() => expect(result.current.capped).toBe(true))
-  })
-
-  it('reports the index as complete when neither half fills its page', async () => {
-    stubList({ '': [makeIssue({ id: 'td-open' })], closed: [] })
-
-    const { result } = renderHook(() => useIssueIndex(), { wrapper })
-
-    await waitFor(() => expect(result.current.index.size).toBe(1))
+    await waitFor(() => expect(result.current.index.size).toBe(FETCH_LIMIT))
     expect(result.current.capped).toBe(false)
   })
 

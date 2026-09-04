@@ -20,13 +20,13 @@ afterAll(() => server.close())
  * splits it: `''` is the unfiltered half td reads as "everything but closed",
  * `'closed'` is the second request that fetches the rest.
  */
-function renderList(byStatus: Record<string, Issue[]>) {
+function renderList(byStatus: Record<string, Issue[]>, hasMore = false) {
   server.use(http.get('/v1/issues', ({ request }) => {
     const status = new URL(request.url).searchParams.getAll('status')
     const issues = byStatus[status.join(',')] ?? []
     return HttpResponse.json({
       ok: true,
-      data: { issues, limit: FETCH_LIMIT, offset: 0, total: issues.length, has_more: false },
+      data: { issues, limit: FETCH_LIMIT, offset: 0, total: issues.length, has_more: hasMore },
     })
   }))
 
@@ -190,16 +190,13 @@ describe('EpicList', () => {
 
   // A rollup computed off a partial index is a lower bound. Saying so beats
   // presenting the number as fact.
-  it('admits that the counts may undercount when the index came back full', async () => {
-    const half = Array.from({ length: FETCH_LIMIT }, (_, i) =>
-      makeIssue({ id: `td-fill${i}`, type: 'task' }))
-
-    renderList({ '': [...half.slice(1), epic({ id: 'td-ep1' })] })
+  it('admits that the counts may undercount when td reports more rows', async () => {
+    renderList({ '': [epic({ id: 'td-ep1' })] }, true)
 
     expect(await screen.findByText(/may be undercounting/)).toBeInTheDocument()
   })
 
-  it('says nothing about the cap when neither half filled its page', async () => {
+  it('says nothing about the cap when td reports no more rows', async () => {
     renderList({ '': [epic({ id: 'td-ep1' })] })
 
     await screen.findByRole('link', { name: 'td-ep1' })
