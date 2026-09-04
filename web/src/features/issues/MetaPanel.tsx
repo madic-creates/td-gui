@@ -48,7 +48,16 @@ const linkTo = (id: string): To => `/issues/${id}`
  * placeholder: td distinguishes "no sprint" from "sprint unknown" only by
  * absence, and a dash in the value column claims more than we know.
  */
-export default function MetaPanel({ issue }: { issue: Issue }) {
+export default function MetaPanel({ issue, parent = null }: {
+  issue: Issue
+  /**
+   * The parent, resolved against the issue index, or null when the index does
+   * not hold it — a capped fetch, or a parent since deleted. Both mean the
+   * title is unknown, and the row then shows what it showed before titles
+   * existed: the bare id, which is still the thing the reader can act on.
+   */
+  parent?: Issue | null
+}) {
   return (
     <div className="rounded-md border border-line bg-surface-raised px-3">
       <Block title="Metadata">
@@ -62,11 +71,16 @@ export default function MetaPanel({ issue }: { issue: Issue }) {
         {issue.points > 0 && <Row label="Points">{issue.points}</Row>}
         {issue.labels.length > 0 && <Row label="Labels">{issue.labels.join(', ')}</Row>}
         {issue.sprint && <Row label="Sprint">{issue.sprint}</Row>}
+        {/* The title sits outside the link, as in RelatedRow: the id is the
+            handle, and folding the title into the link would make every
+            parent row announce a different, longer name for the same kind of
+            control. */}
         {issue.parent_id && (
           <Row label="Parent">
             <Link to={linkTo(issue.parent_id)} className="font-mono text-accent">
               {issue.parent_id}
             </Link>
+            {parent && <span className="ml-1.5">{parent.title}</span>}
           </Row>
         )}
         {issue.due_date && <Row label="Due">{issue.due_date}</Row>}

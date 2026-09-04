@@ -3,9 +3,10 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import MetaPanel from './MetaPanel'
 import { makeIssue } from './issue.fixture'
+import type { Issue } from '../../api/types'
 
-const show = (issue = makeIssue()) =>
-  render(<MemoryRouter><MetaPanel issue={issue} /></MemoryRouter>)
+const show = (issue = makeIssue(), parent: Issue | null = null) =>
+  render(<MemoryRouter><MetaPanel issue={issue} parent={parent} /></MemoryRouter>)
 
 describe('MetaPanel', () => {
   it('shows the metadata fields that are set', () => {
@@ -67,6 +68,30 @@ describe('MetaPanel', () => {
   it('links the parent issue', () => {
     show(makeIssue({ parent_id: 'td-epic00' }))
     expect(screen.getByRole('link', { name: 'td-epic00' })).toHaveAttribute('href', '/issues/td-epic00')
+  })
+
+  // A bare id says nothing about what the issue belongs to, and the index
+  // already holds the answer.
+  it('names the parent when the index resolved it', () => {
+    show(
+      makeIssue({ parent_id: 'td-epic00' }),
+      makeIssue({ id: 'td-epic00', title: 'The containing epic' }),
+    )
+
+    expect(screen.getByText('The containing epic')).toBeInTheDocument()
+    // The id stays the link's whole name: the title rides beside it, not
+    // inside it, so every parent row announces the same kind of control.
+    expect(screen.getByRole('link', { name: 'td-epic00' })).toBeInTheDocument()
+  })
+
+  // A capped index and a deleted parent are the same thing here: the title is
+  // unknown, and claiming a "not found" the reader cannot verify is worse than
+  // showing the id they can paste into `td show`.
+  it('falls back to the bare id when the parent is unresolved', () => {
+    show(makeIssue({ parent_id: 'td-epic00' }), null)
+
+    expect(screen.getByRole('link', { name: 'td-epic00' })).toBeInTheDocument()
+    expect(screen.queryByText(/not found/)).not.toBeInTheDocument()
   })
 
   it('shows the sessions that touched the issue, shortened', () => {

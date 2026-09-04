@@ -987,6 +987,52 @@ describe('IssueDetail', () => {
     expect(screen.getByText('A subtask')).toBeInTheDocument()
   })
 
+  // The same bar the epic overview draws, and it counts the whole subtree —
+  // so it legitimately reports more tasks than the group below it lists.
+  it('reports the progress of the whole subtree above the tasks', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: detail })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [
+            makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' }),
+            makeIssue({ id: 'td-child1', parent_id: 'td-6a0883', status: 'closed' }),
+            makeIssue({ id: 'td-grand0', parent_id: 'td-child0' }),
+          ],
+          limit: 1000, offset: 0, total: 3, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('Tasks (2)')).toBeInTheDocument()
+    expect(screen.getByText('1/3')).toBeInTheDocument()
+  })
+
+  // The index already holds the title, and a bare id says nothing about what
+  // the issue in front of the reader belongs to.
+  it('names the parent in the metadata panel', async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true, data: { ...detail, issue: { ...detail.issue, parent_id: 'td-epic00' } },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [makeIssue({ id: 'td-epic00', type: 'epic', title: 'The containing epic' })],
+          limit: 1000, offset: 0, total: 1, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('The containing epic')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'td-epic00' }))
+      .toHaveAttribute('href', '/issues/td-epic00')
+  })
+
   it('lists no tasks for an issue with no children', async () => {
     server.use(
       http.get('/v1/issues/td-6a0883', () =>
@@ -1000,6 +1046,9 @@ describe('IssueDetail', () => {
     renderDetail()
     await screen.findByText('Probe issue for API shape')
     expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
+    // The bar rides in the group, so an issue with no tasks reports nothing
+    // rather than announcing that it has none.
+    expect(screen.queryByText('no tasks')).not.toBeInTheDocument()
   })
 
   // The body is one content column plus the metadata sidebar, and nothing

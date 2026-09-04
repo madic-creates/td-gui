@@ -13,6 +13,8 @@ import MetaPanel from './MetaPanel'
 import ReviewPanel from './ReviewPanel'
 import { useIssueIndex } from './useIssueIndex'
 import { childrenOf, resolve } from './issueIndex'
+import EpicProgress from '../epics/EpicProgress'
+import { childIndex, rollup } from '../epics/epicRollup'
 import { listPathFrom } from './listUrl'
 import type { Handoff } from '../../api/types'
 import { relativeTime, shortSession } from '../../lib/format'
@@ -76,6 +78,11 @@ function IssueDetailView({ id }: { id: string }) {
   // td's own parent_id carries no restriction to epic parents, so Tasks keys
   // off having children rather than off this issue's own type.
   const tasks = childrenOf(issues, issue.id).map(child => ({ id: child.id, issue: child }))
+  // The same bar the overview draws, for the same reason it keys off children
+  // rather than type: an issue with tasks under it has progress to report
+  // whether or not td calls it an epic. It counts the whole subtree, so on a
+  // deeper tree it reports more than the direct children listed below it.
+  const progress = rollup(childIndex(issues), issue.id)
 
   return (
     <div className="px-5 py-4 pb-6">
@@ -185,7 +192,10 @@ function IssueDetailView({ id }: { id: string }) {
             issueId={issue.id} dependencies={dependencies} blockedBy={blocked_by} />
 
           {!editing && <RelatedIssues title="Blocks" items={blocks} />}
-          {!editing && <RelatedIssues title="Tasks" items={tasks} />}
+          {!editing && (
+            <RelatedIssues
+              title="Tasks" items={tasks} lead={<EpicProgress rollup={progress} />} />
+          )}
 
           {/* Where Save and Cancel land while the editor is open. They close
               the editor, so they come after every part of it — the fields
@@ -303,7 +313,10 @@ function IssueDetailView({ id }: { id: string }) {
         </div>
 
         <aside>
-          <MetaPanel issue={issue} />
+          <MetaPanel
+            issue={issue}
+            parent={issue.parent_id ? index.get(issue.parent_id) ?? null : null}
+          />
           <ReviewPanel active={issue.active_review} history={issue.reviews} />
         </aside>
       </div>

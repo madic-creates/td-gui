@@ -54,15 +54,24 @@ export function GroupHeading({ title, count }: { title: string; count: number })
 export default function RelatedIssues({
   title,
   items,
+  lead,
 }: {
   title: string
   items: Related[]
+  /**
+   * Rendered between the heading and the rows. The Tasks group puts the
+   * progress bar here: above the whole section it would be a line belonging to
+   * nothing, and under the rows it would be a summary the reader only reaches
+   * after having counted the list themselves.
+   */
+  lead?: ReactNode
 }) {
   if (items.length === 0) return null
 
   return (
     <section className="mt-6">
       <GroupHeading title={title} count={items.length} />
+      {lead && <div className="mb-2">{lead}</div>}
       <ul>
         {items.map(item => (
           <RelatedRow key={item.id} {...item} />
