@@ -35,6 +35,17 @@ function renderActions(over: Parameters<typeof makeIssue>[0] = {}) {
 }
 
 describe('IssueActions', () => {
+  // The one way to work outward from a parent: the combobox in the form
+  // attaches a child once you are already looking at the child. It lives in
+  // this row rather than beside the Tasks group, which does not exist until
+  // the issue already has a task.
+  it('offers to create a task under the issue', () => {
+    renderActions({ id: 'td-epic00' })
+
+    expect(screen.getByRole('link', { name: '+ Task' }))
+      .toHaveAttribute('href', '/new?parent=td-epic00')
+  })
+
   it('acknowledges a focus request without claiming to read focus state back', async () => {
     server.use(http.put('/v1/focus', () => HttpResponse.json({ ok: true, data: {} })))
     renderActions()

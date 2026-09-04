@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { unboundMessage } from '../../api/client'
 import { useDeleteIssue, useSetFocus } from '../../api/mutations'
 import type { Issue } from '../../api/types'
@@ -106,6 +106,18 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
         {/* An acknowledgement of the request, not a reading of focus state:
             td exposes no GET for it, so the GUI cannot know what is focused. */}
         {focusAck && <span className="text-[11px] text-success">focus set</span>}
+
+        {/* In the control row rather than beside the Tasks heading, which is
+            where it would read best but is exactly where it would be missing:
+            that group is not rendered at all until the issue has a child, so
+            the first task could never be created from it. */}
+        <Link
+          to={`/new?parent=${issue.id}`}
+          data-button
+          className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
+        >
+          + Task
+        </Link>
 
         <ConfirmButton
           label="Delete"

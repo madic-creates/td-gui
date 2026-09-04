@@ -20,11 +20,11 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderForm() {
+function renderForm(entry = '/new') {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/new']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/new" element={<IssueForm />} />
           {/* A stand-in for the detail route, so a create's navigate lands
@@ -238,6 +238,58 @@ describe('IssueForm', () => {
       labels: ['alpha'], parent_id: 'td-a1b2c3',
       due_date: '2026-09-01', defer_until: '2026-08-20', minor: true,
     }))
+  })
+})
+
+/**
+ * What the "+ Task" actions on the epic overview and the detail view link to.
+ * Without this the parameter is inert and the two of them open an empty form,
+ * losing the epic the reader came from.
+ */
+describe('IssueForm seeded from the url', () => {
+  it('fills the parent field from ?parent=', async () => {
+    renderForm('/new?parent=td-epic00')
+
+    expect(await screen.findByLabelText('Parent')).toHaveValue('td-epic00')
+  })
+
+  it('sends the seeded parent in the create body', async () => {
+    let received: Record<string, unknown> | null = null
+    server.use(http.post('/v1/issues', async ({ request }) => {
+      received = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm('/new?parent=td-epic00')
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await screen.findByText('issue detail stand-in')
+    expect(received).toEqual(expect.objectContaining({ parent_id: 'td-epic00' }))
+  })
+
+  // The seed is a starting point, not a lock: the combobox stays the field it
+  // was, so a reader who followed the wrong "+ Task" can correct it.
+  it('lets the seeded parent be cleared again', async () => {
+    let received: Record<string, unknown> | null = null
+    server.use(http.post('/v1/issues', async ({ request }) => {
+      received = await request.json() as Record<string, unknown>
+      return HttpResponse.json({ ok: true, data: { issue: { id: 'td-new' } } })
+    }))
+
+    renderForm('/new?parent=td-epic00')
+    await userEvent.clear(await screen.findByLabelText('Parent'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A sufficiently long issue title')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await screen.findByText('issue detail stand-in')
+    expect(received).not.toHaveProperty('parent_id')
+  })
+
+  it('behaves exactly as before when the url names no parent', async () => {
+    renderForm()
+
+    expect(await screen.findByLabelText('Parent')).toHaveValue('')
   })
 })
 

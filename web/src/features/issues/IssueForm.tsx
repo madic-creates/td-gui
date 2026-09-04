@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
@@ -11,9 +11,29 @@ import { candidatesFor } from './issueIndex'
 import { useIssueIndex } from './useIssueIndex'
 
 export default function IssueForm() {
+  const [search] = useSearchParams()
+
+  /**
+   * `?parent=` is what the "+ Task" actions carry, and the only workflow that
+   * reaches this form pointing outward from an epic: the parent combobox
+   * attaches a child once you are already looking at the child, and nothing
+   * else lets you start from the epic.
+   *
+   * Seeded once, at mount, rather than followed. The field is an ordinary
+   * editable one from here on, and a url that kept overwriting it would undo a
+   * parent the author had just picked by hand.
+   *
+   * The id is not checked against the index. td answers an unknown parent with
+   * `parent issue not found: …`, which the panel below already shows in td's
+   * own words — and a check here would refuse a parent that exists whenever
+   * the index came back capped.
+   */
   // One draft rather than a state per field, and the same shape the edit form
   // holds — the two forms offer the same fields, so they hold the same object.
-  const [draft, setDraft] = useState<IssueDraft>(blankDraft)
+  const [draft, setDraft] = useState<IssueDraft>(() => ({
+    ...blankDraft(),
+    parent_id: search.get('parent') ?? '',
+  }))
   const create = useCreateIssue()
   const navigate = useNavigate()
   const panelError = unboundMessage(create.error, boundFields)
