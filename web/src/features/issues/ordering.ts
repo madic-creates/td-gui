@@ -16,7 +16,10 @@ export interface Sort {
     render looks the way it did before this feature existed. */
 export const DEFAULT_SORT: Sort = { key: 'priority', direction: 'asc' }
 
-const PRIORITY_ORDER: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
+/** Exported for the epic overview, which orders on priority without the rest
+    of this module's sort machinery. One copy, because two would drift the day
+    td grows a P5. */
+export const PRIORITY_ORDER: Priority[] = ['P0', 'P1', 'P2', 'P3', 'P4']
 
 /** null means "cannot be ordered on this key" — those rows go last. */
 function rank(issue: Issue, key: SortKey): number | null {

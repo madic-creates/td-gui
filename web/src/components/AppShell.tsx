@@ -83,6 +83,13 @@ export default function AppShell({
           <AboutIcon />
         </Link>
         <Link
+          to="/epics"
+          data-button
+          className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"
+        >
+          Epics
+        </Link>
+        <Link
           to="/boards"
           data-button
           className="rounded-sm border border-line px-2.5 py-1 text-[11px] text-ink-muted"

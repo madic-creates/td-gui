@@ -2,6 +2,7 @@ import { Route, Routes, useLocation } from 'react-router'
 import IssueList from './features/issues/IssueList'
 import IssueDetail from './features/issues/IssueDetail'
 import IssueForm from './features/issues/IssueForm'
+import EpicList from './features/epics/EpicList'
 import BoardList from './features/boards/BoardList'
 import BoardForm from './features/boards/BoardForm'
 import BoardView from './features/boards/BoardView'
@@ -23,6 +24,11 @@ export default function App() {
           <Route path="/" element={<IssueList />} />
           <Route path="/new" element={<IssueForm />} />
           <Route path="/issues/:id" element={<IssueDetail />} />
+          {/* The overview only. An epic's detail is `/issues/:id` like any
+              other issue's — it has td's ordinary transitions, review policy
+              and comments, and a second detail screen would either duplicate
+              every panel that serves them or ship without them. */}
+          <Route path="/epics" element={<EpicList />} />
           <Route path="/boards" element={<BoardList />} />
           <Route path="/boards/new" element={<BoardForm />} />
           <Route path="/boards/:id/edit" element={<BoardForm />} />

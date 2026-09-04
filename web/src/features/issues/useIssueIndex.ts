@@ -38,6 +38,17 @@ export function useIssueIndex(): {
    * index that has not loaded yet would report every hit as unresolvable.
    */
   isPending: boolean
+  /**
+   * True when either half came back at td's page size, which is the most one
+   * request can carry and the only page either query asks for. A full half
+   * means the index is a part of the project rather than all of it, so
+   * anything counted off it — an epic's rollup above all — is a lower bound.
+   *
+   * Callers that only enrich a reference can ignore this the way they ignore
+   * `isPending`; a caller that presents a derived number as fact cannot. A
+   * wrong count offered without qualification is worse than an admitted gap.
+   */
+  capped: boolean
 } {
   const open = useIssues({ limit: FETCH_LIMIT })
   const closed = useIssues({ status: ['closed'], limit: FETCH_LIMIT })
@@ -49,7 +60,12 @@ export function useIssueIndex(): {
   // the order candidatesFor then preserves within each group.
   const isPending = open.isPending || closed.isPending
   return useMemo(() => {
-    const index = indexById([...(open.data?.issues ?? []), ...(closed.data?.issues ?? [])])
-    return { index, issues: [...index.values()], isPending }
+    const halves = [open.data?.issues ?? [], closed.data?.issues ?? []]
+    const index = indexById(halves.flat())
+    // Measured per half, before the Map merges them: a duplicate across the
+    // two would shrink the merged size below the cap and hide the very
+    // truncation this reports.
+    const capped = halves.some(half => half.length >= FETCH_LIMIT)
+    return { index, issues: [...index.values()], isPending, capped }
   }, [open.data, closed.data, isPending])
 }

@@ -89,6 +89,27 @@ describe('useIssueIndex', () => {
     expect(limits).toEqual([String(FETCH_LIMIT), String(FETCH_LIMIT)])
   })
 
+  // A full page is the most one request can carry, so it means the index holds
+  // part of the project. Callers deriving a number from it — the epic rollup —
+  // have to be able to say so rather than present a lower bound as a total.
+  it('reports the index as capped when a half fills its page', async () => {
+    const full = Array.from({ length: FETCH_LIMIT }, (_, i) => makeIssue({ id: `td-${i}` }))
+    stubList({ '': full })
+
+    const { result } = renderHook(() => useIssueIndex(), { wrapper })
+
+    await waitFor(() => expect(result.current.capped).toBe(true))
+  })
+
+  it('reports the index as complete when neither half fills its page', async () => {
+    stubList({ '': [makeIssue({ id: 'td-open' })], closed: [] })
+
+    const { result } = renderHook(() => useIssueIndex(), { wrapper })
+
+    await waitFor(() => expect(result.current.index.size).toBe(1))
+    expect(result.current.capped).toBe(false)
+  })
+
   // Should td ever return closed rows on the unfiltered list too, the overlap
   // must not double every such issue into the picker's candidate list.
   it('indexes an issue returned by both requests once', async () => {

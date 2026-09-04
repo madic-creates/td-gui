@@ -75,6 +75,11 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Boards' })).toHaveAttribute('href', '/boards')
   })
 
+  it('links to the epic overview', () => {
+    renderShell(true)
+    expect(screen.getByRole('link', { name: 'Epics' })).toHaveAttribute('href', '/epics')
+  })
+
   it('links to the about page from an icon-only control', async () => {
     renderShell(true)
 
