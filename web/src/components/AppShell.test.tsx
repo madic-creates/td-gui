@@ -162,4 +162,9 @@ describe('AppShell', () => {
     renderShell(true)
     expect(screen.getByRole('main')).toContainElement(screen.getByText('route content'))
   })
+
+  it('links to the activity page from the header', () => {
+    renderShell(true)
+    expect(screen.getByRole('link', { name: 'Activity' })).toHaveAttribute('href', '/activity')
+  })
 })
