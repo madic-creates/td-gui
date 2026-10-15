@@ -79,6 +79,11 @@ whole board while doing so, so the list updates when td answers and not before.
 While a move is in flight, the controls are disabled rather than pointing at a
 target that is about to shift.
 
+If a card left the board while you were looking at it (an agent closed it, or
+it stopped matching the query), td refuses a move that names it and says so.
+td-gui shows that message and reloads the board, so the next attempt is made
+against what is actually there.
+
 ### Swimlanes: columns by status
 
 ![The swimlane view](images/board-swimlanes.png)
