@@ -1527,3 +1527,60 @@ func TestStatusUnstartLogsTheRevertContract(t *testing.T) {
 			showText(id))
 	}
 }
+
+// TestActivityContract pins the two shapes the activity page reads straight
+// from td: monitor.activity and sessions are arrays, and their entries carry
+// the fields the page renders. td owns both routes; if it renames a field,
+// the page goes blank silently, so this is where that shows up instead.
+func TestActivityContract(t *testing.T) {
+	front, _ := newProject(t)
+
+	var monitor struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Monitor struct {
+				Activity json.RawMessage `json:"activity"`
+			} `json:"monitor"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/monitor", &monitor)
+	if !monitor.OK {
+		t.Error("monitor ok = false, want true")
+	}
+	assertArrayOfObjectsWith(t, "monitor.activity", monitor.Data.Monitor.Activity,
+		"timestamp", "session_id", "type", "message", "issue_id", "issue_title", "log_type")
+
+	var sessions struct {
+		OK   bool `json:"ok"`
+		Data struct {
+			Sessions json.RawMessage `json:"sessions"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/sessions", &sessions)
+	if !sessions.OK {
+		t.Error("sessions ok = false, want true")
+	}
+	assertArrayOfObjectsWith(t, "sessions", sessions.Data.Sessions,
+		"id", "name", "agent_type", "branch", "last_activity")
+}
+
+// assertArrayOfObjectsWith fails unless raw is a JSON array whose every
+// element has each of keys. An empty array passes: a fresh project may have
+// recorded nothing yet, and the shape is what is being pinned.
+func assertArrayOfObjectsWith(t *testing.T, name string, raw json.RawMessage, keys ...string) {
+	t.Helper()
+	if !strings.HasPrefix(strings.TrimSpace(string(raw)), "[") {
+		t.Fatalf("%s = %s, want a JSON array", name, raw)
+	}
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		t.Fatalf("decode %s: %v", name, err)
+	}
+	for i, item := range items {
+		for _, key := range keys {
+			if _, ok := item[key]; !ok {
+				t.Errorf("%s[%d] has no %q field", name, i, key)
+			}
+		}
+	}
+}
