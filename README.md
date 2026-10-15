@@ -83,6 +83,7 @@ have already run `td init` in. td-gui will not run `td init` for you.
 | [Working with issues](docs/issues.md) | The list, filters, sorting, ad-hoc TDQ queries, Markdown in long text, the detail page, creating and editing |
 | [Transitions and reviews](docs/reviews.md) | The status flow, reasons, review attribution, why td sometimes refuses |
 | [Boards](docs/boards.md) | Saved queries, the backlog view and pinning, swimlanes and drag-to-transition |
+| [Activity](docs/activity.md) | The recent activity feed across sessions, the agent session list |
 
 ## How it works
 

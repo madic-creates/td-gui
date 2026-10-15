@@ -9,6 +9,7 @@ begin with [Getting started](getting-started.md).
 | [Working with issues](issues.md) | The list, filters and sorting, ad-hoc TDQ queries, Markdown in long text, the detail page, creating and editing |
 | [Transitions and reviews](reviews.md) | The status flow, reasons, review attribution, why td sometimes refuses |
 | [Boards](boards.md) | Saved TDQ queries, the backlog view and pinning, swimlanes and drag-to-transition |
+| [Activity](activity.md) | The recent activity feed across sessions, the agent session list |
 
 Two things are worth knowing before you read any of it.
 
