@@ -22,6 +22,14 @@ const OUT = process.argv[3] ?? 'docs/images'
 const WIDTH = 1400
 const HEIGHT = 1600 // tall enough that nothing we clip is below the fold
 
+// The locale and timezone chromium renders in, fixed so the shots do not depend
+// on the machine taking them: a date input draws dd.mm.yyyy or mm/dd/yyyy from
+// the locale. On Linux chromium takes its locale from the environment, and
+// LANGUAGE is what decides it. `--lang` is ignored there, and CDP's
+// Emulation.setLocaleOverride moves Intl but leaves a date input in the system
+// format.
+const PINNED_ENV = { LANGUAGE: 'en_US', LC_ALL: 'en_US.UTF-8', TZ: 'UTC' }
+
 // --- CDP plumbing ------------------------------------------------------------
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -42,7 +50,7 @@ async function launch() {
 			'--no-default-browser-check',
 			'about:blank',
 		],
-		{ stdio: ['ignore', 'ignore', 'pipe'] },
+		{ stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, ...PINNED_ENV } },
 	)
 
 	// Chromium prints the websocket URL on stderr once it is listening.

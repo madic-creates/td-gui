@@ -36,6 +36,11 @@ browser window.
 It reads the issue and board ids off the running instance, so a fresh seed with
 different ids needs no edit here.
 
+It also starts chromium in a fixed locale and timezone (`en_US`, UTC), so a date
+input reads mm/dd/yyyy whichever machine takes the shot. The locale is set
+through the environment, not `--lang`, because that is the only place chromium
+on Linux takes a date input's format from.
+
 ## The eleven images
 
 | Image | Where it comes from |
