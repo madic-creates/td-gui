@@ -47,7 +47,7 @@ env:
   # The oldest td td-gui supports, and the version the API contract in
   # test/contract was probed against. Keep in sync with minTdVersion in
   # cmd/td-gui/main.go.
-  TD_VERSION: v0.57.0
+  TD_VERSION: v0.66.0
 
 jobs:
   test-go:

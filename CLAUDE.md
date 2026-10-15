@@ -27,7 +27,7 @@ Two things this implies, and they explain most of the design:
   workaround is documented and fenced in rather than hidden. See the
   "deliberately" sections below.
 
-Runtime requirements: `td` v0.57.0 or newer on `PATH` (the minimum is pinned as
+Runtime requirements: `td` v0.66.0 or newer on `PATH` (the minimum is pinned as
 `minTdVersion` in `cmd/td-gui/main.go` and checked at startup), plus a project
 someone has already run `td init` in. td-gui refuses rather than initialising
 one.
@@ -289,7 +289,7 @@ main that way.
 **A green `make test` can be misleading.** `test/contract` drives a real `td`
 binary and skips itself when `td` is not on PATH — `go test ./...` still
 prints `ok` for the package. The contract is only actually verified with `td`
-v0.57.0+ installed; check for `--- SKIP` before trusting a green run.
+v0.66.0+ installed; check for `--- SKIP` before trusting a green run.
 
 Frontend commands run from `web/`. Bare `npm test` watches in an interactive
 terminal (it runs once and exits without a TTY), so prefer the explicit

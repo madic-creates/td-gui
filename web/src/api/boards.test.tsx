@@ -117,34 +117,10 @@ describe('board mutations', () => {
     expect(bodies[0]).toEqual({ name: 'Sprint 1', query: 'priority <= P1' })
   })
 
-  // The slot is td's 1-based insert position, not the sort key read back from
-  // the board. Sending the sort key would silently reorder the whole board.
-  // td before v0.66.0 has no /v1/project, so a 404 there means the slot path.
-  it('sends the issue id and the slot when td has no move endpoint', async () => {
-    server.use(http.get('/v1/project', () =>
-      HttpResponse.json({ ok: false, error: { code: 'not_found', message: 'not found' } }, { status: 404 })))
-    const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper })
-    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(bodies[0]).toEqual({ issue_id: 'td-a1b2', position: 3 })
-  })
-
-  // A project that answers but lists no board_move is no better than none.
-  it('sends the slot when td does not report board_move', async () => {
-    server.use(http.get('/v1/project', () =>
-      HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['issue_revisions'] } })))
-    const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper })
-    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(bodies[0]).toEqual({ issue_id: 'td-a1b2', position: 3 })
-  })
-
   // include_closed must match the list the user was looking at: td resolves
   // before_id against the same task list GET /v1/boards/{id} returned.
-  it('moves a card before another through the move endpoint when td reports board_move', async () => {
+  it('moves a card before another through the move endpoint', async () => {
     server.use(
-      http.get('/v1/project', () =>
-        HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
       http.post('/v1/boards/:id/move', async ({ request, params }) => {
         requests.push(`move ${String(params.id)}`)
         bodies.push(await request.json())
@@ -152,7 +128,7 @@ describe('board mutations', () => {
       }),
     )
     const { result } = renderHook(() => useMoveCard('bd-1', true), { wrapper })
-    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4' })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(requests).toContain('move bd-1')
     expect(bodies).toEqual([{ issue_id: 'td-a1b2', before_id: 'td-c3d4', include_closed: true }])
@@ -163,8 +139,6 @@ describe('board mutations', () => {
   // it is fetched again rather than left to describe a list td no longer has.
   it('refetches the board when td reports the board changed under the move', async () => {
     server.use(
-      http.get('/v1/project', () =>
-        HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
       http.post('/v1/boards/:id/move', () => HttpResponse.json({
         ok: false,
         error: { code: 'conflict', message: 'The task or the task it should be placed before is no longer on this board. Refresh the board and try again.' },
@@ -179,7 +153,7 @@ describe('board mutations', () => {
     const fetches = requests.filter(r => r === '/v1/boards/bd-1').length
 
     const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper: shared })
-    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4' })
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.error?.message).toMatch(/no longer on this board/)
     await waitFor(() =>

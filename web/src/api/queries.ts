@@ -119,9 +119,9 @@ export function useAbout() {
 export const projectKeys = { capabilities: ['project', 'capabilities'] as const }
 
 /**
- * Whether td reports an optional feature in GET /v1/project: `board_move` for
- * the board move endpoint, `issue_revisions` for If-Match on issue writes.
- * One cache entry serves every capability, read once and then served from it.
+ * Whether td reports an optional feature in GET /v1/project, such as
+ * `issue_revisions` for If-Match on issue writes. One cache entry serves
+ * every capability, read once and then served from it.
  *
  * Read at the moment a write needs it, not by a hook on mount: only a write
  * branches on it, and a page that never writes has no reason to ask.

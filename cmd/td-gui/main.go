@@ -26,8 +26,9 @@ import (
 )
 
 // minTdVersion is the oldest td release td-gui is verified against. Older
-// releases have `td serve` but lack available_transitions and active_review.
-const minTdVersion = "v0.57.0"
+// releases lack POST /v1/boards/{id}/move, which every board move goes
+// through, and before v0.57.0 available_transitions and active_review too.
+const minTdVersion = "v0.66.0"
 
 // buildVersion is stamped by the release job via
 // -ldflags "-X main.buildVersion=v1.2.3". Every other build reports "dev".

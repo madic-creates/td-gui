@@ -4,9 +4,10 @@
 
 td-gui needs two things:
 
-- **`td` v0.57.0 or newer** on your PATH, or passed with `--td`. Older releases
-  do have `td serve`, but they do not report the `available_transitions` and
-  `active_review` fields that the UI is built on.
+- **`td` v0.66.0 or newer** on your PATH, or passed with `--td`. Older releases
+  do have `td serve`, but they cannot move a card on a board the way the
+  backlog view asks, and before v0.57.0 they do not report the
+  `available_transitions` and `active_review` fields the UI is built on.
 - **A project you have already initialised.** td-gui refuses to start in a
   directory without a `.todos` folder, and it will not run `td init` for you:
 
@@ -28,7 +29,7 @@ listening, and opens your browser:
 ```
 td-gui is running on http://127.0.0.1:46279
   project:  /home/you/project
-  td:       /usr/local/bin/td (v0.57.0)
+  td:       /usr/local/bin/td (v0.66.0)
   backend:  http://127.0.0.1:41113 (started by us)
 ```
 
@@ -141,7 +142,7 @@ td-gui is a local tool, and its boundaries are deliberate:
 | Message | What it means |
 | ------- | ------------- |
 | `... is not a td project (no .todos directory)` | Wrong directory, or the project was never initialised. Run `td init` there yourself. |
-| `td vX.Y.Z is too old, v0.57.0 or newer is required` | Upgrade td, or point `--td` at a newer binary. |
+| `td vX.Y.Z is too old, v0.66.0 or newer is required` | Upgrade td, or point `--td` at a newer binary. |
 | `td binary not found in PATH` | td is not on your PATH. Install it, or point `--td` at the binary. |
 | `port N is already in use` | Something else is holding the port you asked for. Drop `--port` and let td-gui pick one. |
 | ``no web build embedded (run `make web`) — this binary contains no web build`` | A Go binary was built without the frontend bundle. Use `make build`, not a bare `go build`. |

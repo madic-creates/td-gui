@@ -13,7 +13,7 @@ node docs/screenshots/shoot.mjs http://127.0.0.1:7777 docs/images
 `make build` first, so the binary serves the current frontend: `shoot.mjs`
 photographs whatever the Go binary has embedded, not what is in `web/src`.
 
-Requires `chromium` on PATH, node 22 or newer, and `td` v0.57.0+.
+Requires `chromium` on PATH, node 22 or newer, and `td` v0.66.0+.
 
 ## What the two scripts do
 

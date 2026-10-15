@@ -285,23 +285,14 @@ export interface CardMove {
   issueId: string
   /** The card to land before, `''` for the end of the board. */
   beforeId: string
-  /**
-   * td's 1-based insert position among the cards that ALREADY have a
-   * position, for a td without the move endpoint. Not the index of a rendered
-   * row, and not the `position` read back from the board, which is a sparse
-   * sort key.
-   */
-  slot: number
 }
 
 /**
  * Moves a card on a board.
  *
- * td v0.66.0 reports `board_move` and takes the move as "before this card"
- * through POST /v1/boards/{id}/move, resolved against the same list
- * GET /v1/boards/{id} returned, hence `includeClosed`. An older td gets the
- * same move as a slot through POST /v1/boards/{id}/issues. Both answers come
- * from features/boards/position.ts; this only picks which one to send.
+ * td takes the move as "before this card" through POST /v1/boards/{id}/move,
+ * resolved against the same list GET /v1/boards/{id} returned, hence
+ * `includeClosed`. Which card that is comes from features/boards/position.ts.
  *
  * A 409 means the card, or the one it should land before, has left the board
  * since it was drawn. The board is refetched so the next attempt is made
@@ -310,19 +301,12 @@ export interface CardMove {
 export function useMoveCard(boardId: string, includeClosed: boolean) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ issueId, beforeId, slot }: CardMove) => {
-      if (await hasCapability(qc, 'board_move')) {
-        return apiSend('POST', `/v1/boards/${encodeId(boardId)}/move`, {
-          issue_id: issueId,
-          before_id: beforeId,
-          include_closed: includeClosed,
-        })
-      }
-      return apiSend('POST', `/v1/boards/${encodeId(boardId)}/issues`, {
+    mutationFn: ({ issueId, beforeId }: CardMove) =>
+      apiSend('POST', `/v1/boards/${encodeId(boardId)}/move`, {
         issue_id: issueId,
-        position: slot,
-      })
-    },
+        before_id: beforeId,
+        include_closed: includeClosed,
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
     onError: error => {
       if (isConflict(error)) {

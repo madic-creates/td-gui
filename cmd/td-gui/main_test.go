@@ -25,7 +25,10 @@ func TestCheckMinVersion(t *testing.T) {
 	}{
 		{"newer than minimum", "v99.0.0", ""},
 		{"exactly minimum", minTdVersion, ""},
-		{"older than minimum", "v0.10.0", "td v0.10.0 is too old, v0.57.0 or newer is required"},
+		{"older than minimum", "v0.10.0", "td v0.10.0 is too old, v0.66.0 or newer is required"},
+		// The board UI sends every move to /v1/boards/{id}/move, which td
+		// v0.65 does not serve.
+		{"last release without the board move", "v0.65.0", "td v0.65.0 is too old, v0.66.0 or newer is required"},
 		{"unparseable version", "not-a-version", `unparseable version "not-a-version"`},
 	}
 	for _, tt := range tests {

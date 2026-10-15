@@ -232,9 +232,9 @@ export interface Board {
 /**
  * One card on a board.
  *
- * `position` is td's sparse sort key (1000, 2000, 1500), NOT an index and NOT
- * the value POST /v1/boards/{id}/issues expects — that one is a 1-based slot.
- * Sort by it; never render it and never send it back.
+ * `position` is td's sparse sort key (1000, 2000, 1500), NOT an index. A move
+ * names the card to land before instead. Sort by it; never render it and
+ * never send it back.
  *
  * `issue` arrives without available_transitions, which only GET /v1/issues/{id}
  * carries. Description and acceptance are present, contrary to what the name

@@ -9,30 +9,12 @@ import BacklogView from './BacklogView'
 import { dataTransfer, makeCard } from './board.fixture'
 import type { BoardCard } from '../../api/types'
 
-const positioned: unknown[] = []
+const moved: unknown[] = []
 const cleared: string[] = []
 
-const moved: unknown[] = []
-
-/** td before v0.66.0: no /v1/project, so every move goes out as a slot. */
-const oldTd = http.get('/v1/project', () => HttpResponse.json(
-  { ok: false, error: { code: 'not_found', message: 'not found' } }, { status: 404 },
-))
-
-/** td v0.66.0 and newer: moves go out as "before this card". */
-const moveTd = [
-  http.get('/v1/project', () =>
-    HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
+const server = setupServer(
   http.post('/v1/boards/:id/move', async ({ request }) => {
     moved.push(await request.json())
-    return HttpResponse.json({ ok: true, data: { positioned: true } })
-  }),
-]
-
-const server = setupServer(
-  oldTd,
-  http.post('/v1/boards/:id/issues', async ({ request }) => {
-    positioned.push(await request.json())
     return HttpResponse.json({ ok: true, data: { positioned: true } })
   }),
   http.delete('/v1/boards/:id/issues/:issueId', ({ params }) => {
@@ -43,7 +25,6 @@ const server = setupServer(
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
-  positioned.length = 0
   moved.length = 0
   cleared.length = 0
 })
@@ -80,18 +61,51 @@ describe('BacklogView', () => {
     expect(auto).toHaveTextContent('td-ddd')
   })
 
-  // Moving down by one is gap = index + 2, because the card still holds
-  // index + 1's left edge in td's stored rows. Anything else is a silent no-op.
-  it('moves a card down with the slot two below it', async () => {
+  // td takes a move as "before this card". Moving down by one lands before the
+  // card two below, because the card itself still sits right below its old
+  // place. Pinned [aaa, bbb, ccc], query-ordered [ddd].
+  it('moves a card down before the card two below it', async () => {
     renderBacklog()
     await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
-    expect(positioned).toEqual([{ issue_id: 'td-aaa', position: 3 }])
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }]))
   })
 
-  it('moves a card up with the gap before its predecessor', async () => {
+  it('moves a card up before its predecessor', async () => {
     renderBacklog()
     await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
-    expect(positioned).toEqual([{ issue_id: 'td-ccc', position: 2 }])
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: false }]))
+  })
+
+  // An empty before_id would send the card to the end of the whole board and
+  // pin everything above it; the end of the pinned block is before the first
+  // query-ordered card.
+  it('moves the last pinned card down before the first query-ordered card', async () => {
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-bbb down' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-bbb', before_id: 'td-ddd', include_closed: false }]))
+  })
+
+  it('tells td the board includes closed cards when it does', async () => {
+    renderBacklog(cards(), true)
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: true }]))
+  })
+
+  it("shows td's message when the board changed under the move", async () => {
+    server.use(http.post('/v1/boards/:id/move', () => HttpResponse.json({
+      ok: false,
+      error: {
+        code: 'conflict',
+        message: 'The task or the task it should be placed before is no longer on this board. Refresh the board and try again.',
+      },
+    }, { status: 409 })))
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('no longer on this board')
   })
 
   // An icon names nothing to a sighted mouse user, and dragging aside these
@@ -143,7 +157,7 @@ describe('BacklogView', () => {
   })
 
   it("shows td's message when a position is rejected", async () => {
-    server.use(http.post('/v1/boards/:id/issues', () => HttpResponse.json({
+    server.use(http.post('/v1/boards/:id/move', () => HttpResponse.json({
       ok: false, error: { code: 'not_found', message: 'issue not found: td-aaa' },
     }, { status: 404 })))
     renderBacklog()
@@ -169,7 +183,7 @@ describe('BacklogView', () => {
    * own words: "the move failed" — while the thing they just did worked.
    */
   it('drops a rejected move from the panel once the next write succeeds', async () => {
-    server.use(http.post('/v1/boards/:id/issues', () => HttpResponse.json({
+    server.use(http.post('/v1/boards/:id/move', () => HttpResponse.json({
       ok: false, error: { code: 'not_found', message: 'issue not found: td-aaa' },
     }, { status: 404 })))
     renderBacklog()
@@ -186,7 +200,7 @@ describe('BacklogView', () => {
     const dt = dataTransfer('td-ccc')
     fireEvent.dragStart(screen.getByText('td-ccc').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ccc', position: 2 }]))
+    await waitFor(() => expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: false }]))
   })
 
   it('pins a card dragged up from the query-ordered block', async () => {
@@ -194,7 +208,7 @@ describe('BacklogView', () => {
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 1 }]))
+    await waitFor(() => expect(moved).toEqual([{ issue_id: 'td-ddd', before_id: 'td-aaa', include_closed: false }]))
   })
 
   it('appends a card dropped at the end of the pinned block', async () => {
@@ -202,7 +216,7 @@ describe('BacklogView', () => {
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-3'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 4 }]))
+    await waitFor(() => expect(moved).toEqual([{ issue_id: 'td-ddd', before_id: '', include_closed: false }]))
   })
 
   // Dropping a card onto its own place would rewrite a sort key and can
@@ -221,10 +235,10 @@ describe('BacklogView', () => {
     fireEvent.drop(screen.getByTestId('drop-gap-1'), { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
 
-    const move = { issue_id: 'td-bbb', position: 4 }
+    const move = { issue_id: 'td-bbb', before_id: 'td-ddd', include_closed: false }
     fireEvent.drop(screen.getByTestId('drop-gap-3'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   // A drag that started outside the board still carries text/plain — a link
@@ -238,18 +252,18 @@ describe('BacklogView', () => {
       dataTransfer: dataTransfer('https://example.com'),
     })
 
-    const move = { issue_id: 'td-ddd', position: 1 }
+    const move = { issue_id: 'td-ddd', before_id: 'td-aaa', include_closed: false }
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   /**
    * There is deliberately no optimistic reorder, so while a position write is
    * in flight the rendered order is the one td is about to replace. A second
-   * drop would compute its gap against that stale layout and send a slot
+   * drop would compute its gap against that stale layout and send a move
    * meaning something else by the time td applies it. The buttons already
    * refuse (`disabled={busy}`) and the list already says `aria-busy` — the
    * drag path has to agree.
@@ -257,10 +271,10 @@ describe('BacklogView', () => {
   it('ignores a drop while a position write is in flight', async () => {
     let release: () => void = () => {}
     const gate = new Promise<void>(resolve => { release = resolve })
-    server.use(http.post('/v1/boards/:id/issues', async ({ request }) => {
+    server.use(http.post('/v1/boards/:id/move', async ({ request }) => {
       // Recorded on entry, before the gate: a second request would show up
       // here just as the first one did, held or not.
-      positioned.push(await request.json())
+      moved.push(await request.json())
       await gate
       return HttpResponse.json({ ok: true, data: { positioned: true } })
     }))
@@ -281,7 +295,7 @@ describe('BacklogView', () => {
     // release and would have been recorded by the time the list settles.
     release()
     await waitFor(() => expect(pinned).toHaveAttribute('aria-busy', 'false'))
-    expect(positioned).toEqual([{ issue_id: 'td-aaa', position: 3 }])
+    expect(moved).toEqual([{ issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }])
   })
 
   /**
@@ -295,7 +309,7 @@ describe('BacklogView', () => {
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 4 }]))
+    await waitFor(() => expect(moved).toEqual([{ issue_id: 'td-ddd', before_id: '', include_closed: false }]))
   })
 
   // The empty state is what the 6px gap served worst: it told the user to drag
@@ -306,7 +320,7 @@ describe('BacklogView', () => {
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByText(/Nothing is pinned/), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toEqual([{ issue_id: 'td-ddd', position: 1 }]))
+    await waitFor(() => expect(moved).toEqual([{ issue_id: 'td-ddd', before_id: '', include_closed: false }]))
   })
 
   /**
@@ -333,9 +347,9 @@ describe('BacklogView', () => {
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
 
-    const move = { issue_id: 'td-ddd', position: 1 }
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    const move = { issue_id: 'td-ddd', before_id: 'td-aaa', include_closed: false }
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   // Same refusal `dropAt` makes at a gap: a link dragged in from another window
@@ -346,12 +360,12 @@ describe('BacklogView', () => {
       dataTransfer: dataTransfer('https://example.com'),
     })
 
-    const move = { issue_id: 'td-ddd', position: 4 }
+    const move = { issue_id: 'td-ddd', before_id: '', include_closed: false }
     const dt = dataTransfer('td-ddd')
     fireEvent.dragStart(screen.getByText('td-ddd').closest('li')!, { dataTransfer: dt })
     fireEvent.drop(screen.getByRole('heading', { name: 'Pinned' }), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   // Without preventDefault on dragover the browser refuses the drop outright.
@@ -377,8 +391,8 @@ describe('BacklogView', () => {
   function heldPosition() {
     let release: () => void = () => {}
     const gate = new Promise<void>(resolve => { release = resolve })
-    server.use(http.post('/v1/boards/:id/issues', async ({ request }) => {
-      positioned.push(await request.json())
+    server.use(http.post('/v1/boards/:id/move', async ({ request }) => {
+      moved.push(await request.json())
       await gate
       return HttpResponse.json({ ok: true, data: { positioned: true } })
     }))
@@ -590,10 +604,10 @@ describe('BacklogView', () => {
     fireEvent.dragStart(rowOf('td-aaa'), { dataTransfer: dt })
     fireEvent.drop(rowOf('td-aaa'), { dataTransfer: dt })
 
-    const move = { issue_id: 'td-aaa', position: 3 }
+    const move = { issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }
     fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   // A row is not a slot either: dropping on td-bbb says nothing about whether
@@ -605,10 +619,10 @@ describe('BacklogView', () => {
     fireEvent.dragStart(rowOf('td-ddd'), { dataTransfer: dt })
     fireEvent.drop(rowOf('td-bbb'), { dataTransfer: dt })
 
-    const move = { issue_id: 'td-ddd', position: 1 }
+    const move = { issue_id: 'td-ddd', before_id: 'td-aaa', include_closed: false }
     fireEvent.drop(screen.getByTestId('drop-gap-0'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   /**
@@ -646,10 +660,10 @@ describe('BacklogView', () => {
     fireEvent.dragStart(rowOf('td-aaa'), { dataTransfer: dt })
     fireEvent.drop(pinnedList(), { dataTransfer: dt })
 
-    const move = { issue_id: 'td-aaa', position: 3 }
+    const move = { issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }
     fireEvent.drop(screen.getByTestId('drop-gap-2'), { dataTransfer: dt })
-    await waitFor(() => expect(positioned).toContainEqual(move))
-    expect(positioned).toEqual([move])
+    await waitFor(() => expect(moved).toContainEqual(move))
+    expect(moved).toEqual([move])
   })
 
   it('refuses the drag over the space between the rows', () => {
@@ -686,43 +700,8 @@ describe('BacklogView', () => {
     fireEvent(list, event)
     expect(event.defaultPrevented).toBe(true)
   })
-})
-
-/**
- * td v0.66.0 reports `board_move`, and the same gestures go out as "before
- * this card" instead of a slot. Pinned [aaa, bbb, ccc], query-ordered [ddd].
- */
-describe('BacklogView against a td with the move endpoint', () => {
-  it('moves a card down before the card two below it', async () => {
-    server.use(...moveTd)
-    renderBacklog()
-    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
-    await waitFor(() =>
-      expect(moved).toEqual([{ issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }]))
-    expect(positioned).toEqual([])
-  })
-
-  it('moves a card up before its predecessor', async () => {
-    server.use(...moveTd)
-    renderBacklog()
-    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
-    await waitFor(() =>
-      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: false }]))
-  })
-
-  // An empty before_id would send the card to the end of the whole board and
-  // pin everything above it; the end of the pinned block is before the first
-  // query-ordered card.
-  it('moves the last pinned card down before the first query-ordered card', async () => {
-    server.use(...moveTd)
-    renderBacklog()
-    await userEvent.click(screen.getByRole('button', { name: 'Move td-bbb down' }))
-    await waitFor(() =>
-      expect(moved).toEqual([{ issue_id: 'td-bbb', before_id: 'td-ddd', include_closed: false }]))
-  })
 
   it("pins a card dropped on the nothing-is-pinned text before the board's next card", async () => {
-    server.use(...moveTd)
     renderBacklog([
       makeCard({ id: 'td-aaa' }, { position: 0, has_position: false }),
       makeCard({ id: 'td-bbb' }, { position: 0, has_position: false }),
@@ -732,29 +711,5 @@ describe('BacklogView against a td with the move endpoint', () => {
     fireEvent.drop(screen.getByTestId('pinned-dropzone'), { dataTransfer: dt })
     await waitFor(() =>
       expect(moved).toEqual([{ issue_id: 'td-bbb', before_id: 'td-aaa', include_closed: false }]))
-  })
-
-  it('tells td the board includes closed cards when it does', async () => {
-    server.use(...moveTd)
-    renderBacklog(cards(), true)
-    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
-    await waitFor(() =>
-      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: true }]))
-  })
-
-  it("shows td's message when the board changed under the move", async () => {
-    server.use(
-      moveTd[0],
-      http.post('/v1/boards/:id/move', () => HttpResponse.json({
-        ok: false,
-        error: {
-          code: 'conflict',
-          message: 'The task or the task it should be placed before is no longer on this board. Refresh the board and try again.',
-        },
-      }, { status: 409 })),
-    )
-    renderBacklog()
-    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('no longer on this board')
   })
 })

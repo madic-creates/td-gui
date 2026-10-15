@@ -72,7 +72,7 @@ td-gui --td /path/to/td   # use a specific td binary
 td-gui --version          # released binaries print their tag, local builds "dev"
 ```
 
-**Requirements:** `td` **v0.57.0** or newer on your PATH, and a project you
+**Requirements:** `td` **v0.66.0** or newer on your PATH, and a project you
 have already run `td init` in. td-gui will not run `td init` for you.
 
 ## Documentation

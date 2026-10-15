@@ -5,7 +5,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 import {
-  useDeleteIssue, useMoveCard, useRecordReview, useTransition, useUpdateIssue,
+  useDeleteIssue, useRecordReview, useTransition, useUpdateIssue,
 } from './mutations'
 import { issueKeys } from './queries'
 
@@ -128,29 +128,6 @@ describe('If-Match on issue writes', () => {
     await result.current.mutateAsync({ action: 'start', revision: REV })
 
     expect(asked).toBe(1)
-  })
-
-  // board_move and issue_revisions are read from the same answer: a board
-  // move followed by an issue write asks td once, not once per feature.
-  it('shares one capability read between a board move and an issue write', async () => {
-    let asked = 0
-    server.use(
-      http.get('/v1/project', () => {
-        asked += 1
-        return HttpResponse.json({ ok: true, data: { capabilities: ['issue_revisions', 'board_move'] } })
-      }),
-      http.post('/v1/boards/:id/move', () => HttpResponse.json({ ok: true, data: { positioned: true } })),
-    )
-    const seen = captureWrites()
-    const { wrapper } = setup()
-
-    const move = renderHook(() => useMoveCard('bd-1', false), { wrapper }).result
-    await move.current.mutateAsync({ issueId: ID, beforeId: 'td-c3d4', slot: 1 })
-    const transition = renderHook(() => useTransition(ID), { wrapper }).result
-    await transition.current.mutateAsync({ action: 'start', revision: REV })
-
-    expect(asked).toBe(1)
-    expect(seen).toEqual([`"${REV}"`])
   })
 
   it('refetches the issue when td answers 409, and keeps td\'s message', async () => {

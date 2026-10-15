@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -832,13 +831,13 @@ type boardCard struct {
 	HasPosition *bool   `json:"has_position"`
 }
 
-// boardCardIDs reads a board and returns its card ids in the order td sorted
+// boardCards reads a board and returns its cards in the order td sorted
 // them, checking on the way that every field the TypeScript Board and
 // BoardCard types declare as required is actually present. Pointers, not
 // values: an absent field decodes to the zero value, and `position` is
 // legitimately 0 for the front card, so only nil distinguishes "td stopped
 // sending this" from "td sent zero".
-func boardCardIDs(t *testing.T, front, board string) []string {
+func boardCards(t *testing.T, front, board string) []boardCard {
 	t.Helper()
 
 	var got struct {
@@ -860,7 +859,6 @@ func boardCardIDs(t *testing.T, front, board string) []string {
 		}
 	}
 
-	ids := make([]string, 0, len(got.Data.Issues))
 	for i, card := range got.Data.Issues {
 		if card.BoardID == nil || *card.BoardID != board {
 			t.Errorf("card %d board_id = %v, want %q", i, card.BoardID, board)
@@ -869,124 +867,20 @@ func boardCardIDs(t *testing.T, front, board string) []string {
 			t.Errorf("card %d has no position — it is the sparse sort key, and the "+
 				"only field the cards are ordered by", i)
 		}
-		if card.HasPosition == nil || !*card.HasPosition {
-			t.Errorf("card %d has_position = %v, want true", i, card.HasPosition)
-		}
-		ids = append(ids, card.Issue.ID)
-	}
-	return ids
-}
-
-// TestBoardPositionSlotContract pins the one thing the boards UI computes:
-// POST /v1/boards/{id}/issues takes a 1-BASED SLOT among the cards that
-// already have a position — INCLUDING the card being moved — while the
-// position read back from the board is a sparse sort key.
-//
-// Three legs, in the order features/boards/position.ts stakes the feature on
-// them:
-//
-//   - slot 1 puts a card at the front;
-//   - moving a card down by one takes index + 2 as the gap, so the Move-down
-//     button on index 0 sends slot 3 — at slot 2 td would interpolate between
-//     the card and its successor and the card would keep its place. This leg
-//     is why insertSlot exists; without it a future ComputeInsertPosition
-//     change would turn Move-down into a silent no-op that the unit tests,
-//     which encode the same assumption they verify, could never catch;
-//   - a slot of pinned + 1 appends after the last positioned card.
-//
-// It also pins the response shape the cards are built from — see
-// boardCardIDs.
-func TestBoardPositionSlotContract(t *testing.T) {
-	front, first := newProject(t)
-
-	if status := post(t, front+"/v1/issues",
-		`{"title":"Second contract issue with a long enough title","type":"feature","priority":"P1"}`,
-	); status != http.StatusCreated && status != http.StatusOK {
-		t.Fatalf("create second issue status = %d", status)
-	}
-	second := otherIssue(t, front, first)
-
-	var created struct {
-		Data struct {
-			Board struct {
-				ID string `json:"id"`
-			} `json:"board"`
-		} `json:"data"`
-	}
-	if status := postJSON(t, front+"/v1/boards",
-		`{"name":"Contract board","query":"type = feature"}`, &created,
-	); status != http.StatusCreated {
-		t.Fatalf("create board status = %d, want 201", status)
-	}
-	board := created.Data.Board.ID
-	if board == "" {
-		t.Fatal("created board has no id — POST /v1/boards nests it under `board`")
-	}
-
-	position := func(issue string, slot int) {
-		t.Helper()
-		if status := post(t, front+"/v1/boards/"+board+"/issues",
-			`{"issue_id":"`+issue+`","position":`+strconv.Itoa(slot)+`}`); status != http.StatusOK {
-			t.Fatalf("position %s at slot %d: status = %d, want 200", issue, slot, status)
+		if card.HasPosition == nil {
+			t.Errorf("card %d has no has_position — it is what splits the pinned "+
+				"block from the query-ordered one", i)
 		}
 	}
-
-	// Pin the second issue first, then push the first issue in front of it.
-	// Both calls use slot 1, which is what makes the slot semantics visible:
-	// the value is not an index into anything the caller rendered.
-	position(second, 1)
-	position(first, 1)
-
-	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{first, second}) {
-		t.Fatalf("board order = %v, want %v — slot 1 must place a card at the front",
-			got, []string{first, second})
-	}
-
-	// Exactly what the Move-down button sends for the card at index 0 of a
-	// two-card block: gap = index + 2, so slot 3. Slot 2 would be the no-op.
-	position(first, 3)
-
-	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{second, first}) {
-		t.Fatalf("board order = %v, want %v — moving a card down by one is slot "+
-			"index + 3, because td counts the rows including the card being moved",
-			got, []string{second, first})
-	}
-
-	// The append leg. A third card is pinned at the front and then sent to
-	// slot pinned + 1, so the assertion is a move from first place to last —
-	// not a card that would have sorted last anyway.
-	if status := post(t, front+"/v1/issues",
-		`{"title":"Third contract issue with a long enough title","type":"feature","priority":"P1"}`,
-	); status != http.StatusCreated && status != http.StatusOK {
-		t.Fatalf("create third issue status = %d", status)
-	}
-	third := ""
-	for _, id := range boardIssueIDs(t, front) {
-		if id != first && id != second {
-			third = id
-		}
-	}
-	if third == "" {
-		t.Fatal("no third issue in the project")
-	}
-
-	position(third, 1)
-	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{third, second, first}) {
-		t.Fatalf("board order = %v, want %v", got, []string{third, second, first})
-	}
-
-	position(third, 4)
-	if got := boardCardIDs(t, front, board); !slices.Equal(got, []string{second, first, third}) {
-		t.Fatalf("board order = %v, want %v — a slot one past the positioned cards "+
-			"must append", got, []string{second, first, third})
-	}
+	return got.Data.Issues
 }
 
 // TestBoardMoveContract pins what useMoveCard and moveBeforeId stake the
 // move path on, against td's POST /v1/boards/{id}/move:
 //
-//   - GET /v1/project lists `board_move`, which is the only thing that sends
-//     the GUI down this path instead of the slot one;
+//   - GET /v1/project lists `board_move`. The GUI no longer reads it, since
+//     minTdVersion guarantees the route, but a td that drops it has dropped
+//     the route every board move goes through;
 //   - a move works on a board where nothing has a position yet;
 //   - "before X" positions the moved card and the cards above it, and leaves
 //     every card below unpositioned. moveBeforeId sends the end of the pinned
@@ -994,6 +888,8 @@ func TestBoardPositionSlotContract(t *testing.T) {
 //     it pins one card, where an empty before_id would pin the whole board;
 //   - a before_id that is not on the board is a 409, which is what the GUI
 //     refetches the board on.
+//
+// It also pins the response shape the cards are built from; see boardCards.
 func TestBoardMoveContract(t *testing.T) {
 	front, _ := newProject(t)
 
@@ -1004,8 +900,8 @@ func TestBoardMoveContract(t *testing.T) {
 	}
 	getJSON(t, front+"/v1/project", &project)
 	if !slices.Contains(project.Data.Capabilities, "board_move") {
-		t.Fatalf("capabilities = %v, want board_move — without it the GUI falls back "+
-			"to slots", project.Data.Capabilities)
+		t.Fatalf("capabilities = %v, want board_move — every board move in the GUI "+
+			"goes through it", project.Data.Capabilities)
 	}
 
 	for _, title := range []string{"Second", "Third"} {
@@ -1036,14 +932,9 @@ func TestBoardMoveContract(t *testing.T) {
 	}
 	read := func() []card {
 		t.Helper()
-		var got struct {
-			Data struct {
-				Issues []boardCard `json:"issues"`
-			} `json:"data"`
-		}
-		getJSON(t, front+"/v1/boards/"+board, &got)
-		cards := make([]card, 0, len(got.Data.Issues))
-		for _, c := range got.Data.Issues {
+		got := boardCards(t, front, board)
+		cards := make([]card, 0, len(got))
+		for _, c := range got {
 			cards = append(cards, card{c.Issue.ID, c.HasPosition != nil && *c.HasPosition})
 		}
 		return cards
@@ -1089,24 +980,6 @@ func TestBoardMoveContract(t *testing.T) {
 	if status := move(a, "td-000000"); status != http.StatusConflict {
 		t.Fatalf("move before a card not on the board: status = %d, want 409", status)
 	}
-}
-
-// boardIssueIDs lists every issue in the project.
-func boardIssueIDs(t *testing.T, front string) []string {
-	t.Helper()
-	var body struct {
-		Data struct {
-			Issues []struct {
-				ID string `json:"id"`
-			} `json:"issues"`
-		} `json:"data"`
-	}
-	getJSON(t, front+"/v1/issues?limit=50", &body)
-	ids := make([]string, 0, len(body.Data.Issues))
-	for _, i := range body.Data.Issues {
-		ids = append(ids, i.ID)
-	}
-	return ids
 }
 
 // TestCreateFieldsContract pins that one POST /v1/issues carries every field

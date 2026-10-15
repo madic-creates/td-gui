@@ -6,7 +6,7 @@ import ErrorPanel from '../../components/ErrorPanel'
 import { ArrowDownIcon, ArrowUpIcon, UnpinIcon } from '../../components/Icon'
 import BoardCard from './BoardCard'
 import { dragSourceProps } from './dragSource'
-import { insertSlot, moveBeforeId } from './position'
+import { moveBeforeId } from './position'
 import type { BoardCard as Card } from '../../api/types'
 
 interface Props {
@@ -49,18 +49,15 @@ export default function BacklogView({ boardId, cards, includeClosed }: Props) {
 
   /**
    * Lands a card at `gap` in the pinned block, as position.ts defines a gap.
-   * Both of td's answers are computed here and the mutation sends whichever
-   * this td speaks. No optimistic move: td computes the sort key and may
-   * respace the board.
+   * No optimistic move: td computes the sort key and may respace the board.
    */
   const move = (issueId: string, gap: number) => {
-    const slot = insertSlot(gap, pinnedIndexOf(issueId))
     const beforeId = moveBeforeId(
       gap, issueId, pinned.map(c => c.issue.id), auto.map(c => c.issue.id),
     )
-    if (slot === null || beforeId === null) return
+    if (beforeId === null) return
     setLastAction('set')
-    setPosition.mutate({ issueId, beforeId, slot })
+    setPosition.mutate({ issueId, beforeId })
   }
 
   const unpin = (issueId: string) => {
@@ -100,12 +97,6 @@ export default function BacklogView({ boardId, cards, includeClosed }: Props) {
   const endDrag = () => {
     setDragging(null)
     setOver(null)
-  }
-
-  /** The dragged card's index in the pinned block, or null when unpinned. */
-  const pinnedIndexOf = (issueId: string) => {
-    const index = pinned.findIndex(c => c.issue.id === issueId)
-    return index === -1 ? null : index
   }
 
   const dropAt = (gap: number) => (event: DragEvent) => {
@@ -187,7 +178,7 @@ export default function BacklogView({ boardId, cards, includeClosed }: Props) {
    * it would reach the section and append. That turns the standard cancel
    * gesture — pick a card up, put it back down where it was — into a silent
    * write that sends the card to the bottom of the block, defeating the guard
-   * `insertSlot` documents.
+   * `moveBeforeId` documents.
    *
    * These sit on the `<ul>` rather than on each `<li>`, which is the part worth
    * being careful about. `space-y-1.5` is a 6px margin between every child, and

@@ -12,8 +12,8 @@ import type { DragEvent } from 'react'
  * payload set here is always readable where a drop reads it.
  *
  * Only this half is shared. The drop handlers stay with their views and are
- * deliberately not folded in here — the backlog computes a slot in td's stored
- * position sequence, the swimlanes propose a status change, and the one thing
+ * deliberately not folded in here — the backlog computes the card to land
+ * before, the swimlanes propose a status change, and the one thing
  * they have in common is where they read the id from.
  *
  * `enabled` exists for the backlog, which refuses to start a drag while a
