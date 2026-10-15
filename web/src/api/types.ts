@@ -302,3 +302,47 @@ export interface About {
     owned: boolean
   }
 }
+
+/**
+ * One td session, as `GET /v1/sessions` lists it. Only the fields the
+ * activity page reads; td sends more (agent_pid, context_id, started_at).
+ */
+export interface Session {
+  id: string
+  /** Often empty. td only fills it when a session was named. */
+  name: string
+  /** e.g. `claude-code_411842`, `web`, or td's literal `unknown`. */
+  agent_type: string
+  branch: string
+  last_activity: string
+}
+
+export interface SessionsResponse {
+  current_session_id: string
+  sessions: Session[]
+}
+
+/**
+ * One entry of td's activity feed (`monitor.activity`).
+ *
+ * `issue_id` is not always an issue id: for `create` it is a log id, for
+ * `handoff` a handoff id, for `link_file` a file-link id. td fills
+ * `issue_title` exactly when the id is an issue, so that field, not the id's
+ * shape, decides whether the entry links anywhere.
+ */
+export interface ActivityItem {
+  timestamp: string
+  session_id: string
+  /** `action`, `log` or `comment`. */
+  type: string
+  action: string
+  /** `progress`, `decision`, `blocker`, …; empty for non-log entries. */
+  log_type: string
+  message: string
+  issue_id: string
+  issue_title: string
+}
+
+export interface MonitorResponse {
+  monitor: { activity: ActivityItem[] }
+}
