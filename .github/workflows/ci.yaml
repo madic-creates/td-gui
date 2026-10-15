@@ -363,6 +363,22 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      # td-gui requires exactly the Go version td requires, so the two
+      # toolchains never diverge. Compare the go directives before installing:
+      # otherwise a td release that raises its minimum only surfaces as a
+      # `requires go >= …` error from `go install`, and under GOTOOLCHAIN=local
+      # the drift run dies before the contract suite executes at all.
+      - name: Check Go version matches td
+        run: |
+          set -euo pipefail
+          td_ver=$(go list -m -f '{{.Version}}' github.com/marcus/td@latest)
+          td_go=$(curl -fsSL "https://proxy.golang.org/github.com/marcus/td/@v/${td_ver}.mod" | awk '$1 == "go" { print $2; exit }')
+          our_go=$(go mod edit -json | jq -r .Go)
+          if [ "$td_go" != "$our_go" ]; then
+            echo "::error file=go.mod::td ${td_ver} requires go ${td_go}, td-gui's go.mod says ${our_go}. Run: go mod edit -go=${td_go} && go mod tidy"
+            exit 1
+          fi
+          echo "td ${td_ver} and td-gui both require go ${our_go}"
       - name: Install latest td
         run: |
           set -euo pipefail
