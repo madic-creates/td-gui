@@ -282,6 +282,23 @@ Only the fields you actually changed are sent. **Cancel** discards the draft,
 and **Save changes** submits it. Anything td complains about appears next to
 the field it names.
 
+### When someone else changed the issue first
+
+With td v0.66.0 or newer, every write says which version of the issue it was
+based on: a save from the editor, a transition, a recorded review and a
+delete. If an agent or another session changed the issue in the meantime, td
+refuses the write instead of overwriting their change, and td-gui shows td's
+message about it.
+
+In the editor, your draft is kept. Once td-gui has fetched the issue again, a
+**Changed since you opened the editor** list names what changed. Fields you
+had not edited take td's new values; fields you had edited keep yours and are
+marked, since saving again will put your value over theirs. Look the list
+over, then save again.
+
+The status jumps td has no transition for (see below) run td's CLI, which
+takes no version, so those are applied regardless.
+
 ### The status is not an ordinary field
 
 td has no "set the status" operation: a status changes by making one of td's

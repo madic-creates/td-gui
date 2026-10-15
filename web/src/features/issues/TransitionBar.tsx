@@ -19,6 +19,11 @@ interface Props {
   /** Absent means td did not tell us — render nothing rather than guess. */
   available?: Transition[]
   /**
+   * The issue's revision as on screen, sent as If-Match so td refuses the
+   * action if the issue changed in the meantime. Absent sends none.
+   */
+  revision?: string
+  /**
    * Fires once td has accepted a transition or recorded a review. For a host
    * that exists only to ask the question — the board's transition panel —
    * that is the cue to dismiss itself. The issue detail page has no such cue
@@ -27,7 +32,7 @@ interface Props {
   onDone?: () => void
 }
 
-export default function TransitionBar({ issueId, available, onDone }: Props) {
+export default function TransitionBar({ issueId, available, revision, onDone }: Props) {
   const transition = useTransition(issueId)
   const record = useRecordReview(issueId)
   const [pending, setPending] = useState<Transition | null>(null)
@@ -106,14 +111,14 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
       // td requires the summary here and says so itself if it is missing.
       setLastAction('record')
       record.mutate(
-        { summary: note, ...attribution() },
+        { summary: note, ...attribution(), revision },
         { onSuccess: done, onSettled: () => { submitting.current = false } },
       )
       return
     }
     setLastAction('transition')
     transition.mutate(
-      { action: pending!, ...(note ? { reason: note } : {}), ...attribution() },
+      { action: pending!, ...(note ? { reason: note } : {}), ...attribution(), revision },
       { onSuccess: done, onSettled: () => { submitting.current = false } },
     )
   }
@@ -153,7 +158,7 @@ export default function TransitionBar({ issueId, available, onDone }: Props) {
               // the panel is staked after close(), which clears it.
               close()
               setLastAction('transition')
-              transition.mutate({ action }, { onSuccess: () => onDone?.() })
+              transition.mutate({ action, revision }, { onSuccess: () => onDone?.() })
             }}
           >
             {transitionLabels[action] ?? action}

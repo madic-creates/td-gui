@@ -77,3 +77,67 @@ export function diffIssue(original: Issue, draft: IssueDraft): IssuePatch {
 
 /** An empty patch means the form closes without issuing a request at all. */
 export const isEmptyPatch = (patch: IssuePatch) => Object.keys(patch).length === 0
+
+const draftLabels: Record<keyof IssueDraft, string> = {
+  title: 'Title',
+  description: 'Description',
+  acceptance: 'Acceptance criteria',
+  type: 'Type',
+  priority: 'Priority',
+  points: 'Points',
+  labels: 'Labels',
+  parent_id: 'Parent',
+  sprint: 'Sprint',
+  minor: 'Minor',
+  defer_until: 'Deferred until',
+  due_date: 'Due date',
+}
+
+/**
+ * One field td changed under an open editor. `theirs` is td's new value in
+ * the draft's shape; `mine` is the draft's own value when the user edited
+ * that field too, and undefined when they left it alone and it was taken
+ * over.
+ */
+export interface FieldChange {
+  field: keyof IssueDraft | 'status'
+  label: string
+  theirs: unknown
+  mine: unknown
+}
+
+const sameValue = (a: unknown, b: unknown) =>
+  Array.isArray(a) && Array.isArray(b) ? sameLabels(a, b) : a === b
+
+/**
+ * Moves a draft from the issue it was opened on to the issue as td now has
+ * it, after td refused a save because the two differ.
+ *
+ * A three-way merge, field by field: a field the user never touched takes
+ * td's value, so saving again cannot quietly revert another session's edit;
+ * a field the user did touch keeps the draft, so nothing typed is lost. The
+ * changes list is what the form shows, so the user sees what they are now
+ * saving on top of before they save it. Fields both sides changed carry
+ * `mine`, and those are the ones to look at.
+ */
+export function rebaseDraft(
+  original: Issue, current: Issue, draft: IssueDraft,
+): { draft: IssueDraft; changes: FieldChange[] } {
+  const before = draftFrom(original)
+  const after = draftFrom(current)
+  const next = { ...draft }
+  const changes: FieldChange[] = []
+
+  if (original.status !== current.status) {
+    changes.push({ field: 'status', label: 'Status', theirs: current.status, mine: undefined })
+  }
+  for (const key of Object.keys(before) as (keyof IssueDraft)[]) {
+    if (sameValue(before[key], after[key])) continue
+    const edited = !sameValue(before[key], draft[key])
+    if (!edited) (next as Record<keyof IssueDraft, unknown>)[key] = after[key]
+    changes.push({
+      field: key, label: draftLabels[key], theirs: after[key], mine: edited ? draft[key] : undefined,
+    })
+  }
+  return { draft: next, changes }
+}

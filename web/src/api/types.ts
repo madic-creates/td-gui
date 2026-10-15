@@ -34,6 +34,12 @@ export interface Review {
 }
 
 export interface Issue {
+  /**
+   * td's version stamp for the issue, sent back as If-Match on a write so td
+   * can refuse it with a 409 if the issue changed in between. td v0.66.0 and
+   * newer only; GET /v1/project lists `issue_revisions` when it is there.
+   */
+  revision?: string
   id: string
   title: string
   description: string

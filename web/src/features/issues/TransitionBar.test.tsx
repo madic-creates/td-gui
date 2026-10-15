@@ -12,13 +12,13 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-function renderBar(available: Transition[]) {
+function renderBar(available: Transition[], revision?: string) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   return render(
     <QueryClientProvider client={qc}>
-      <TransitionBar issueId="td-6a0883" available={available} />
+      <TransitionBar issueId="td-6a0883" available={available} revision={revision} />
     </QueryClientProvider>,
   )
 }
@@ -411,4 +411,66 @@ it('tells the reviewer that the reason takes GFM', async () => {
   const hintId = textarea.getAttribute('aria-describedby')
   expect(hintId).toBeTruthy()
   expect(document.getElementById(hintId!)).toHaveTextContent(/GitHub Flavored Markdown/)
+})
+
+describe('TransitionBar revisions', () => {
+  const capable = http.get('/v1/project', () =>
+    HttpResponse.json({ ok: true, data: { capabilities: ['issue_revisions'] } }))
+
+  function captureIfMatch(path: string) {
+    const seen: { ifMatch?: string | null } = {}
+    server.use(capable, http.post(path, ({ request }) => {
+      seen.ifMatch = request.headers.get('If-Match')
+      return HttpResponse.json({ ok: true, data: {} })
+    }))
+    return seen
+  }
+
+  it('sends the revision it was given with a one-click transition', async () => {
+    const seen = captureIfMatch('/v1/issues/td-6a0883/start')
+
+    renderBar(['start'], 'rev-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }))
+
+    await expect.poll(() => seen.ifMatch).toBe('"rev-1"')
+  })
+
+  it('sends the revision with a transition that asks for a reason', async () => {
+    const seen = captureIfMatch('/v1/issues/td-6a0883/reject')
+
+    renderBar(['reject'], 'rev-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm reject' }))
+
+    await expect.poll(() => seen.ifMatch).toBe('"rev-1"')
+  })
+
+  it('sends the revision with a recorded review', async () => {
+    const seen = captureIfMatch('/v1/issues/td-6a0883/reviews')
+
+    renderBar(['approve'], 'rev-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await userEvent.click(screen.getByLabelText('Record only, do not close'))
+    await userEvent.type(screen.getByLabelText('Reason'), 'fine')
+    await userEvent.click(screen.getByRole('button', { name: 'Record review' }))
+
+    await expect.poll(() => seen.ifMatch).toBe('"rev-1"')
+  })
+
+  // td detects the conflict and phrases it. The bar renders that sentence
+  // unchanged, and keeps the typed reason so nothing has to be retyped.
+  it('shows td\'s conflict message and keeps the reason', async () => {
+    server.use(capable, http.post('/v1/issues/td-6a0883/reject', () => HttpResponse.json({
+      ok: false,
+      error: { code: 'conflict', message: 'This task changed since you opened it.' },
+    }, { status: 409 })))
+
+    renderBar(['reject'], 'rev-1')
+    await userEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    await userEvent.type(screen.getByLabelText('Reason'), 'Missing tests')
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm reject' }))
+
+    expect(await screen.findByText('This task changed since you opened it.')).toBeInTheDocument()
+    expect(screen.getByLabelText('Reason')).toHaveValue('Missing tests')
+  })
 })

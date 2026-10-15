@@ -747,3 +747,177 @@ describe('IssueEditForm status', () => {
     expect(patched).toEqual({ title: 'A brand new title for it' })
   })
 })
+
+// td refuses a write whose If-Match revision is no longer current. The form
+// renders that refusal: it keeps the draft, waits for the refetched issue,
+// takes over what the user did not touch and says what changed.
+describe('IssueEditForm conflicts', () => {
+  const capable = http.get('/v1/project', () =>
+    HttpResponse.json({ ok: true, data: { capabilities: ['issue_revisions'] } }))
+  const conflict = () => HttpResponse.json({
+    ok: false,
+    error: { code: 'conflict', message: 'This task changed since you opened it.' },
+  }, { status: 409 })
+  const save = () => userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  const opened: Issue = { ...issue, revision: 'rev-1' }
+
+  function renderRevisioned(onDone = vi.fn()) {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    const tree = (next: Issue) => (
+      <QueryClientProvider client={qc}>
+        <IssueEditForm issue={next} editing onDone={onDone} />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(tree(opened))
+    return { onDone, refetch: (next: Issue) => rerender(tree(next)) }
+  }
+
+  it('sends the revision the editor was opened on', async () => {
+    let ifMatch: string | null = null
+    server.use(capable, http.patch('/v1/issues/td-6a0883', ({ request }) => {
+      ifMatch = request.headers.get('If-Match')
+      return HttpResponse.json({ ok: true, data: { issue: { ...opened, revision: 'rev-2' } } })
+    }))
+    const { refetch } = renderRevisioned()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    // A background refetch while the editor is open does not move the base.
+    refetch({ ...opened, revision: 'rev-9', sprint: 'S9' })
+    await save()
+
+    await waitFor(() => expect(ifMatch).toBe('"rev-1"'))
+  })
+
+  it('keeps the draft on a conflict, takes over td\'s other changes and lists them', async () => {
+    const bodies: { body: unknown; ifMatch: string | null }[] = []
+    let answer = conflict
+    server.use(capable, http.patch('/v1/issues/td-6a0883', async ({ request }) => {
+      bodies.push({ body: await request.json(), ifMatch: request.headers.get('If-Match') })
+      return answer()
+    }), http.get('/v1/issues', () => HttpResponse.json({
+      ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+    })))
+    const { refetch, onDone } = renderRevisioned()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await save()
+
+    // td's sentence, verbatim.
+    expect(await screen.findByText('This task changed since you opened it.')).toBeInTheDocument()
+    expect(onDone).not.toHaveBeenCalled()
+
+    // The refetch the conflict triggered arrives.
+    refetch({ ...opened, revision: 'rev-2', description: 'Rewritten elsewhere', priority: 'P0' })
+
+    const changed = await screen.findByRole('list', { name: 'Changed since you opened the editor' })
+    expect(within(changed).getByText(/Description/)).toBeInTheDocument()
+    expect(within(changed).getByText(/Priority/)).toBeInTheDocument()
+    expect(within(changed).queryByText(/Title/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('A brand new title for it')
+    expect(screen.getByLabelText('Description')).toHaveValue('Rewritten elsewhere')
+
+    answer = () => HttpResponse.json({ ok: true, data: { issue: { ...opened, revision: 'rev-3' } } })
+    await save()
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(bodies[1]).toEqual({ body: { title: 'A brand new title for it' }, ifMatch: '"rev-2"' })
+  })
+
+  it('marks a field both sides changed, keeping the user\'s value', async () => {
+    server.use(capable, http.patch('/v1/issues/td-6a0883', conflict),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+      })))
+    const { refetch } = renderRevisioned()
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await save()
+    await screen.findByText('This task changed since you opened it.')
+    refetch({ ...opened, revision: 'rev-2', title: 'Someone else renamed it' })
+
+    const changed = await screen.findByRole('list', { name: 'Changed since you opened the editor' })
+    expect(within(changed).getByText(/Someone else renamed it/)).toBeInTheDocument()
+    expect(within(changed).getByText(/your draft keeps/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('A brand new title for it')
+  })
+
+  // The fields saved, so the base is td's answer to that save; the status
+  // half then conflicted. The issue prop still showing the pre-save version
+  // is older than the base, not newer, and must not be rebased onto.
+  it('waits for a newer issue than any it has seen when the status half conflicts', async () => {
+    server.use(
+      capable,
+      http.patch('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: {
+        issue: { ...opened, revision: 'rev-2', title: 'A brand new title for it' },
+      } })),
+      http.post('/v1/issues/td-6a0883/start', conflict),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
+      })),
+    )
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    const withStart: Issue = { ...opened, available_transitions: ['start'] }
+    const tree = (next: Issue) => (
+      <QueryClientProvider client={qc}>
+        <IssueEditForm issue={next} editing onDone={vi.fn()} />
+      </QueryClientProvider>
+    )
+    const { rerender } = render(tree(withStart))
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    await save()
+    await screen.findByText('This task changed since you opened it.')
+
+    rerender(tree({ ...withStart, sprint: 'S0' }))
+    expect(screen.queryByRole('list', { name: 'Changed since you opened the editor' }))
+      .not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('A brand new title for it')
+
+    rerender(tree({
+      ...withStart, revision: 'rev-3', title: 'A brand new title for it', priority: 'P0',
+    }))
+    const changed = await screen.findByRole('list', { name: 'Changed since you opened the editor' })
+    expect(within(changed).getByText(/Priority/)).toBeInTheDocument()
+    expect(within(changed).queryByText(/Title/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('A brand new title for it')
+  })
+
+  // After the fields are saved the issue has a new revision, so the status
+  // half of the same save must send that one, not the one the editor opened on.
+  it('runs the transition against the revision the field save produced', async () => {
+    let transitionIfMatch: string | null = null
+    server.use(
+      capable,
+      http.patch('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { issue: { ...opened, revision: 'rev-2' } } })),
+      http.post('/v1/issues/td-6a0883/start', ({ request }) => {
+        transitionIfMatch = request.headers.get('If-Match')
+        return HttpResponse.json({ ok: true, data: { issue: opened } })
+      }),
+    )
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={qc}>
+        <IssueEditForm issue={{ ...opened, available_transitions: ['start'] }} editing onDone={vi.fn()} />
+      </QueryClientProvider>,
+    )
+
+    await userEvent.clear(screen.getByLabelText('Title'))
+    await userEvent.type(screen.getByLabelText('Title'), 'A brand new title for it')
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'in_progress')
+    await save()
+
+    await waitFor(() => expect(transitionIfMatch).toBe('"rev-2"'))
+  })
+})

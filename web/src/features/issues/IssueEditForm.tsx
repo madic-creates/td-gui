@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { unboundMessage } from '../../api/client'
+import { isConflict, unboundMessage } from '../../api/client'
 import { useSetStatus, useTransition, useUpdateIssue } from '../../api/mutations'
 import { useProject } from '../../api/queries'
 import type { Issue, IssueStatus } from '../../api/types'
@@ -11,7 +11,10 @@ import StatusField from './StatusField'
 import TitleHint, { titleBounds } from './TitleHint'
 import { planFor, type StatusPlan } from './statusChange'
 import { attributionIncomplete, attributionOf, type ApproveMode } from './transitions'
-import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
+import {
+  diffIssue, draftFrom, isEmptyPatch, rebaseDraft, type FieldChange, type IssueDraft,
+} from './issueDiff'
+import ConflictChanges from './ConflictChanges'
 import { candidatesFor, childrenOf } from './issueIndex'
 import { useIssueIndex } from './useIssueIndex'
 
@@ -85,6 +88,15 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
   // retried or taken back.
   const [statusError, setStatusError] = useState<unknown>(null)
   const [fieldsSaved, setFieldsSaved] = useState(false)
+  // td refused a save because the issue changed since `original`. The draft
+  // is kept, and moved onto td's version once the refetch the refusal
+  // triggered arrives; `changes` is what that move took over or ran into.
+  // Non-null while waiting, holding every revision the save already knows
+  // to be outdated: revisions are hashes with no order, so "not one of
+  // these" is the only way to tell td's newer issue from a prop that still
+  // shows an older one.
+  const [awaitingRebase, setAwaitingRebase] = useState<(string | undefined)[] | null>(null)
+  const [changes, setChanges] = useState<FieldChange[]>([])
   const transition = useTransition(issue.id)
   const setStatus = useSetStatus(issue.id)
   // Names the form so the portalled Save can point back at it.
@@ -109,7 +121,22 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
       setAcknowledged(false)
       setStatusError(null)
       setFieldsSaved(false)
+      setAwaitingRebase(null)
+      setChanges([])
     }
+  }
+
+  // The conflict's other half, also adjusted during render. The live prop
+  // carrying a revision the save did not already know is td's current issue,
+  // possibly here before the refusal was, since an SSE refresh may have
+  // beaten it. A status the user left alone follows td's as well.
+  if (awaitingRebase && !awaitingRebase.includes(issue.revision)) {
+    const rebased = rebaseDraft(original, issue, draft)
+    setAwaitingRebase(null)
+    setOriginal(issue)
+    setDraft(rebased.draft)
+    setChanges(rebased.changes)
+    if (target === original.status) setTarget(issue.status)
   }
 
   // The submit button disables on update.isPending, but that reads from
@@ -151,8 +178,11 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
     ? !acknowledged
     : plan?.action === 'approve' && attributionIncomplete(mode, reviewedBy)
 
-  /** The status half of a save. Throws td's rejection for submit to hold. */
-  const applyStatus = async (chosen: StatusPlan) => {
+  /**
+   * The status half of a save. Throws td's rejection for submit to hold.
+   * `revision` is the issue's as of the field save, if there was one.
+   */
+  const applyStatus = async (chosen: StatusPlan, revision: string | undefined) => {
     if (chosen.kind === 'override') {
       await setStatus.mutateAsync({ status: target })
       return
@@ -162,6 +192,7 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
       action: chosen.action,
       ...(note ? { reason: note } : {}),
       ...(chosen.action === 'approve' ? attributionOf(mode, reviewedBy) : {}),
+      revision,
     })
   }
 
@@ -177,23 +208,35 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
     submitting.current = true
     setStatusError(null)
     setFieldsSaved(false)
+    setChanges([])
 
     // The fields go first, so a status change td refuses lands on an issue
     // whose edits are already stored. That is reported as what it is rather
     // than as one failed save: the fields did save.
+    //
+    // Both halves name the revision they were based on, and a saved field
+    // half moves the base to td's answer: the issue is a new revision now,
+    // and a retry of a refused status change must neither resend the fields
+    // nor be refused for the save it just made itself.
     let phase: 'fields' | 'status' = 'fields'
+    let revision = original.revision
+    const outdated = [revision]
     try {
       if (!isEmptyPatch(patch)) {
-        await update.mutateAsync(patch)
+        const saved = await update.mutateAsync({ patch, revision })
+        setOriginal(saved.issue)
+        revision = saved.issue.revision
+        outdated.push(revision)
         setFieldsSaved(true)
       }
       phase = 'status'
-      if (plan) await applyStatus(plan)
+      if (plan) await applyStatus(plan, revision)
       onDone()
     } catch (err) {
       // A rejected PATCH already renders through update.error and its field
       // errors; only the status half has nowhere else to be shown.
       if (phase === 'status') setStatusError(err)
+      if (isConflict(err)) setAwaitingRebase(outdated)
     } finally {
       submitting.current = false
     }
@@ -232,6 +275,8 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
           message={statusMessage}
         />
       )}
+
+      <ConflictChanges changes={changes} />
     </div>
   )
 

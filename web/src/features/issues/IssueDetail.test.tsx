@@ -555,7 +555,7 @@ describe('IssueDetail', () => {
       http.get('/v1/issues/td-6a0883', () => HttpResponse.json({ ok: true, data: detail })),
       http.patch('/v1/issues/td-6a0883', async ({ request }) => {
         patched = await request.json()
-        return HttpResponse.json({ ok: true, data: detail.issue })
+        return HttpResponse.json({ ok: true, data: { issue: detail.issue } })
       }),
     )
     renderDetail()

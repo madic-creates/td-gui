@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffIssue, draftFrom, isEmptyPatch } from './issueDiff'
+import { diffIssue, draftFrom, isEmptyPatch, rebaseDraft } from './issueDiff'
 import type { Issue } from '../../api/types'
 
 const issue: Issue = {
@@ -68,5 +68,45 @@ describe('diffIssue', () => {
   it('sends the boolean and enum fields when toggled', () => {
     const draft = { ...draftFrom(issue), minor: true, type: 'bug' as const, priority: 'P0' as const }
     expect(diffIssue(issue, draft)).toEqual({ minor: true, type: 'bug', priority: 'P0' })
+  })
+})
+
+describe('rebaseDraft', () => {
+  const theirs: Issue = { ...issue, revision: 'rev-2', description: 'Rewritten elsewhere', priority: 'P0' }
+
+  it('takes td\'s value for a field the draft left alone', () => {
+    const { draft } = rebaseDraft(issue, theirs, draftFrom(issue))
+    expect(draft.description).toBe('Rewritten elsewhere')
+    expect(draft.priority).toBe('P0')
+  })
+
+  it('keeps the draft\'s value for a field the user edited, even one td changed too', () => {
+    const mine = { ...draftFrom(issue), title: 'My new title for it', priority: 'P3' as const }
+    const { draft } = rebaseDraft(issue, theirs, mine)
+    expect(draft.title).toBe('My new title for it')
+    expect(draft.priority).toBe('P3')
+    // ...and the rebased draft diffs against td's issue to just the user's edits.
+    expect(diffIssue(theirs, draft)).toEqual({ title: 'My new title for it', priority: 'P3' })
+  })
+
+  it('lists what td changed, and which of those the draft also changed', () => {
+    const mine = { ...draftFrom(issue), priority: 'P3' as const }
+    const { changes } = rebaseDraft(issue, theirs, mine)
+    expect(changes).toEqual([
+      { field: 'description', label: 'Description', theirs: 'Rewritten elsewhere', mine: undefined },
+      { field: 'priority', label: 'Priority', theirs: 'P0', mine: 'P3' },
+    ])
+  })
+
+  it('lists a changed status, which the draft never holds', () => {
+    const { changes } = rebaseDraft(issue, { ...issue, status: 'in_progress' }, draftFrom(issue))
+    expect(changes).toEqual([
+      { field: 'status', label: 'Status', theirs: 'in_progress', mine: undefined },
+    ])
+  })
+
+  it('compares labels by value', () => {
+    const { changes } = rebaseDraft(issue, { ...issue, labels: ['alpha', 'beta'] }, draftFrom(issue))
+    expect(changes).toEqual([])
   })
 })

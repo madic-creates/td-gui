@@ -170,3 +170,30 @@ describe('IssueActions', () => {
     expect(edit.parentElement?.parentElement).toBe(container)
   })
 })
+
+describe('IssueActions revisions', () => {
+  it('deletes against the revision on screen, and shows td\'s conflict message', async () => {
+    let ifMatch: string | null = null
+    server.use(
+      http.get('/v1/project', () =>
+        HttpResponse.json({ ok: true, data: { capabilities: ['issue_revisions'] } })),
+      http.delete('/v1/issues/:id', ({ request }) => {
+        ifMatch = request.headers.get('If-Match')
+        return HttpResponse.json({
+          ok: false,
+          error: { code: 'conflict', message: 'This task changed since you opened it.' },
+        }, { status: 409 })
+      }),
+      // The conflict refetches the issue; nothing here renders it.
+      http.get('/v1/issues', () => HttpResponse.json({ ok: true, data: { issues: [] } })),
+    )
+    renderActions({ revision: 'rev-1' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm delete' }))
+
+    expect(await screen.findByText('This task changed since you opened it.')).toBeInTheDocument()
+    expect(ifMatch).toBe('"rev-1"')
+    expect(screen.queryByText('issue list')).not.toBeInTheDocument()
+  })
+})

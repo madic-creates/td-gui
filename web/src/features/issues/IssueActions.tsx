@@ -73,8 +73,10 @@ export default function IssueActions({ issue, editing, onEdit }: Props) {
     setLastAction('delete')
     setFocusAck(false)
     // Soft delete. The detail route would otherwise keep rendering an
-    // issue that a direct GET still returns.
-    remove.mutate(undefined, { onSuccess: () => navigate('/') })
+    // issue that a direct GET still returns. Against the revision on screen:
+    // if the issue changed since, td refuses and says so, and the refetch it
+    // triggers shows the user what they would have deleted.
+    remove.mutate(issue.revision, { onSuccess: () => navigate('/') })
   }
 
   return (

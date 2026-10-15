@@ -36,7 +36,9 @@ interface Envelope<T> {
 // way out short of reloading the page.
 const REQUEST_TIMEOUT_MS = 20_000
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: string, path: string, body?: unknown, extraHeaders: Record<string, string> = {},
+): Promise<T> {
   // Resolve against the current origin. In the browser td-gui serves the SPA
   // and proxies /v1 from the same origin; under jsdom this turns the relative
   // path into the absolute URL Node's fetch requires.
@@ -46,7 +48,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   try {
     res = await fetch(url, {
       method,
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...extraHeaders,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
@@ -86,8 +91,16 @@ export function apiGet<T>(path: string): Promise<T> {
   return request<T>('GET', path)
 }
 
-export function apiSend<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
-  return request<T>(method, path, body)
+export function apiSend<T>(
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown,
+  headers?: Record<string, string>,
+): Promise<T> {
+  return request<T>(method, path, body, headers)
+}
+
+/** True for td's answer to a write whose If-Match revision is no longer current. */
+export function isConflict(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'conflict'
 }
 
 /**

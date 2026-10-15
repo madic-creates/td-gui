@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiGet, encodeId } from './client'
+import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { ApiError, apiGet, encodeId } from './client'
 import type {
   About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority, Project,
 } from './types'
@@ -115,27 +115,45 @@ export function useAbout() {
   })
 }
 
+export const projectKeys = { capabilities: ['project', 'capabilities'] as const }
+
 /**
- * The optional routes td serve reports in GET /v1/project.
+ * Whether td reports an optional feature in GET /v1/project: `board_move` for
+ * the board move endpoint, `issue_revisions` for If-Match on issue writes.
+ * One cache entry serves every capability, read once and then served from it.
  *
- * Read at the moment a write needs it, through `fetchQuery`, not by a hook
- * on mount: only a write branches on it, and a page that never writes has no
- * reason to ask. td before v0.66.0 has no /v1/project at all, so any failure
- * here reads as "no optional routes" and the caller keeps its older path.
- * No retry: the 404 from an older td is an answer, not a hiccup, and a write
- * should not wait out three backoffs to learn it.
+ * Read at the moment a write needs it, not by a hook on mount: only a write
+ * branches on it, and a page that never writes has no reason to ask.
+ *
+ * `ensureQueryData` rather than `fetchQuery`: useLiveUpdates invalidates the
+ * whole cache on every SSE event, and a capability list does not change
+ * because an issue did. It changes with the td binary, and a td that is
+ * swapped underneath a running td-gui is no harm either way: a td without
+ * revisions ignores If-Match, and a td with them accepts a write without one.
+ *
+ * td before v0.66.0 has no /v1/project and answers 404. That is an answer,
+ * "no capabilities", and is cached as one. Any other failure is not, and
+ * reads as no capabilities for this call only, so the caller keeps its older
+ * path. No retry: a write should not wait out three backoffs to learn it.
  */
-export const projectCapabilitiesQuery = {
-  queryKey: ['project', 'capabilities'] as const,
-  queryFn: async (): Promise<string[]> => {
-    try {
-      return (await apiGet<Project>('/v1/project')).capabilities ?? []
-    } catch {
-      return []
-    }
-  },
-  retry: false,
-  staleTime: Infinity,
+export async function hasCapability(qc: QueryClient, name: string): Promise<boolean> {
+  try {
+    const capabilities = await qc.ensureQueryData({
+      queryKey: projectKeys.capabilities,
+      queryFn: async (): Promise<string[]> => {
+        try {
+          return (await apiGet<Project>('/v1/project')).capabilities ?? []
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) return []
+          throw err
+        }
+      },
+      retry: false,
+    })
+    return capabilities.includes(name)
+  } catch {
+    return false
+  }
 }
 
 /**

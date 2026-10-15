@@ -147,7 +147,9 @@ function IssueDetailView({ id }: { id: string }) {
         hidden={editing}
         className="mt-3 grid grid-flow-row-dense grid-cols-[auto_auto_minmax(0,1fr)] items-start gap-x-1.5"
       >
-        <TransitionBar issueId={issue.id} available={issue.available_transitions} />
+        <TransitionBar
+          issueId={issue.id} available={issue.available_transitions} revision={issue.revision}
+        />
         <IssueActions issue={issue} editing={editing} onEdit={() => setEditing(!editing)} />
       </div>
 

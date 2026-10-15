@@ -1,9 +1,9 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { ApiError, apiSend, encodeId } from './client'
-import { issueKeys, projectCapabilitiesQuery } from './queries'
+import { apiSend, encodeId, isConflict } from './client'
+import { hasCapability, issueKeys } from './queries'
 import { boardKeys } from './boards'
 import type {
-  BoardCreateResponse, IssueCreateResponse, IssueStatus, IssueType, IssuePatch, Priority,
+  BoardCreateResponse, Issue, IssueCreateResponse, IssueStatus, IssueType, IssuePatch, Priority,
   Transition,
 } from './types'
 
@@ -30,6 +30,37 @@ function invalidateIssueData(qc: QueryClient) {
 }
 
 /**
+ * The If-Match header for a write to an issue, or none.
+ *
+ * `revision` is the issue as the user last saw it, which is the caller's to
+ * know: a form that has been open for a while holds an older one than the
+ * cache. td compares it and answers 409 `conflict` if the issue changed since,
+ * so a write never silently overwrites one it did not see. Sent only when td
+ * reports `issue_revisions`, and only when the caller has a revision to send.
+ */
+async function ifMatch(qc: QueryClient, revision: string | undefined) {
+  if (!revision || !(await hasCapability(qc, 'issue_revisions'))) return undefined
+  return { 'If-Match': `"${revision}"` }
+}
+
+/**
+ * What a write to an issue does when td refuses it as a conflict: the issue
+ * changed under the user, so what is on screen is stale and is refetched.
+ * The error itself still reaches the caller, td's sentence included — the
+ * GUI renders the conflict, td is the one that detected it.
+ */
+function refetchOnConflict(qc: QueryClient) {
+  return (error: unknown) => {
+    if (isConflict(error)) void invalidateIssueData(qc)
+  }
+}
+
+/** A write's variables: what it sends, plus the revision it was based on. */
+export interface Revisioned {
+  revision?: string
+}
+
+/**
  * Review attribution, as td models it: `reviewed_by` names who actually
  * reviewed when that is not the calling session, `self_review` acknowledges
  * reviewing your own work. td rejects the two together with a 400, so the two
@@ -41,8 +72,13 @@ export interface Attribution {
   self_review?: true
 }
 
-export interface TransitionInput extends Attribution {
+export interface TransitionInput extends Attribution, Revisioned {
   action: Transition
+}
+
+/** td answers a write to an issue with the issue as it now is. */
+export interface IssueWriteResponse {
+  issue: Issue
 }
 
 /**
@@ -52,9 +88,11 @@ export interface TransitionInput extends Attribution {
 export function useTransition(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ action, ...body }: TransitionInput) =>
-      apiSend('POST', `/v1/issues/${encodeId(id)}/${action}`, body),
+    mutationFn: async ({ action, revision, ...body }: TransitionInput) =>
+      apiSend<IssueWriteResponse>(
+        'POST', `/v1/issues/${encodeId(id)}/${action}`, body, await ifMatch(qc, revision)),
     onSuccess: () => invalidateIssueData(qc),
+    onError: refetchOnConflict(qc),
   })
 }
 
@@ -66,6 +104,8 @@ export function useTransition(id: string) {
  * 404. /gui/status is td-gui's own route, which runs td's CLI, and it is used
  * only for the three jumps td's transitions cannot express. Everything td
  * reports in available_transitions still goes through useTransition.
+ *
+ * No revision: the CLI takes no If-Match, so this one write is unconditional.
  */
 export function useSetStatus(id: string) {
   const qc = useQueryClient()
@@ -84,13 +124,16 @@ export function useSetStatus(id: string) {
 export function useRecordReview(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ summary, ...rest }: Omit<Attribution, 'reason'> & { summary: string }) =>
+    mutationFn: async (
+      { summary, revision, ...rest }: Omit<Attribution, 'reason'> & Revisioned & { summary: string },
+    ) =>
       apiSend('POST', `/v1/issues/${encodeId(id)}/reviews`, {
         decision: 'approved',
         summary,
         ...rest,
-      }),
+      }, await ifMatch(qc, revision)),
     onSuccess: () => invalidateIssueData(qc),
+    onError: refetchOnConflict(qc),
   })
 }
 
@@ -141,17 +184,25 @@ export function useCreateIssue() {
 export function useUpdateIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (patch: IssuePatch) => apiSend('PATCH', `/v1/issues/${encodeId(id)}`, patch),
+    mutationFn: async ({ patch, revision }: Revisioned & { patch: IssuePatch }) =>
+      apiSend<IssueWriteResponse>(
+        'PATCH', `/v1/issues/${encodeId(id)}`, patch, await ifMatch(qc, revision)),
     onSuccess: () => invalidateIssueData(qc),
+    onError: refetchOnConflict(qc),
   })
 }
 
-/** A soft delete: the issue leaves the list but a direct GET still returns it. */
+/**
+ * A soft delete: the issue leaves the list but a direct GET still returns it.
+ * The variable is the revision the user decided to delete.
+ */
 export function useDeleteIssue(id: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: () => apiSend('DELETE', `/v1/issues/${encodeId(id)}`),
+    mutationFn: async (revision: string | undefined) =>
+      apiSend('DELETE', `/v1/issues/${encodeId(id)}`, undefined, await ifMatch(qc, revision)),
     onSuccess: () => invalidateIssueData(qc),
+    onError: refetchOnConflict(qc),
   })
 }
 
@@ -260,8 +311,7 @@ export function useMoveCard(boardId: string, includeClosed: boolean) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ issueId, beforeId, slot }: CardMove) => {
-      const capabilities = await qc.fetchQuery(projectCapabilitiesQuery)
-      if (capabilities.includes('board_move')) {
+      if (await hasCapability(qc, 'board_move')) {
         return apiSend('POST', `/v1/boards/${encodeId(boardId)}/move`, {
           issue_id: issueId,
           before_id: beforeId,
@@ -275,7 +325,7 @@ export function useMoveCard(boardId: string, includeClosed: boolean) {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: boardKeys.all }),
     onError: error => {
-      if (error instanceof ApiError && error.status === 409) {
+      if (isConflict(error)) {
         return qc.invalidateQueries({ queryKey: boardKeys.all })
       }
     },
