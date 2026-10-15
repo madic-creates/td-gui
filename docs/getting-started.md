@@ -40,7 +40,7 @@ Press `Ctrl-C` to stop it. Whatever td-gui started, it also shuts down again.
 | ---- | ------- |
 | `--port N` | Serve the UI on a fixed port instead of a free one. Fails loudly if the port is taken. |
 | `--no-open` | Do not launch a browser. |
-| `--work-dir DIR` | Which project to open. Defaults to the current directory. |
+| `--work-dir DIR` | Which project to open. Defaults to the current directory. td resolves it the way its own commands do, so a git worktree, a subdirectory or a directory with a `.td-root` file opens the project td would use there. |
 | `--td PATH` | Use a specific td binary instead of the one on PATH. |
 | `--version` | Print the version and exit. Released binaries print their tag; anything you built yourself prints `dev`. |
 
@@ -70,9 +70,10 @@ To work on two projects at the same time, run one td-gui per project. Give each
 one its own `--work-dir`, and its own `--port` if you want bookmarks that keep
 working. Each window names its project beside the brand in the header, and puts
 the same name in the browser tab, so several of them stay tellable apart. With
-td v0.66.0 or newer the name is td's own, so a git worktree is named after its
-project rather than its checkout directory; hovering it shows td's project
-path.
+td v0.66.0 or newer the name is td's own; hovering it shows td's project path.
+Started from a git worktree, td-gui opens the project td resolves for it, so
+the header, the About page and the backend all name the main repository rather
+than the checkout.
 
 ## Staying up to date
 

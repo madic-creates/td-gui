@@ -183,3 +183,59 @@ func TestVersionContextTimesOutOnHungBinary(t *testing.T) {
 		t.Errorf("VersionContext did not respect its timeout: took %s", elapsed)
 	}
 }
+
+// fakeTd writes an executable shell script standing in for td.
+func fakeTd(t *testing.T, script string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "td")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestBaseDirAsksTdFromTheGivenDirectory pins the argv: td resolves .td-root
+// and git worktrees from -w, so the directory must reach td through it.
+func TestBaseDirAsksTdFromTheGivenDirectory(t *testing.T) {
+	td := fakeTd(t, `[ "$1 $2 $3 $4" = "info --json -w /work/tree" ] || { echo "argv: $*" >&2; exit 1; }
+echo '{"base_dir": "/main/repo", "project": "repo"}'
+`)
+	got, err := BaseDir(td, "/work/tree")
+	if err != nil {
+		t.Fatalf("BaseDir unexpected error: %v", err)
+	}
+	if got != "/main/repo" {
+		t.Errorf("BaseDir = %q, want /main/repo", got)
+	}
+}
+
+func TestBaseDirRejectsUnusableAnswers(t *testing.T) {
+	tests := []struct {
+		name   string
+		script string
+	}{
+		// td exits 0 and prints its error when there is no project.
+		{"no project", "echo \"ERROR: database not found: run 'td init' first\"\n"},
+		{"no base_dir", "echo '{\"project\": \"repo\"}'\n"},
+		{"relative base_dir", "echo '{\"base_dir\": \"repo\"}'\n"},
+		{"failing td", "echo boom >&2\nexit 1\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, err := BaseDir(fakeTd(t, tt.script), "/work/tree"); err == nil {
+				t.Errorf("BaseDir = %q, want error", got)
+			}
+		})
+	}
+}
+
+func TestBaseDirContextTimesOutOnHungBinary(t *testing.T) {
+	td := fakeTd(t, "exec sleep 10\n")
+	start := time.Now()
+	if _, err := BaseDirContext(context.Background(), td, "/work/tree", 100*time.Millisecond); err == nil {
+		t.Fatal("BaseDirContext with a hung binary: want error, got nil")
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("BaseDirContext did not respect its timeout: took %s", elapsed)
+	}
+}

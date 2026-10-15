@@ -79,6 +79,13 @@ func run() error {
 	if err := checkMinVersion(version); err != nil {
 		return err
 	}
+	// td resolves a .td-root file and git worktrees to the directory that
+	// holds .todos; follow it, so the .todos check, the port file and the
+	// About page all name the project td itself uses. Without an answer (no
+	// project here) the directory stands as given, and Start says why.
+	if resolved, err := tdbin.BaseDir(td, baseDir); err == nil {
+		baseDir = resolved
+	}
 
 	assets, err := web.Handler()
 	if err != nil {

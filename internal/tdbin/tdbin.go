@@ -3,10 +3,12 @@ package tdbin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -77,6 +79,40 @@ func VersionContext(ctx context.Context, path string, timeout time.Duration) (st
 		return "", fmt.Errorf("run %s --version: %w", path, err)
 	}
 	return ParseVersion(string(out))
+}
+
+// BaseDir asks td which project directory it would use when started from
+// dir, via `td info --json -w <dir>`. td resolves a .td-root file and git
+// worktrees from there, so a worktree or a subdirectory answers with the
+// directory that actually holds .todos. The run is bounded by versionTimeout.
+func BaseDir(path, dir string) (string, error) {
+	return BaseDirContext(context.Background(), path, dir, versionTimeout)
+}
+
+// BaseDirContext is BaseDir with the given timeout, exposed so tests can use
+// a short one.
+func BaseDirContext(ctx context.Context, path, dir string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, path, "info", "--json", "-w", dir).Output()
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("run %s info: timed out after %s", path, timeout)
+		}
+		return "", fmt.Errorf("run %s info: %w", path, err)
+	}
+	// td exits 0 when it refuses (no project here), printing its error
+	// instead of JSON, so the parse is what decides.
+	var info struct {
+		BaseDir string `json:"base_dir"`
+	}
+	if err := json.Unmarshal(out, &info); err != nil {
+		return "", fmt.Errorf("run %s info: %s", path, strings.TrimSpace(string(out)))
+	}
+	if !filepath.IsAbs(info.BaseDir) {
+		return "", fmt.Errorf("run %s info: no absolute base_dir in %s", path, strings.TrimSpace(string(out)))
+	}
+	return info.BaseDir, nil
 }
 
 // ParseVersion extracts a normalized "vX.Y.Z" version from --version output.
