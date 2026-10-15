@@ -1,17 +1,19 @@
 import { Fragment, useState } from 'react'
 import type { DragEvent } from 'react'
 import { unboundMessage } from '../../api/client'
-import { useClearCardPosition, useSetCardPosition } from '../../api/mutations'
+import { useClearCardPosition, useMoveCard } from '../../api/mutations'
 import ErrorPanel from '../../components/ErrorPanel'
 import { ArrowDownIcon, ArrowUpIcon, UnpinIcon } from '../../components/Icon'
 import BoardCard from './BoardCard'
 import { dragSourceProps } from './dragSource'
-import { insertSlot } from './position'
+import { insertSlot, moveBeforeId } from './position'
 import type { BoardCard as Card } from '../../api/types'
 
 interface Props {
   boardId: string
   cards: Card[]
+  /** What the board was fetched with; td resolves a move against that list. */
+  includeClosed: boolean
 }
 
 /**
@@ -23,11 +25,11 @@ interface Props {
  * order is whatever the board query returned and nothing can be moved within
  * it.
  */
-export default function BacklogView({ boardId, cards }: Props) {
+export default function BacklogView({ boardId, cards, includeClosed }: Props) {
   const pinned = cards.filter(c => c.has_position)
   const auto = cards.filter(c => !c.has_position)
 
-  const setPosition = useSetCardPosition(boardId)
+  const setPosition = useMoveCard(boardId, includeClosed)
   const clearPosition = useClearCardPosition(boardId)
   const busy = setPosition.isPending || clearPosition.isPending
 
@@ -45,11 +47,20 @@ export default function BacklogView({ boardId, cards }: Props) {
     : null
   const message = unboundMessage(error)
 
-  /** No optimistic move: td computes the sort key and may respace the board. */
-  const move = (issueId: string, slot: number | null) => {
-    if (slot === null) return
+  /**
+   * Lands a card at `gap` in the pinned block, as position.ts defines a gap.
+   * Both of td's answers are computed here and the mutation sends whichever
+   * this td speaks. No optimistic move: td computes the sort key and may
+   * respace the board.
+   */
+  const move = (issueId: string, gap: number) => {
+    const slot = insertSlot(gap, pinnedIndexOf(issueId))
+    const beforeId = moveBeforeId(
+      gap, issueId, pinned.map(c => c.issue.id), auto.map(c => c.issue.id),
+    )
+    if (slot === null || beforeId === null) return
     setLastAction('set')
-    setPosition.mutate({ issueId, slot })
+    setPosition.mutate({ issueId, beforeId, slot })
   }
 
   const unpin = (issueId: string) => {
@@ -116,7 +127,7 @@ export default function BacklogView({ boardId, cards }: Props) {
     // card here is a no-op, as in SwimlaneView.
     if (!issueId) return
     if (!cards.some(c => c.issue.id === issueId)) return
-    move(issueId, insertSlot(gap, pinnedIndexOf(issueId)))
+    move(issueId, gap)
   }
 
   const gapProps = (gap: number) => ({
@@ -261,7 +272,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                     aria-label={`Move ${card.issue.id} up`}
                     title={`Move ${card.issue.id} up`}
                     disabled={busy || index === 0}
-                    onClick={() => move(card.issue.id, insertSlot(index - 1, index))}
+                    onClick={() => move(card.issue.id, index - 1)}
                     className="inline-flex items-center rounded-sm border border-line p-1.5 text-ink-muted disabled:opacity-40"
                   >
                     <ArrowUpIcon />
@@ -273,7 +284,7 @@ export default function BacklogView({ boardId, cards }: Props) {
                     disabled={busy || index === pinned.length - 1}
                     // gap = index + 2, not index + 1: at index + 1 td interpolates
                     // between the card and its successor and it keeps its place.
-                    onClick={() => move(card.issue.id, insertSlot(index + 2, index))}
+                    onClick={() => move(card.issue.id, index + 2)}
                     className="inline-flex items-center rounded-sm border border-line p-1.5 text-ink-muted disabled:opacity-40"
                   >
                     <ArrowDownIcon />

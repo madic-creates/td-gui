@@ -6,7 +6,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { useBoard, useBoards } from './boards'
 import {
-  useCreateBoard, useCreateIssue, useClearCardPosition, useSetCardPosition, useTransition,
+  useCreateBoard, useCreateIssue, useClearCardPosition, useMoveCard, useTransition,
 } from './mutations'
 
 const requests: string[] = []
@@ -119,11 +119,71 @@ describe('board mutations', () => {
 
   // The slot is td's 1-based insert position, not the sort key read back from
   // the board. Sending the sort key would silently reorder the whole board.
-  it('sends the issue id and the slot when positioning a card', async () => {
-    const { result } = renderHook(() => useSetCardPosition('bd-1'), { wrapper })
-    result.current.mutate({ issueId: 'td-a1b2', slot: 3 })
+  // td before v0.66.0 has no /v1/project, so a 404 there means the slot path.
+  it('sends the issue id and the slot when td has no move endpoint', async () => {
+    server.use(http.get('/v1/project', () =>
+      HttpResponse.json({ ok: false, error: { code: 'not_found', message: 'not found' } }, { status: 404 })))
+    const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(bodies[0]).toEqual({ issue_id: 'td-a1b2', position: 3 })
+  })
+
+  // A project that answers but lists no board_move is no better than none.
+  it('sends the slot when td does not report board_move', async () => {
+    server.use(http.get('/v1/project', () =>
+      HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['issue_revisions'] } })))
+    const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(bodies[0]).toEqual({ issue_id: 'td-a1b2', position: 3 })
+  })
+
+  // include_closed must match the list the user was looking at: td resolves
+  // before_id against the same task list GET /v1/boards/{id} returned.
+  it('moves a card before another through the move endpoint when td reports board_move', async () => {
+    server.use(
+      http.get('/v1/project', () =>
+        HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
+      http.post('/v1/boards/:id/move', async ({ request, params }) => {
+        requests.push(`move ${String(params.id)}`)
+        bodies.push(await request.json())
+        return HttpResponse.json({ ok: true, data: { positioned: true } })
+      }),
+    )
+    const { result } = renderHook(() => useMoveCard('bd-1', true), { wrapper })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(requests).toContain('move bd-1')
+    expect(bodies).toEqual([{ issue_id: 'td-a1b2', before_id: 'td-c3d4', include_closed: true }])
+  })
+
+  // td answers 409 when the card, or the one it should land before, has left
+  // the board since it was rendered. The board on screen is the stale part, so
+  // it is fetched again rather than left to describe a list td no longer has.
+  it('refetches the board when td reports the board changed under the move', async () => {
+    server.use(
+      http.get('/v1/project', () =>
+        HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
+      http.post('/v1/boards/:id/move', () => HttpResponse.json({
+        ok: false,
+        error: { code: 'conflict', message: 'The task or the task it should be placed before is no longer on this board. Refresh the board and try again.' },
+      }, { status: 409 })),
+    )
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    )
+    const board = renderHook(() => useBoard('bd-1'), { wrapper: shared })
+    await waitFor(() => expect(board.result.current.isSuccess).toBe(true))
+    const fetches = requests.filter(r => r === '/v1/boards/bd-1').length
+
+    const { result } = renderHook(() => useMoveCard('bd-1', false), { wrapper: shared })
+    result.current.mutate({ issueId: 'td-a1b2', beforeId: 'td-c3d4', slot: 3 })
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error?.message).toMatch(/no longer on this board/)
+    await waitFor(() =>
+      expect(requests.filter(r => r === '/v1/boards/bd-1').length).toBe(fetches + 1))
   })
 
   it('clears a position by issue id', async () => {

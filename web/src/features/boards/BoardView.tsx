@@ -76,7 +76,7 @@ export default function BoardView() {
           />
         )
       ) : view === 'backlog' ? (
-        <BacklogView boardId={board.id} cards={issues} />
+        <BacklogView boardId={board.id} cards={issues} includeClosed={includeClosed} />
       ) : (
         <SwimlaneView cards={issues} includeClosed={includeClosed} />
       )}

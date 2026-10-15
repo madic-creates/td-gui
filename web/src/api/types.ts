@@ -253,6 +253,21 @@ export interface BoardCreateResponse {
 }
 
 /**
+ * GET /v1/project, td v0.66.0 and newer. Older td answers 404.
+ *
+ * Only `capabilities` is read: it is how td says which optional routes it
+ * serves, so the GUI asks rather than comparing version strings.
+ */
+export interface Project {
+  name: string
+  path: string
+  session_id: string
+  title_min_length: number
+  title_max_length: number
+  capabilities?: string[]
+}
+
+/**
  * GET /gui/about — td-gui's own route, not td's.
  *
  * Everything but `backend` is fixed for the life of the process. `backend`

@@ -911,6 +911,115 @@ func TestBoardPositionSlotContract(t *testing.T) {
 	}
 }
 
+// TestBoardMoveContract pins what useMoveCard and moveBeforeId stake the
+// move path on, against td's POST /v1/boards/{id}/move:
+//
+//   - GET /v1/project lists `board_move`, which is the only thing that sends
+//     the GUI down this path instead of the slot one;
+//   - a move works on a board where nothing has a position yet;
+//   - "before X" positions the moved card and the cards above it, and leaves
+//     every card below unpositioned. moveBeforeId sends the end of the pinned
+//     block as "before the first query-ordered card" on exactly that promise:
+//     it pins one card, where an empty before_id would pin the whole board;
+//   - a before_id that is not on the board is a 409, which is what the GUI
+//     refetches the board on.
+func TestBoardMoveContract(t *testing.T) {
+	front, _ := newProject(t)
+
+	var project struct {
+		Data struct {
+			Capabilities []string `json:"capabilities"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/project", &project)
+	if !slices.Contains(project.Data.Capabilities, "board_move") {
+		t.Fatalf("capabilities = %v, want board_move — without it the GUI falls back "+
+			"to slots", project.Data.Capabilities)
+	}
+
+	for _, title := range []string{"Second", "Third"} {
+		if status := post(t, front+"/v1/issues",
+			`{"title":"`+title+` contract issue with a long enough title","type":"feature","priority":"P1"}`,
+		); status != http.StatusCreated && status != http.StatusOK {
+			t.Fatalf("create %s issue status = %d", title, status)
+		}
+	}
+
+	var created struct {
+		Data struct {
+			Board struct {
+				ID string `json:"id"`
+			} `json:"board"`
+		} `json:"data"`
+	}
+	if status := postJSON(t, front+"/v1/boards",
+		`{"name":"Move board","query":"type = feature"}`, &created,
+	); status != http.StatusCreated {
+		t.Fatalf("create board status = %d, want 201", status)
+	}
+	board := created.Data.Board.ID
+
+	type card struct {
+		id     string
+		pinned bool
+	}
+	read := func() []card {
+		t.Helper()
+		var got struct {
+			Data struct {
+				Issues []boardCard `json:"issues"`
+			} `json:"data"`
+		}
+		getJSON(t, front+"/v1/boards/"+board, &got)
+		cards := make([]card, 0, len(got.Data.Issues))
+		for _, c := range got.Data.Issues {
+			cards = append(cards, card{c.Issue.ID, c.HasPosition != nil && *c.HasPosition})
+		}
+		return cards
+	}
+	move := func(issue, before string) int {
+		t.Helper()
+		return post(t, front+"/v1/boards/"+board+"/move",
+			`{"issue_id":"`+issue+`","before_id":"`+before+`","include_closed":false}`)
+	}
+
+	start := read()
+	if len(start) != 3 {
+		t.Fatalf("board has %d cards, want 3", len(start))
+	}
+	for _, c := range start {
+		if c.pinned {
+			t.Fatalf("card %s is pinned on a new board", c.id)
+		}
+	}
+	a, b, c := start[0].id, start[1].id, start[2].id
+
+	// The last card before the middle one, on a board with no positions.
+	if status := move(c, b); status != http.StatusOK {
+		t.Fatalf("move %s before %s: status = %d, want 200", c, b, status)
+	}
+	want := []card{{a, true}, {c, true}, {b, false}}
+	if got := read(); !slices.Equal(got, want) {
+		t.Fatalf("board = %v, want %v — the cards above the drop are pinned, the "+
+			"ones below keep following the query", got, want)
+	}
+
+	// The end of the pinned block, as moveBeforeId sends it: before the first
+	// query-ordered card. b must stay unpositioned.
+	if status := move(a, b); status != http.StatusOK {
+		t.Fatalf("move %s before %s: status = %d, want 200", a, b, status)
+	}
+	want = []card{{c, true}, {a, true}, {b, false}}
+	if got := read(); !slices.Equal(got, want) {
+		t.Fatalf("board = %v, want %v — moving to the end of the pinned block must "+
+			"pin only the moved card", got, want)
+	}
+
+	if status := move(a, "td-000000"); status != http.StatusConflict {
+		t.Fatalf("move before a card not on the board: status = %d, want 409", status)
+	}
+}
+
 // boardIssueIDs lists every issue in the project.
 func boardIssueIDs(t *testing.T, front string) []string {
 	t.Helper()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { insertSlot } from './position'
+import { insertSlot, moveBeforeId } from './position'
 
 /*
  * td's ComputeInsertPosition reads the stored rows INCLUDING the card being
@@ -57,5 +57,54 @@ describe('insertSlot', () => {
   it('moves a card down by one with the gap two below it', () => {
     // A at index 0 moving down: gap 2 → slot 3 → lands between B and C.
     expect(insertSlot(2, 0)).toBe(3)
+  })
+})
+
+/*
+ * td's move endpoint takes the card to land before, not a slot, and reads the
+ * board as one list: pinned cards first, then the query-ordered ones. A
+ * missing before_id moves a card to the very end of that list and pins every
+ * card above it, so "end of the pinned block" has to name the first
+ * query-ordered card instead. Pinned [A, B, C], query-ordered [D, E].
+ */
+describe('moveBeforeId', () => {
+  const pinned = ['td-aaa', 'td-bbb', 'td-ccc']
+  const auto = ['td-ddd', 'td-eee']
+
+  it('names the pinned card that sits at the gap', () => {
+    expect(moveBeforeId(0, 'td-ddd', pinned, auto)).toBe('td-aaa')
+    expect(moveBeforeId(1, 'td-ccc', pinned, auto)).toBe('td-bbb')
+  })
+
+  it('names the first query-ordered card for the end of the pinned block', () => {
+    expect(moveBeforeId(3, 'td-aaa', pinned, auto)).toBe('td-ddd')
+  })
+
+  // The dragged card is still rendered at its old place, so the card after the
+  // pinned block can be the very card being pinned. Landing before itself is
+  // not a place; the one after it is.
+  it('skips the dragged card itself when it heads the query-ordered block', () => {
+    expect(moveBeforeId(3, 'td-ddd', pinned, auto)).toBe('td-eee')
+  })
+
+  // With nothing below the pinned block, the end of the board is the end of
+  // the block, and every card above is already pinned.
+  it('sends the end of the board when nothing follows the pinned block', () => {
+    expect(moveBeforeId(3, 'td-aaa', pinned, [])).toBe('')
+    expect(moveBeforeId(3, 'td-ddd', pinned, ['td-ddd'])).toBe('')
+  })
+
+  it('names the first query-ordered card on a board with nothing pinned', () => {
+    expect(moveBeforeId(0, 'td-eee', [], auto)).toBe('td-ddd')
+  })
+
+  it('reports the same no-ops as insertSlot', () => {
+    expect(moveBeforeId(1, 'td-bbb', pinned, auto)).toBeNull()
+    expect(moveBeforeId(2, 'td-bbb', pinned, auto)).toBeNull()
+    expect(moveBeforeId(-1, 'td-aaa', pinned, auto)).toBeNull()
+  })
+
+  it('moves a card down by one with the gap two below it', () => {
+    expect(moveBeforeId(2, 'td-aaa', pinned, auto)).toBe('td-ccc')
   })
 })

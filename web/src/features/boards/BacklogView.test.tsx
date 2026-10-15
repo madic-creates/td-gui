@@ -12,7 +12,25 @@ import type { BoardCard } from '../../api/types'
 const positioned: unknown[] = []
 const cleared: string[] = []
 
+const moved: unknown[] = []
+
+/** td before v0.66.0: no /v1/project, so every move goes out as a slot. */
+const oldTd = http.get('/v1/project', () => HttpResponse.json(
+  { ok: false, error: { code: 'not_found', message: 'not found' } }, { status: 404 },
+))
+
+/** td v0.66.0 and newer: moves go out as "before this card". */
+const moveTd = [
+  http.get('/v1/project', () =>
+    HttpResponse.json({ ok: true, data: { name: 'p', capabilities: ['board_move'] } })),
+  http.post('/v1/boards/:id/move', async ({ request }) => {
+    moved.push(await request.json())
+    return HttpResponse.json({ ok: true, data: { positioned: true } })
+  }),
+]
+
 const server = setupServer(
+  oldTd,
   http.post('/v1/boards/:id/issues', async ({ request }) => {
     positioned.push(await request.json())
     return HttpResponse.json({ ok: true, data: { positioned: true } })
@@ -26,6 +44,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   positioned.length = 0
+  moved.length = 0
   cleared.length = 0
 })
 afterAll(() => server.close())
@@ -40,13 +59,13 @@ function cards(): BoardCard[] {
   ]
 }
 
-function renderBacklog(list: BoardCard[] = cards()) {
+function renderBacklog(list: BoardCard[] = cards(), includeClosed = false) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter><BacklogView boardId="bd-sprint1" cards={list} /></MemoryRouter>
+      <MemoryRouter><BacklogView boardId="bd-sprint1" cards={list} includeClosed={includeClosed} /></MemoryRouter>
     </QueryClientProvider>,
   )
 }
@@ -666,5 +685,76 @@ describe('BacklogView', () => {
     const event = createEvent.drop(list, { dataTransfer: dataTransfer('https://example.com') })
     fireEvent(list, event)
     expect(event.defaultPrevented).toBe(true)
+  })
+})
+
+/**
+ * td v0.66.0 reports `board_move`, and the same gestures go out as "before
+ * this card" instead of a slot. Pinned [aaa, bbb, ccc], query-ordered [ddd].
+ */
+describe('BacklogView against a td with the move endpoint', () => {
+  it('moves a card down before the card two below it', async () => {
+    server.use(...moveTd)
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-aaa down' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-aaa', before_id: 'td-ccc', include_closed: false }]))
+    expect(positioned).toEqual([])
+  })
+
+  it('moves a card up before its predecessor', async () => {
+    server.use(...moveTd)
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: false }]))
+  })
+
+  // An empty before_id would send the card to the end of the whole board and
+  // pin everything above it; the end of the pinned block is before the first
+  // query-ordered card.
+  it('moves the last pinned card down before the first query-ordered card', async () => {
+    server.use(...moveTd)
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-bbb down' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-bbb', before_id: 'td-ddd', include_closed: false }]))
+  })
+
+  it("pins a card dropped on the nothing-is-pinned text before the board's next card", async () => {
+    server.use(...moveTd)
+    renderBacklog([
+      makeCard({ id: 'td-aaa' }, { position: 0, has_position: false }),
+      makeCard({ id: 'td-bbb' }, { position: 0, has_position: false }),
+    ])
+    const dt = dataTransfer('td-bbb')
+    fireEvent.dragStart(screen.getByText('td-bbb').closest('li')!, { dataTransfer: dt })
+    fireEvent.drop(screen.getByTestId('pinned-dropzone'), { dataTransfer: dt })
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-bbb', before_id: 'td-aaa', include_closed: false }]))
+  })
+
+  it('tells td the board includes closed cards when it does', async () => {
+    server.use(...moveTd)
+    renderBacklog(cards(), true)
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
+    await waitFor(() =>
+      expect(moved).toEqual([{ issue_id: 'td-ccc', before_id: 'td-bbb', include_closed: true }]))
+  })
+
+  it("shows td's message when the board changed under the move", async () => {
+    server.use(
+      moveTd[0],
+      http.post('/v1/boards/:id/move', () => HttpResponse.json({
+        ok: false,
+        error: {
+          code: 'conflict',
+          message: 'The task or the task it should be placed before is no longer on this board. Refresh the board and try again.',
+        },
+      }, { status: 409 })),
+    )
+    renderBacklog()
+    await userEvent.click(screen.getByRole('button', { name: 'Move td-ccc up' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('no longer on this board')
   })
 })

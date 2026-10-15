@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet, encodeId } from './client'
 import type {
-  About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority,
+  About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority, Project,
 } from './types'
 
 export interface IssueListParams {
@@ -113,4 +113,27 @@ export function useAbout() {
     queryKey: ['about'] as const,
     queryFn: () => apiGet<About>('/gui/about'),
   })
+}
+
+/**
+ * The optional routes td serve reports in GET /v1/project.
+ *
+ * Read at the moment a write needs it, through `fetchQuery`, not by a hook
+ * on mount: only a write branches on it, and a page that never writes has no
+ * reason to ask. td before v0.66.0 has no /v1/project at all, so any failure
+ * here reads as "no optional routes" and the caller keeps its older path.
+ * No retry: the 404 from an older td is an answer, not a hiccup, and a write
+ * should not wait out three backoffs to learn it.
+ */
+export const projectCapabilitiesQuery = {
+  queryKey: ['project', 'capabilities'] as const,
+  queryFn: async (): Promise<string[]> => {
+    try {
+      return (await apiGet<Project>('/v1/project')).capabilities ?? []
+    } catch {
+      return []
+    }
+  },
+  retry: false,
+  staleTime: Infinity,
 }
