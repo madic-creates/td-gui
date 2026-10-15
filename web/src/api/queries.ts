@@ -1,7 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { ApiError, apiGet, encodeId } from './client'
 import type {
-  About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority, Project,
+  About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, MonitorResponse, Priority, Project,
   SessionsResponse,
 } from './types'
 
@@ -197,5 +197,20 @@ export function useSessions() {
   return useQuery({
     queryKey: sessionKeys.all,
     queryFn: () => apiGet<SessionsResponse>('/v1/sessions'),
+  })
+}
+
+export const monitorKeys = { all: ['monitor'] as const }
+
+/**
+ * GET /v1/monitor: td's own snapshot for `td monitor`. The activity page
+ * reads `monitor.activity` only: the most recent events, newest first, as
+ * many as td chooses to send (50 in v0.66.0). td serve takes no parameter to
+ * page or filter them, so there is no "load more".
+ */
+export function useMonitor() {
+  return useQuery({
+    queryKey: monitorKeys.all,
+    queryFn: () => apiGet<MonitorResponse>('/v1/monitor'),
   })
 }
