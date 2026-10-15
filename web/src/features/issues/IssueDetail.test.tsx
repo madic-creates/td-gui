@@ -64,6 +64,7 @@ const detail = {
     decisions: ['a decision'], uncertain: ['an open question'],
     timestamp: '2026-08-14T15:04:10+02:00',
   },
+  children: [],
 }
 
 /**
@@ -583,6 +584,7 @@ describe('IssueDetail', () => {
           ...detail,
           issue: { ...detail.issue, type: 'epic' },
           blocked_by: [{ dep_id: 'dp-1', issue_id: 'td-blocked', depends_on_id: 'td-6a0883' }],
+          children: [makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' })],
         },
       })),
       http.get('/v1/issues', () => HttpResponse.json({
@@ -949,16 +951,12 @@ describe('IssueDetail', () => {
   it('lists the children of an epic', async () => {
     const issue = { ...detail.issue, type: 'epic' }
     server.use(
-      http.get('/v1/issues/td-6a0883', () =>
-        HttpResponse.json({ ok: true, data: { ...detail, issue } })),
-      http.get('/v1/issues', () => HttpResponse.json({
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
         ok: true,
         data: {
-          issues: [
-            makeIssue({ id: 'td-child0', title: 'A task in the epic', parent_id: 'td-6a0883' }),
-            makeIssue({ id: 'td-other0', title: 'Unrelated', parent_id: null }),
-          ],
-          limit: 1000, offset: 0, total: 2, has_more: false,
+          ...detail,
+          issue,
+          children: [makeIssue({ id: 'td-child0', title: 'A task in the epic', parent_id: 'td-6a0883' })],
         },
       })),
     )
@@ -969,9 +967,9 @@ describe('IssueDetail', () => {
     expect(screen.queryByText('Unrelated')).not.toBeInTheDocument()
   })
 
-  // td v0.66.0 lists the children itself. Its list is the answer even when
-  // the index is capped or not yet loaded, and it beats the index's view of
-  // an issue that changed since.
+  // td lists the children itself. Its list is the answer even when the index
+  // is capped or not yet loaded, and it beats the index's view of an issue
+  // that changed since.
   it("lists the children td reports with the issue", async () => {
     server.use(
       http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
@@ -1029,14 +1027,9 @@ describe('IssueDetail', () => {
   // parent's type. `detail.issue` here is type 'feature', the fixture default.
   it('lists the children of a non-epic issue', async () => {
     server.use(
-      http.get('/v1/issues/td-6a0883', () =>
-        HttpResponse.json({ ok: true, data: detail })),
-      http.get('/v1/issues', () => HttpResponse.json({
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
         ok: true,
-        data: {
-          issues: [makeIssue({ id: 'td-child0', title: 'A subtask', parent_id: 'td-6a0883' })],
-          limit: 1000, offset: 0, total: 1, has_more: false,
-        },
+        data: { ...detail, children: [makeIssue({ id: 'td-child0', title: 'A subtask', parent_id: 'td-6a0883' })] },
       })),
     )
 
@@ -1049,8 +1042,16 @@ describe('IssueDetail', () => {
   // so it legitimately reports more tasks than the group below it lists.
   it('reports the progress of the whole subtree above the tasks', async () => {
     server.use(
-      http.get('/v1/issues/td-6a0883', () =>
-        HttpResponse.json({ ok: true, data: detail })),
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true,
+        data: {
+          ...detail,
+          children: [
+            makeIssue({ id: 'td-child0', parent_id: 'td-6a0883' }),
+            makeIssue({ id: 'td-child1', parent_id: 'td-6a0883', status: 'closed' }),
+          ],
+        },
+      })),
       http.get('/v1/issues', () => HttpResponse.json({
         ok: true,
         data: {

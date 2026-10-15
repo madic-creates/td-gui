@@ -90,10 +90,10 @@ describe('If-Match on issue writes', () => {
     expect(seen).toEqual([null])
   })
 
-  // td before v0.66.0 has no /v1/project at all. Writes must still work.
-  it('sends no If-Match when td has no project route', async () => {
+  // A failed capability read must not cost the write itself.
+  it('sends no If-Match when the project read fails', async () => {
     server.use(http.get('/v1/project', () => HttpResponse.json(
-      { ok: false, error: { code: 'not_found', message: 'not found' } }, { status: 404 })))
+      { ok: false, error: { code: 'internal', message: 'boom' } }, { status: 500 })))
     const seen = captureWrites()
     const { wrapper } = setup()
     const { result } = renderHook(() => useTransition(ID), { wrapper })

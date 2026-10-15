@@ -36,8 +36,8 @@ export interface Review {
 export interface Issue {
   /**
    * td's version stamp for the issue, sent back as If-Match on a write so td
-   * can refuse it with a 409 if the issue changed in between. td v0.66.0 and
-   * newer only; GET /v1/project lists `issue_revisions` when it is there.
+   * can refuse it with a 409 if the issue changed in between. GET /v1/project
+   * lists `issue_revisions` when td sends it.
    */
   revision?: string
   id: string
@@ -143,11 +143,8 @@ export interface IssueDetail {
   dependencies: Dependency[]
   blocked_by: Dependency[]
   latest_handoff: Handoff | null
-  /**
-   * The issues whose parent this is, td v0.66.0 and newer. Absent on an older
-   * td, which is "unknown", not "none" — the caller falls back to the index.
-   */
-  children?: Issue[]
+  /** The issues whose parent this is; an empty list when there are none. */
+  children: Issue[]
 }
 
 /**
@@ -264,7 +261,7 @@ export interface BoardCreateResponse {
 }
 
 /**
- * GET /v1/project, td v0.66.0 and newer. Older td answers 404.
+ * GET /v1/project.
  *
  * `name` and `path` are td's own resolution of the project, through .td-root
  * and git worktrees, so the header prefers them over the directory td-gui was

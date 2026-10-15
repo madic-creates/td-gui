@@ -1,30 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
-import { http, HttpResponse } from 'msw'
 import AppShell from './AppShell'
-import { noProjectHandler, project, projectHandler } from '../testing/project'
+import { project, projectFailsHandler, projectHandler } from '../testing/project'
 
-const about = {
-  project: '/home/you/my-project',
-  td_gui: 'v1.2.3',
-  td: 'v0.57.0',
-  td_path: '/home/you/go/bin/td',
-  go: 'go1.24.0',
-  platform: 'linux/amd64',
-  source: 'https://github.com/madic-creates/td-gui',
-  license: 'Apache-2.0',
-  backend: { url: 'http://127.0.0.1:41234', owned: true },
-}
-
-// The defaults are an older td, which has no /v1/project: the header then
-// names the project from td-gui's own about route, as it always has.
-const server = setupServer(
-  http.get('/gui/about', () => HttpResponse.json({ ok: true, data: about })),
-  noProjectHandler,
-)
+const server = setupServer(projectHandler)
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
@@ -103,15 +85,15 @@ describe('AppShell', () => {
    */
   it('names the project in the header', async () => {
     renderShell(true)
-    expect(await screen.findByText('my-project')).toBeInTheDocument()
+    expect(await screen.findByText(project.name)).toBeInTheDocument()
   })
 
   // The tab strip is where windows are actually told apart, so this is the
   // larger half of the same fix.
   it('puts the project in the document title', async () => {
     renderShell(true)
-    await screen.findByText('my-project')
-    expect(document.title).toBe('td-gui — my-project')
+    await screen.findByText(project.name)
+    expect(document.title).toBe(`td-gui — ${project.name}`)
   })
 
   // One word, and a skeleton for one word is noisier than its absence. The
@@ -122,27 +104,28 @@ describe('AppShell', () => {
     expect(document.title).toBe('td-gui')
   })
 
-  // Absence of a name is not a name. A failed /gui/about leaves the header
+  // Absence of a name is not a name. A failed /v1/project leaves the header
   // exactly as it was rather than showing an error the user cannot act on.
-  it('leaves the header alone when the about route fails', async () => {
-    server.use(http.get('/gui/about', () => new HttpResponse(null, { status: 500 })))
+  it('leaves the header alone when td does not name the project', async () => {
+    let asked = false
+    server.events.on('response:mocked', ({ request }) => {
+      if (new URL(request.url).pathname === '/v1/project') asked = true
+    })
+    server.use(projectFailsHandler)
     renderShell(true)
 
-    expect(await screen.findByRole('link', { name: 'About' })).toBeInTheDocument()
+    await waitFor(() => expect(asked).toBe(true))
+    // One more turn, so the failure has reached the component before looking.
+    await new Promise(resolve => setTimeout(resolve, 0))
     expect(document.title).toBe('td-gui')
-    expect(screen.queryByText('my-project')).not.toBeInTheDocument()
+    expect(screen.queryByText(project.name)).not.toBeInTheDocument()
   })
 
   // td resolves .td-root and git worktrees, so from a worktree its name is the
-  // project's, while td-gui's own directory is the worktree's.
-  it("prefers td's name for the project when td reports one", async () => {
-    server.use(projectHandler)
+  // project's rather than the checkout's, and its path is the one on hover.
+  it("puts td's path for the project on its name", async () => {
     renderShell(true)
-
-    const name = await screen.findByText(project.name)
-    expect(name).toHaveAttribute('title', project.path)
-    expect(document.title).toBe(`td-gui — ${project.name}`)
-    expect(screen.queryByText('my-project')).not.toBeInTheDocument()
+    expect(await screen.findByText(project.name)).toHaveAttribute('title', project.path)
   })
 
   // The shell imposes no width of its own: a 1440px cap lived here briefly and

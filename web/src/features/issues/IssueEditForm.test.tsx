@@ -7,7 +7,7 @@ import { http, HttpResponse, delay } from 'msw'
 import IssueEditForm from './IssueEditForm'
 import { boundFields } from './IssueFields'
 import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
-import { noProjectHandler, projectHandler } from '../../testing/project'
+import { projectFailsHandler, projectHandler } from '../../testing/project'
 import type { Issue } from '../../api/types'
 
 const issue: Issue = {
@@ -67,17 +67,17 @@ describe('IssueEditForm', () => {
     expect(screen.getByLabelText('Title')).toHaveAttribute('aria-describedby', expect.stringContaining(hint.id))
   })
 
-  // td before v0.66.0 reports no bounds, and a guessed pair would be wrong for
-  // any project that changed them.
-  it('states no title bounds when td reports none', async () => {
+  // Without td's answer there are no bounds to state, and a guessed pair would
+  // be wrong for any project that changed them.
+  it('states no title bounds when td does not answer', async () => {
     let asked = false
     server.events.on('response:mocked', ({ request }) => {
       if (new URL(request.url).pathname === '/v1/project') asked = true
     })
-    server.use(noProjectHandler)
+    server.use(projectFailsHandler)
     renderForm()
     await waitFor(() => expect(asked).toBe(true))
-    // One more turn, so the 404 has reached the component before looking.
+    // One more turn, so the failure has reached the component before looking.
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(screen.queryByText(/characters\.$/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Title')).not.toHaveAttribute('aria-describedby')

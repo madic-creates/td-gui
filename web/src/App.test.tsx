@@ -70,7 +70,7 @@ describe('App routing', () => {
         data: {
           issue: { ...flying, available_transitions: [] },
           logs: [], comments: [], dependencies: [], blocked_by: [],
-          latest_handoff: null, reviews: [],
+          latest_handoff: null, reviews: [], children: [],
         },
       })),
       http.get('/v1/labels', () => HttpResponse.json({

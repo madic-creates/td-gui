@@ -12,7 +12,7 @@ import RelatedIssues from './RelatedIssues'
 import MetaPanel from './MetaPanel'
 import ReviewPanel from './ReviewPanel'
 import { useIssueIndex } from './useIssueIndex'
-import { childrenOf, resolve } from './issueIndex'
+import { resolve } from './issueIndex'
 import EpicProgress from '../epics/EpicProgress'
 import { childIndex, rollup } from '../epics/epicRollup'
 import { listPathFrom } from './listUrl'
@@ -76,12 +76,10 @@ function IssueDetailView({ id }: { id: string }) {
   // so it answers "what does this block" — the opposite of what its name says.
   const blocks = resolve(blocked_by, index, 'issue_id')
   // td's own parent_id carries no restriction to epic parents, so Tasks keys
-  // off having children rather than off this issue's own type. td v0.66.0
-  // lists them with the issue, and that list is the answer, empty or not: it
-  // is not capped like the index and it is as fresh as the issue itself. An
-  // older td sends no `children`, and the index is searched instead.
-  const tasks = (children ?? childrenOf(issues, issue.id))
-    .map(child => ({ id: child.id, issue: child }))
+  // off having children rather than off this issue's own type. td lists them
+  // with the issue, and that list is the answer, empty or not: it is not
+  // capped like the index and it is as fresh as the issue itself.
+  const tasks = children.map(child => ({ id: child.id, issue: child }))
   // The same bar the overview draws, for the same reason it keys off children
   // rather than type: an issue with tasks under it has progress to report
   // whether or not td calls it an epic. It counts the whole subtree, so on a

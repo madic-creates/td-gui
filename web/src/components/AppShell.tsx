@@ -1,21 +1,10 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useAbout, useProject } from '../api/queries'
+import { useProject } from '../api/queries'
 import ConnectionBanner from './ConnectionBanner'
 import { AboutIcon } from './Icon'
 import ProseToggle from './ProseToggle'
 import ThemeToggle from './ThemeToggle'
-
-/**
- * Last segment of the project path, which is the name a user thinks in.
- *
- * Split on both separators: `portfile_windows.go` exists, so Windows paths
- * reach this code. Trailing separators are dropped rather than yielding an
- * empty name.
- */
-function projectName(path: string): string {
-  return path.split(/[\\/]/).filter(Boolean).pop() ?? path
-}
 
 /**
  * Connection state is shown twice on purpose: the header dot is the ambient
@@ -28,16 +17,13 @@ export default function AppShell({
   connected: boolean
   children: ReactNode
 }) {
-  // Undefined while the request is in flight and after it fails. Absence of a
-  // name is not a name: the header and the tab keep saying plain `td-gui`
-  // rather than showing an error a reader could do nothing about.
-  const { data: about } = useAbout()
-  // td's name wins when td reports one: it resolves .td-root and git
-  // worktrees, so from a worktree it names the project rather than the
-  // checkout td-gui happened to start in. An older td has no /v1/project, and
-  // the name falls back to the last segment of td-gui's own directory.
+  // td's name, which resolves .td-root and git worktrees, so from a worktree
+  // it names the project rather than the checkout td-gui happened to start
+  // in. Undefined while the request is in flight and after it fails. Absence
+  // of a name is not a name: the header and the tab keep saying plain
+  // `td-gui` rather than showing an error a reader could do nothing about.
   const { data: tdProject } = useProject()
-  const project = tdProject?.name || (about && projectName(about.project))
+  const project = tdProject?.name
 
   // The tab strip is where several td-gui windows are actually told apart,
   // which the static <title> in index.html could never do.

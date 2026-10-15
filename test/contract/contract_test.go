@@ -257,8 +257,8 @@ func TestDetailContract(t *testing.T) {
 
 // TestProjectContract pins the fields of GET /v1/project the GUI reads: the
 // name and path in the header, the title bounds under both title fields.
-// td before v0.66.0 has no such route, the GUI falls back to what it did
-// before, and so this skips rather than fails there.
+// minTdVersion guarantees the route, so a 404 here is a failure, not a skip:
+// the header and both title fields read it with nothing to fall back on.
 func TestProjectContract(t *testing.T) {
 	front, _ := newProject(t)
 
@@ -267,9 +267,6 @@ func TestProjectContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("td predates GET /v1/project")
-	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /v1/project status = %d, want 200", resp.StatusCode)
 	}
@@ -295,17 +292,12 @@ func TestProjectContract(t *testing.T) {
 }
 
 // TestChildrenContract pins `children` on the detail response, which the
-// Tasks group lists in place of searching the index. Absent before td
-// v0.66.0, where the GUI still searches the index, so this skips there.
+// Tasks group lists as the whole answer: the GUI no longer searches the index
+// for them. So it must be present, as an empty list, on an issue with none.
 func TestChildrenContract(t *testing.T) {
 	front, id := newProject(t)
 
-	if code := post(t, front+"/v1/issues",
-		`{"title":"Contract test child with a long enough title","parent_id":"`+id+`"}`); code != http.StatusCreated && code != http.StatusOK {
-		t.Fatalf("create child: status = %d", code)
-	}
-
-	var body struct {
+	type detail struct {
 		Data struct {
 			Children *[]struct {
 				ID       string `json:"id"`
@@ -315,12 +307,24 @@ func TestChildrenContract(t *testing.T) {
 			} `json:"children"`
 		} `json:"data"`
 	}
-	getJSON(t, front+"/v1/issues/"+id, &body)
 
-	if body.Data.Children == nil {
-		t.Skip("td predates children on the issue detail")
+	var before detail
+	getJSON(t, front+"/v1/issues/"+id, &before)
+	if before.Data.Children == nil || len(*before.Data.Children) != 0 {
+		t.Fatalf("children = %v on an issue without any, want an empty list", before.Data.Children)
 	}
-	children := *body.Data.Children
+
+	if code := post(t, front+"/v1/issues",
+		`{"title":"Contract test child with a long enough title","parent_id":"`+id+`"}`); code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create child: status = %d", code)
+	}
+
+	var after detail
+	getJSON(t, front+"/v1/issues/"+id, &after)
+	if after.Data.Children == nil {
+		t.Fatal("detail response has no children")
+	}
+	children := *after.Data.Children
 	if len(children) != 1 || children[0].ParentID != id || children[0].Title == "" || children[0].Status == "" {
 		t.Errorf("children = %+v, want the one child just created, with its title and status", children)
 	}

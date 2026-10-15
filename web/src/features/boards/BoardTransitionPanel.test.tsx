@@ -19,7 +19,7 @@ function renderPanel(available?: Transition[], onClose: () => void = () => {}) {
     ok: true,
     data: {
       issue: makeIssue({ id: 'td-aaa', available_transitions: available }),
-      logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null,
+      logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null, children: [],
     },
   })))
   const qc = new QueryClient({

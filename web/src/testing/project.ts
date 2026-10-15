@@ -18,6 +18,6 @@ export const project: Project = {
 export const projectHandler = http.get('/v1/project', () =>
   HttpResponse.json({ ok: true, data: project }))
 
-/** td before v0.66.0 has no such route; its mux answers a plain 404. */
-export const noProjectHandler = http.get('/v1/project', () =>
-  new HttpResponse('404 page not found', { status: 404 }))
+/** A failed read: td is there, but this one request did not get an answer. */
+export const projectFailsHandler = http.get('/v1/project', () =>
+  HttpResponse.json({ ok: false, error: { code: 'internal', message: 'boom' } }, { status: 500 }))

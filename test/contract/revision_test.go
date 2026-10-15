@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// requireRevisions skips unless td reports issue_revisions, which td-gui gates
-// If-Match on rather than on a version number. td before v0.66.0 has no
-// /v1/project at all.
+// requireRevisions fails unless td reports issue_revisions. td-gui still gates
+// If-Match on the capability rather than on a version number, but every td it
+// accepts reports it, so its absence is a change in td to look at, not a skip.
 func requireRevisions(t *testing.T, front string) {
 	t.Helper()
 	resp, err := http.Get(front + "/v1/project")
@@ -23,14 +23,14 @@ func requireRevisions(t *testing.T, front string) {
 			Capabilities []string `json:"capabilities"`
 		} `json:"data"`
 	}
-	if resp.StatusCode == http.StatusNotFound {
-		t.Skip("td has no /v1/project, so no issue revisions")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /v1/project status = %d, want 200", resp.StatusCode)
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode /v1/project: %v", err)
 	}
 	if !slices.Contains(body.Data.Capabilities, "issue_revisions") {
-		t.Skipf("td does not report issue_revisions: %v", body.Data.Capabilities)
+		t.Fatalf("capabilities = %v, want issue_revisions", body.Data.Capabilities)
 	}
 }
 

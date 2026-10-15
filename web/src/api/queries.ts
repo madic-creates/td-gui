@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
-import { ApiError, apiGet, encodeId } from './client'
+import { apiGet, encodeId } from './client'
 import type {
   About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, MonitorResponse, Priority, Project,
   SessionsResponse,
@@ -132,23 +132,18 @@ export const projectKeys = { capabilities: ['project', 'capabilities'] as const 
  * swapped underneath a running td-gui is no harm either way: a td without
  * revisions ignores If-Match, and a td with them accepts a write without one.
  *
- * td before v0.66.0 has no /v1/project and answers 404. That is an answer,
- * "no capabilities", and is cached as one. Any other failure is not, and
- * reads as no capabilities for this call only, so the caller keeps its older
- * path. No retry: a write should not wait out three backoffs to learn it.
+ * Gated on the capability rather than on td's version, so a td that stops
+ * reporting one is followed rather than second-guessed. A failed read is no
+ * answer: it reads as no capabilities for this call only, and the write goes
+ * out without the optional part. No retry: a write should not wait out three
+ * backoffs to learn it.
  */
 export async function hasCapability(qc: QueryClient, name: string): Promise<boolean> {
   try {
     const capabilities = await qc.ensureQueryData({
       queryKey: projectKeys.capabilities,
-      queryFn: async (): Promise<string[]> => {
-        try {
-          return (await apiGet<Project>('/v1/project')).capabilities ?? []
-        } catch (err) {
-          if (err instanceof ApiError && err.status === 404) return []
-          throw err
-        }
-      },
+      queryFn: async (): Promise<string[]> =>
+        (await apiGet<Project>('/v1/project')).capabilities ?? [],
       retry: false,
     })
     return capabilities.includes(name)
@@ -161,18 +156,18 @@ export async function hasCapability(qc: QueryClient, name: string): Promise<bool
  * GET /v1/project — td's own account of the project: its name and path, the
  * title bounds from its config, and the optional routes it serves.
  *
- * td before v0.66.0 has no such route, so every reader treats a missing
- * answer as "td did not say" and keeps what it did before. No retry: that 404
- * is an answer, not a hiccup. Default staleness otherwise, so a change to the
- * title bounds in td's config arrives with the next refresh event like
- * everything else.
+ * Undefined until td answers, and after a failed read, which every reader
+ * renders as "td did not say": no name in the header, no title hint. No
+ * retry, so a failure settles rather than leaving the form waiting. Default
+ * staleness otherwise, so a change to the title bounds in td's config arrives
+ * with the next refresh event like everything else.
  *
  * `enabled` lets a component that mounts long before it needs the answer — the
  * edit form, mounted with every detail view — ask only once it is open.
  *
- * A write that branches on a capability reads `projectCapabilitiesQuery`
- * instead, which turns the same 404 into "no optional routes" rather than an
- * error the write would have to handle.
+ * A write that branches on a capability reads `hasCapability` instead, which
+ * turns a failure into "no optional routes" rather than an error the write
+ * would have to handle.
  */
 export function useProject({ enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({

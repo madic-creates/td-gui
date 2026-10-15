@@ -14,7 +14,7 @@ const server = setupServer(
     ok: true,
     data: {
       issue: makeIssue({ id: 'td-aaa', available_transitions: ['review'] }),
-      logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null,
+      logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null, children: [],
     },
   })),
 )
@@ -236,7 +236,7 @@ describe('SwimlaneView', () => {
       ok: true,
       data: {
         issue: makeIssue({ id: params.id as string, available_transitions: ['block'] }),
-        logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null,
+        logs: [], comments: [], dependencies: [], blocked_by: [], latest_handoff: null, children: [],
       },
     })))
     renderSwimlanes([
