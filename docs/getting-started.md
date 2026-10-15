@@ -69,7 +69,10 @@ token td-gui does not know; stop it, or start td-gui against a different project
 To work on two projects at the same time, run one td-gui per project. Give each
 one its own `--work-dir`, and its own `--port` if you want bookmarks that keep
 working. Each window names its project beside the brand in the header, and puts
-the same name in the browser tab, so several of them stay tellable apart.
+the same name in the browser tab, so several of them stay tellable apart. With
+td v0.66.0 or newer the name is td's own, so a git worktree is named after its
+project rather than its checkout directory; hovering it shows td's project
+path.
 
 ## Staying up to date
 

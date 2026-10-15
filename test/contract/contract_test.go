@@ -256,6 +256,77 @@ func TestDetailContract(t *testing.T) {
 	}
 }
 
+// TestProjectContract pins the fields of GET /v1/project the GUI reads: the
+// name and path in the header, the title bounds under both title fields.
+// td before v0.66.0 has no such route, the GUI falls back to what it did
+// before, and so this skips rather than fails there.
+func TestProjectContract(t *testing.T) {
+	front, _ := newProject(t)
+
+	resp, err := http.Get(front + "/v1/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		t.Skip("td predates GET /v1/project")
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /v1/project status = %d, want 200", resp.StatusCode)
+	}
+	var body struct {
+		Data struct {
+			Name           string `json:"name"`
+			Path           string `json:"path"`
+			TitleMinLength int    `json:"title_min_length"`
+			TitleMaxLength int    `json:"title_max_length"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+
+	if body.Data.Name == "" || !strings.HasPrefix(body.Data.Path, "/") {
+		t.Errorf("name = %q, path = %q, want a name and an absolute path", body.Data.Name, body.Data.Path)
+	}
+	if body.Data.TitleMinLength <= 0 || body.Data.TitleMaxLength < body.Data.TitleMinLength {
+		t.Errorf("title bounds = %d..%d, want a positive range — the title hint renders them as given",
+			body.Data.TitleMinLength, body.Data.TitleMaxLength)
+	}
+}
+
+// TestChildrenContract pins `children` on the detail response, which the
+// Tasks group lists in place of searching the index. Absent before td
+// v0.66.0, where the GUI still searches the index, so this skips there.
+func TestChildrenContract(t *testing.T) {
+	front, id := newProject(t)
+
+	if code := post(t, front+"/v1/issues",
+		`{"title":"Contract test child with a long enough title","parent_id":"`+id+`"}`); code != http.StatusCreated && code != http.StatusOK {
+		t.Fatalf("create child: status = %d", code)
+	}
+
+	var body struct {
+		Data struct {
+			Children *[]struct {
+				ID       string `json:"id"`
+				Title    string `json:"title"`
+				Status   string `json:"status"`
+				ParentID string `json:"parent_id"`
+			} `json:"children"`
+		} `json:"data"`
+	}
+	getJSON(t, front+"/v1/issues/"+id, &body)
+
+	if body.Data.Children == nil {
+		t.Skip("td predates children on the issue detail")
+	}
+	children := *body.Data.Children
+	if len(children) != 1 || children[0].ParentID != id || children[0].Title == "" || children[0].Status == "" {
+		t.Errorf("children = %+v, want the one child just created, with its title and status", children)
+	}
+}
+
 // TestCommentContract pins the request field name. It is `text`, not `body`;
 // posting `body` fails validation silently from the caller's point of view.
 func TestCommentContract(t *testing.T) {

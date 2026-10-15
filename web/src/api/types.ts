@@ -137,6 +137,11 @@ export interface IssueDetail {
   dependencies: Dependency[]
   blocked_by: Dependency[]
   latest_handoff: Handoff | null
+  /**
+   * The issues whose parent this is, td v0.66.0 and newer. Absent on an older
+   * td, which is "unknown", not "none" — the caller falls back to the index.
+   */
+  children?: Issue[]
 }
 
 /**
@@ -255,8 +260,11 @@ export interface BoardCreateResponse {
 /**
  * GET /v1/project, td v0.66.0 and newer. Older td answers 404.
  *
- * Only `capabilities` is read: it is how td says which optional routes it
- * serves, so the GUI asks rather than comparing version strings.
+ * `name` and `path` are td's own resolution of the project, through .td-root
+ * and git worktrees, so the header prefers them over the directory td-gui was
+ * started in. The title bounds are this project's td config: a hint for the
+ * author, never a check the form runs — td still validates and phrases the
+ * refusal. `capabilities` is how td says which optional routes it serves.
  */
 export interface Project {
   name: string

@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useAbout } from '../api/queries'
+import { useAbout, useProject } from '../api/queries'
 import ConnectionBanner from './ConnectionBanner'
 import { AboutIcon } from './Icon'
 import ProseToggle from './ProseToggle'
@@ -31,8 +31,13 @@ export default function AppShell({
   // Undefined while the request is in flight and after it fails. Absence of a
   // name is not a name: the header and the tab keep saying plain `td-gui`
   // rather than showing an error a reader could do nothing about.
-  const { data } = useAbout()
-  const project = data && projectName(data.project)
+  const { data: about } = useAbout()
+  // td's name wins when td reports one: it resolves .td-root and git
+  // worktrees, so from a worktree it names the project rather than the
+  // checkout td-gui happened to start in. An older td has no /v1/project, and
+  // the name falls back to the last segment of td-gui's own directory.
+  const { data: tdProject } = useProject()
+  const project = tdProject?.name || (about && projectName(about.project))
 
   // The tab strip is where several td-gui windows are actually told apart,
   // which the static <title> in index.html could never do.
@@ -56,7 +61,9 @@ export default function AppShell({
           <>
             {/* Separator only — the name beside it says everything. */}
             <span aria-hidden="true" className="text-ink-faint">/</span>
-            <span className="font-mono text-[11px] text-ink-muted">{project}</span>
+            <span className="font-mono text-[11px] text-ink-muted" title={tdProject?.path}>
+              {project}
+            </span>
           </>
         )}
         <span className="flex-1" />

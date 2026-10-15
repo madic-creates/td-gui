@@ -162,7 +162,8 @@ Click any row to open it. The detail page shows, from top to bottom:
 - **Dependencies**: what this issue is waiting for, with the resolved ones
   listed separately, plus a box for adding another. Below that, **Blocks**
   shows what is waiting for this issue, and for an epic, **Tasks** shows its
-  direct children. All of them are links.
+  direct children, as td lists them (td v0.66.0 or newer) or found among the
+  loaded issues on an older td. All of them are links.
 - **Activity**: td's log, with each entry tagged by its kind (`progress`,
   `decision`, `blocker`, and so on).
 - **Comments**, with a box for adding one, and a delete button on each that
@@ -247,7 +248,9 @@ you submit, you land on the issue you just created.
 
 The browser checks no lengths of its own. Title limits are part of the
 per-project td config, so td validates the input and the form shows td's answer
-under the field it belongs to:
+under the field it belongs to. With td v0.66.0 or newer, the title field also
+states this project's limits before you submit (`Between 15 and 200
+characters.`), read from td; it is a hint only, and nothing is refused on it:
 
 > title too short (2 chars, min 15)
 

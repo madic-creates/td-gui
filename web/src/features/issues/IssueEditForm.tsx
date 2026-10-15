@@ -2,11 +2,13 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { unboundMessage } from '../../api/client'
 import { useSetStatus, useTransition, useUpdateIssue } from '../../api/mutations'
+import { useProject } from '../../api/queries'
 import type { Issue, IssueStatus } from '../../api/types'
 import ErrorPanel from '../../components/ErrorPanel'
 import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueFields, { boundFields, fieldClass } from './IssueFields'
 import StatusField from './StatusField'
+import TitleHint, { titleBounds } from './TitleHint'
 import { planFor, type StatusPlan } from './statusChange'
 import { attributionIncomplete, attributionOf, type ApproveMode } from './transitions'
 import { diffIssue, draftFrom, isEmptyPatch, type IssueDraft } from './issueDiff'
@@ -66,6 +68,9 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
   const [original, setOriginal] = useState(issue)
   const [draft, setDraft] = useState<IssueDraft>(() => draftFrom(issue))
   const update = useUpdateIssue(issue.id)
+  // Asked once the editor opens: every detail view mounts this form, and the
+  // closed one has no input to hint at.
+  const bounds = titleBounds(useProject({ enabled: editing }).data)
   // A status change is never part of td's PATCH: transitions are td's own
   // endpoints and the three jumps it has none for leave the proxy. So the
   // status is held beside the draft rather than in it, and diffIssue never
@@ -244,7 +249,8 @@ export default function IssueEditForm({ issue, editing, onDone, footerSlot }: Pr
           <input id="edit-title" aria-label="Title" value={draft.title}
             onChange={e => set('title', e.target.value)}
             className={`${fieldClass} text-xl font-semibold leading-snug tracking-tight`}
-            {...fieldAria(update.error, 'title', 'edit-title')} />
+            {...fieldAria(update.error, 'title', 'edit-title', bounds ? 'edit-title-hint' : undefined)} />
+          {bounds && <TitleHint id="edit-title-hint" bounds={bounds} />}
           <FieldError error={update.error} field="title" inputId="edit-title" />
         </div>
       ) : (

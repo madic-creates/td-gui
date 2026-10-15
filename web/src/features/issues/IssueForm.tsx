@@ -2,9 +2,11 @@ import { useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { unboundMessage } from '../../api/client'
 import { useCreateIssue } from '../../api/mutations'
+import { useProject } from '../../api/queries'
 import ErrorPanel from '../../components/ErrorPanel'
 import FieldError, { fieldAria } from '../../components/FieldError'
 import IssueFields, { boundFields, fieldClass, legendClass } from './IssueFields'
+import TitleHint, { titleBounds } from './TitleHint'
 import { blankDraft, createBodyFrom } from './issueCreate'
 import type { IssueDraft } from './issueDiff'
 import { candidatesFor } from './issueIndex'
@@ -42,6 +44,7 @@ export default function IssueForm() {
   // issues and so is served from cache; the closed one is not, and costs a
   // real request of its own — see useIssueIndex's docstring for why.
   const { issues } = useIssueIndex()
+  const bounds = titleBounds(useProject().data)
 
   function set<K extends keyof IssueDraft>(key: K, value: IssueDraft[K]) {
     setDraft(current => ({ ...current, [key]: value }))
@@ -56,7 +59,8 @@ export default function IssueForm() {
   const submitting = useRef(false)
 
   // No client-side length checks: td's title bounds are per-project config,
-  // so any hardcoded value here would eventually be wrong.
+  // so any hardcoded value here would eventually be wrong. The hint under the
+  // title states td's own bounds when td reports them, and checks nothing.
   return (
     <form
       className="max-w-3xl space-y-4 px-5 py-4"
@@ -79,8 +83,9 @@ export default function IssueForm() {
         <input
           id="new-title" value={draft.title} onChange={e => set('title', e.target.value)}
           className={fieldClass}
-          {...fieldAria(create.error, 'title', 'new-title')}
+          {...fieldAria(create.error, 'title', 'new-title', bounds ? 'new-title-hint' : undefined)}
         />
+        {bounds && <TitleHint id="new-title-hint" bounds={bounds} />}
         <FieldError error={create.error} field="title" inputId="new-title" />
       </div>
 

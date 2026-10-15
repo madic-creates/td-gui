@@ -137,3 +137,29 @@ export const projectCapabilitiesQuery = {
   retry: false,
   staleTime: Infinity,
 }
+
+/**
+ * GET /v1/project — td's own account of the project: its name and path, the
+ * title bounds from its config, and the optional routes it serves.
+ *
+ * td before v0.66.0 has no such route, so every reader treats a missing
+ * answer as "td did not say" and keeps what it did before. No retry: that 404
+ * is an answer, not a hiccup. Default staleness otherwise, so a change to the
+ * title bounds in td's config arrives with the next refresh event like
+ * everything else.
+ *
+ * `enabled` lets a component that mounts long before it needs the answer — the
+ * edit form, mounted with every detail view — ask only once it is open.
+ *
+ * A write that branches on a capability reads `projectCapabilitiesQuery`
+ * instead, which turns the same 404 into "no optional routes" rather than an
+ * error the write would have to handle.
+ */
+export function useProject({ enabled = true }: { enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ['project'] as const,
+    queryFn: () => apiGet<Project>('/v1/project'),
+    retry: false,
+    enabled,
+  })
+}

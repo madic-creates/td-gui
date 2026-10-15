@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -8,6 +8,7 @@ import { http, HttpResponse, delay } from 'msw'
 import IssueForm from './IssueForm'
 import { boundFields } from './IssueFields'
 import { expectAnnouncedAtItsInput } from '../../testing/fieldError'
+import { noProjectHandler, projectHandler } from '../../testing/project'
 
 const server = setupServer(
   http.get('/v1/labels', () =>
@@ -15,9 +16,13 @@ const server = setupServer(
   http.get('/v1/issues', () => HttpResponse.json({
     ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
   })),
+  projectHandler,
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  server.events.removeAllListeners()
+})
 afterAll(() => server.close())
 
 function renderForm(entry = '/new') {
@@ -38,6 +43,31 @@ function renderForm(entry = '/new') {
 }
 
 describe('IssueForm', () => {
+
+  // The bounds are this project's td config, read from td rather than known
+  // here. A hint the author sees before submitting, not a check: the form
+  // still sends whatever is typed and td still phrases the refusal.
+  it("states td's title bounds under the title", async () => {
+    renderForm()
+    const hint = await screen.findByText('Between 15 and 200 characters.')
+    expect(screen.getByLabelText('Title')).toHaveAttribute('aria-describedby', expect.stringContaining(hint.id))
+  })
+
+  // td before v0.66.0 reports no bounds, and a guessed pair would be wrong for
+  // any project that changed them.
+  it('states no title bounds when td reports none', async () => {
+    let asked = false
+    server.events.on('response:mocked', ({ request }) => {
+      if (new URL(request.url).pathname === '/v1/project') asked = true
+    })
+    server.use(noProjectHandler)
+    renderForm()
+    await waitFor(() => expect(asked).toBe(true))
+    // One more turn, so the 404 has reached the component before looking.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(screen.queryByText(/characters\.$/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).not.toHaveAttribute('aria-describedby')
+  })
   // The client must not pre-validate length: td's minimum is per-project
   // config (15 in a fresh project, 3 by default). Only the server knows.
   it('submits a short title and shows the server field error', async () => {

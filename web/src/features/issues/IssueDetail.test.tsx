@@ -9,6 +9,7 @@ import { http, HttpResponse } from 'msw'
 import IssueDetail from './IssueDetail'
 import { issueKeys } from '../../api/queries'
 import { makeIssue } from './issue.fixture'
+import { projectHandler } from '../../testing/project'
 
 const server = setupServer(
   // The edit form's label autocomplete. Registered once so opening the editor
@@ -20,6 +21,8 @@ const server = setupServer(
   http.get('/v1/issues', () => HttpResponse.json({
     ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
   })),
+  // What the open editor reads the title bounds from.
+  projectHandler,
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => {
@@ -964,6 +967,61 @@ describe('IssueDetail', () => {
     expect(await screen.findByText('Tasks (1)')).toBeInTheDocument()
     expect(screen.getByText('A task in the epic')).toBeInTheDocument()
     expect(screen.queryByText('Unrelated')).not.toBeInTheDocument()
+  })
+
+  // td v0.66.0 lists the children itself. Its list is the answer even when
+  // the index is capped or not yet loaded, and it beats the index's view of
+  // an issue that changed since.
+  it("lists the children td reports with the issue", async () => {
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true,
+        data: {
+          ...detail,
+          children: [makeIssue({ id: 'td-child9', title: 'A child td listed', parent_id: 'td-6a0883' })],
+        },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: {
+          issues: [makeIssue({ id: 'td-child0', title: 'A child only the index has', parent_id: 'td-6a0883' })],
+          limit: 1000, offset: 0, total: 1, has_more: false,
+        },
+      })),
+    )
+
+    renderDetail()
+    expect(await screen.findByText('A child td listed')).toBeInTheDocument()
+    expect(screen.getByText('Tasks (1)')).toBeInTheDocument()
+    expect(screen.queryByText('A child only the index has')).not.toBeInTheDocument()
+  })
+
+  // An empty list from td is "none", not "unknown": the index does not get a
+  // second opinion.
+  it('lists no tasks when td reports no children', async () => {
+    let indexed = false
+    server.use(
+      http.get('/v1/issues/td-6a0883', () =>
+        HttpResponse.json({ ok: true, data: { ...detail, children: [] } })),
+      http.get('/v1/issues', () => {
+        indexed = true
+        return HttpResponse.json({
+          ok: true,
+          data: {
+            issues: [makeIssue({ id: 'td-child0', title: 'A stale child', parent_id: 'td-6a0883' })],
+            limit: 1000, offset: 0, total: 1, has_more: false,
+          },
+        })
+      }),
+    )
+
+    renderDetail()
+    await screen.findByText('Probe issue for API shape')
+    await waitFor(() => expect(indexed).toBe(true))
+    // One more turn, so the index has reached the view before looking.
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(screen.queryByText(/^Tasks/)).not.toBeInTheDocument()
+    expect(screen.queryByText('A stale child')).not.toBeInTheDocument()
   })
 
   // td's own parent_id carries no restriction to epic parents — a chore can

@@ -70,14 +70,18 @@ function IssueDetailView({ id }: { id: string }) {
     )
   }
 
-  const { issue, logs, comments, dependencies, blocked_by, latest_handoff } = data
+  const { issue, logs, comments, dependencies, blocked_by, latest_handoff, children } = data
 
   // `blocked_by` holds the rows where this issue is the one being waited for,
   // so it answers "what does this block" — the opposite of what its name says.
   const blocks = resolve(blocked_by, index, 'issue_id')
   // td's own parent_id carries no restriction to epic parents, so Tasks keys
-  // off having children rather than off this issue's own type.
-  const tasks = childrenOf(issues, issue.id).map(child => ({ id: child.id, issue: child }))
+  // off having children rather than off this issue's own type. td v0.66.0
+  // lists them with the issue, and that list is the answer, empty or not: it
+  // is not capped like the index and it is as fresh as the issue itself. An
+  // older td sends no `children`, and the index is searched instead.
+  const tasks = (children ?? childrenOf(issues, issue.id))
+    .map(child => ({ id: child.id, issue: child }))
   // The same bar the overview draws, for the same reason it keys off children
   // rather than type: an issue with tasks under it has progress to report
   // whether or not td calls it an epic. It counts the whole subtree, so on a

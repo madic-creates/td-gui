@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import AppShell from './AppShell'
+import { noProjectHandler, project, projectHandler } from '../testing/project'
 
 const about = {
   project: '/home/you/my-project',
@@ -18,8 +19,11 @@ const about = {
   backend: { url: 'http://127.0.0.1:41234', owned: true },
 }
 
+// The defaults are an older td, which has no /v1/project: the header then
+// names the project from td-gui's own about route, as it always has.
 const server = setupServer(
   http.get('/gui/about', () => HttpResponse.json({ ok: true, data: about })),
+  noProjectHandler,
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
@@ -126,6 +130,18 @@ describe('AppShell', () => {
 
     expect(await screen.findByRole('link', { name: 'About' })).toBeInTheDocument()
     expect(document.title).toBe('td-gui')
+    expect(screen.queryByText('my-project')).not.toBeInTheDocument()
+  })
+
+  // td resolves .td-root and git worktrees, so from a worktree its name is the
+  // project's, while td-gui's own directory is the worktree's.
+  it("prefers td's name for the project when td reports one", async () => {
+    server.use(projectHandler)
+    renderShell(true)
+
+    const name = await screen.findByText(project.name)
+    expect(name).toHaveAttribute('title', project.path)
+    expect(document.title).toBe(`td-gui — ${project.name}`)
     expect(screen.queryByText('my-project')).not.toBeInTheDocument()
   })
 
