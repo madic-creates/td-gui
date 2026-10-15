@@ -2,6 +2,7 @@ import { useQuery, type QueryClient } from '@tanstack/react-query'
 import { ApiError, apiGet, encodeId } from './client'
 import type {
   About, IssueDetail, IssueListResponse, IssueStatus, IssueType, LabelsResponse, Priority, Project,
+  SessionsResponse,
 } from './types'
 
 export interface IssueListParams {
@@ -179,5 +180,22 @@ export function useProject({ enabled = true }: { enabled?: boolean } = {}) {
     queryFn: () => apiGet<Project>('/v1/project'),
     retry: false,
     enabled,
+  })
+}
+
+export const sessionKeys = { all: ['sessions'] as const }
+
+/**
+ * GET /v1/sessions: every session td has recorded for the project.
+ *
+ * td keeps them all, so this list grows for the life of a project (165 in
+ * one measured project). The page shows the most recent twenty and offers
+ * the rest; nothing is filtered server-side because td serve takes no
+ * parameter for it.
+ */
+export function useSessions() {
+  return useQuery({
+    queryKey: sessionKeys.all,
+    queryFn: () => apiGet<SessionsResponse>('/v1/sessions'),
   })
 }
