@@ -29,7 +29,7 @@ const server = setupServer(
   })),
   projectHandler,
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   server.events.removeAllListeners()
@@ -140,7 +140,7 @@ describe('IssueEditForm', () => {
   })
 
   it('closes without a request when nothing was edited', async () => {
-    // onUnhandledRequest: 'error' turns a stray PATCH into a failure.
+    // onUnhandledFrame: 'error' turns a stray PATCH into a failure.
     const { onDone } = renderForm()
 
     await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))

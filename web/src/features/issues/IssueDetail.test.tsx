@@ -14,7 +14,7 @@ import { projectHandler } from '../../testing/project'
 
 const server = setupServer(
   // The edit form's label autocomplete. Registered once so opening the editor
-  // does not trip onUnhandledRequest in every test that clicks Edit.
+  // does not trip onUnhandledFrame in every test that clicks Edit.
   http.get('/v1/labels', () =>
     HttpResponse.json({ ok: true, data: { default_workflow: 'standard', labels: [] } })),
   // The issue index the detail view resolves references against. Empty by
@@ -25,7 +25,7 @@ const server = setupServer(
   // What the open editor reads the title bounds from.
   projectHandler,
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   // jsdom has no clipboard; the copy test defines one. Removed here rather

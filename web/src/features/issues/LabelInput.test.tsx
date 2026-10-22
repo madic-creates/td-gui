@@ -10,7 +10,7 @@ const server = setupServer(
   http.get('/v1/labels', () =>
     HttpResponse.json({ ok: true, data: { default_workflow: 'standard', labels: ['alpha', 'beta'] } })),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

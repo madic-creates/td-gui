@@ -22,7 +22,7 @@ const server = setupServer(
     return HttpResponse.json({ ok: true, data: { deleted: true } })
   }),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   moved.length = 0
