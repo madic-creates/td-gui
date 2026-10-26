@@ -139,6 +139,23 @@ A URL you edited yourself is read as far as it makes sense: a status td does
 not have is ignored, and a sort it cannot read falls back to priority
 ascending.
 
+## Epics
+
+**Epics** in the header opens `/epics`, every issue of type `epic` in the order
+`td epic list` uses: by priority, then by creation date. Each row shows how
+much of the work under the epic is closed, counted over the whole tree below
+it, and the chevron at its left edge folds out the epic's direct tasks.
+`+ Task` opens the create form with the epic already set as the parent.
+
+Closed epics are hidden until the **closed** chip is switched on; the chip only
+appears when there is a closed epic to show.
+
+The search box narrows the list as you type, to the epics whose id or title
+contains the text, ignoring case. It searches the epics already on the page,
+so with the closed chip off a closed epic is not found. The ✕ at the right
+edge, or Escape, empties the box. When nothing matches, the page says so
+instead of going blank.
+
 ## Reading an issue
 
 ![An issue detail page](images/issue-detail.png)

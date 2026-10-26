@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { FETCH_LIMIT } from '../../api/queries'
 import EmptyState from '../../components/EmptyState'
+import { ClearIcon } from '../../components/Icon'
 import PriorityTag from '../../components/PriorityTag'
 import SkeletonRows from '../../components/SkeletonRows'
 import StatusTag from '../../components/StatusTag'
@@ -37,6 +38,16 @@ function byEpicOrder(a: Issue, b: Issue): number {
 }
 
 /**
+ * Whether the search box text appears in the epic's id or title, ignoring
+ * case. Client-side over the index the page already holds: the epics are all
+ * loaded, so a td query here would be a subprocess to filter rows already on
+ * screen.
+ */
+function matches(epic: Issue, needle: string): boolean {
+  return epic.id.toLowerCase().includes(needle) || epic.title.toLowerCase().includes(needle)
+}
+
+/**
  * The epics of a project, each with how far the work under it has come.
  *
  * An epic is `type === 'epic'`, which is the definition `td epic list` uses —
@@ -56,15 +67,27 @@ export default function EpicList() {
   // from is already addressable at `/`.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const [showClosed, setShowClosed] = useState(false)
+  // Component state for the same reason as `expanded`, and undebounced: the
+  // filter runs over rows already in memory, so there is no request to spare.
+  const [text, setText] = useState('')
+  const input = useRef<HTMLInputElement>(null)
 
   if (isPending) return <SkeletonRows label="Loading epics" />
 
   const children = childIndex(issues)
   const epics = issues.filter(issue => issue.type === 'epic')
   const closedCount = epics.filter(epic => epic.status === 'closed').length
-  const shown = epics
-    .filter(epic => showClosed || epic.status !== 'closed')
+  const visible = epics.filter(epic => showClosed || epic.status !== 'closed')
+  const needle = text.trim().toLowerCase()
+  const shown = visible
+    .filter(epic => matches(epic, needle))
     .sort(byEpicOrder)
+
+  /** As in IssueFilters: empty in one go, and the cursor stays in the box. */
+  function clear() {
+    setText('')
+    input.current?.focus()
+  }
 
   function toggle(id: string) {
     setExpanded(current => {
@@ -80,7 +103,36 @@ export default function EpicList() {
     <div>
       <div className="flex items-center gap-2.5 border-b border-line bg-surface-inset px-4 py-2">
         <h1 className="text-[11px] uppercase tracking-widest text-ink-muted">Epics</h1>
-        <span className="flex-1" />
+        {/* Only once there is an epic to find; in front of "No epics yet" a
+            search box would be a control with nothing behind it. */}
+        {epics.length > 0 ? (
+          <div className="relative flex flex-1 items-center">
+            {/* Chrome's own cancel button is hidden for the reason IssueFilters
+                gives: it answers the mouse only, and two crosses would show. */}
+            <input
+              ref={input}
+              type="search"
+              aria-label="Search epics"
+              placeholder="filter by id or title"
+              className="w-full rounded-sm border border-line bg-surface py-1 pl-2.5 pr-8 text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') clear() }}
+            />
+            {text !== '' && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={clear}
+                className="absolute right-1.5 rounded-sm p-1 text-ink-faint hover:bg-transparent hover:text-ink"
+              >
+                <ClearIcon />
+              </button>
+            )}
+          </div>
+        ) : (
+          <span className="flex-1" />
+        )}
         {/* Only offered when there is something behind it. A chip that toggles
             between one empty set and the same empty set is a control that
             answers nothing. */}
@@ -131,6 +183,15 @@ export default function EpicList() {
                 New issue
               </Link>
             }
+          />
+        ) : visible.length > 0 ? (
+          // The search is what emptied the page, so the way back is the box,
+          // not the chip.
+          <EmptyState
+            message={`No epics match "${text.trim()}".`}
+            hint={showClosed
+              ? 'Nothing in an id or a title contains it.'
+              : 'Nothing in an id or a title contains it. Closed epics are searched once the closed chip is on.'}
           />
         ) : (
           <EmptyState

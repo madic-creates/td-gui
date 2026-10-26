@@ -188,6 +188,94 @@ describe('EpicList', () => {
     expect(screen.queryByText('No epics yet.')).not.toBeInTheDocument()
   })
 
+  describe('search box', () => {
+    const three = () => renderList({ '': [
+      epic({ id: 'td-ep1', title: 'Search on the epic overview' }),
+      epic({ id: 'td-ep2', title: 'Board swimlanes' }),
+      epic({ id: 'td-ep3', title: 'Activity feed' }),
+    ] })
+
+    it('narrows the list to epics whose title contains the text, ignoring case', async () => {
+      three()
+      await userEvent.type(await screen.findByRole('searchbox', { name: 'Search epics' }), 'SWIM')
+
+      expect(renderedIds()).toEqual(['td-ep2'])
+    })
+
+    it('matches on the epic id as well', async () => {
+      three()
+      await userEvent.type(await screen.findByRole('searchbox', { name: 'Search epics' }), 'td-EP3')
+
+      expect(renderedIds()).toEqual(['td-ep3'])
+    })
+
+    it('clears with the button and gives the focus back to the box', async () => {
+      three()
+      const box = await screen.findByRole('searchbox', { name: 'Search epics' })
+      await userEvent.type(box, 'swim')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+
+      expect(box).toHaveValue('')
+      expect(box).toHaveFocus()
+      expect(renderedIds()).toEqual(['td-ep1', 'td-ep2', 'td-ep3'])
+      expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+    })
+
+    it('clears on Escape', async () => {
+      three()
+      const box = await screen.findByRole('searchbox', { name: 'Search epics' })
+      await userEvent.type(box, 'swim')
+
+      await userEvent.keyboard('{Escape}')
+
+      expect(box).toHaveValue('')
+      expect(renderedIds()).toEqual(['td-ep1', 'td-ep2', 'td-ep3'])
+    })
+
+    it('says so when nothing matches, rather than showing a blank page', async () => {
+      three()
+      await userEvent.type(await screen.findByRole('searchbox', { name: 'Search epics' }), 'nothing like it')
+
+      expect(screen.getByText('No epics match "nothing like it".')).toBeInTheDocument()
+      expect(screen.queryByText('No open epics.')).not.toBeInTheDocument()
+    })
+
+    it('searches the closed epics only once the chip shows them', async () => {
+      renderList({
+        '': [epic({ id: 'td-ep1', title: 'Still going' })],
+        closed: [epic({ id: 'td-ep9', title: 'Finished', status: 'closed' })],
+      })
+      await userEvent.type(await screen.findByRole('searchbox', { name: 'Search epics' }), 'finish')
+      expect(screen.getByText('No epics match "finish".')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('checkbox', { name: 'closed (1)' }))
+
+      expect(renderedIds()).toEqual(['td-ep9'])
+    })
+
+    it('keeps the rollup of the epics it shows', async () => {
+      renderList({
+        '': [
+          epic({ id: 'td-ep1', title: 'Kept' }),
+          makeIssue({ id: 'td-c1', parent_id: 'td-ep1' }),
+          epic({ id: 'td-ep2', title: 'Dropped' }),
+        ],
+        closed: [makeIssue({ id: 'td-c2', parent_id: 'td-ep1', status: 'closed' })],
+      })
+      await userEvent.type(await screen.findByRole('searchbox', { name: 'Search epics' }), 'kept')
+
+      expect(screen.getByText('1/2')).toBeInTheDocument()
+    })
+
+    it('is not offered when the project has no epics', async () => {
+      renderList({ '': [makeIssue({ id: 'td-task0', type: 'task' })] })
+
+      await screen.findByText('No epics yet.')
+      expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    })
+  })
+
   // A rollup computed off a partial index is a lower bound. Saying so beats
   // presenting the number as fact.
   it('admits that the counts may undercount when td reports more rows', async () => {
