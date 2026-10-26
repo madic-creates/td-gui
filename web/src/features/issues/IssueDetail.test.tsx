@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import IssueDetail from './IssueDetail'
+import { SEARCH_MIN_ITEMS } from './RelatedIssues'
 import { issueKeys } from '../../api/queries'
 import { makeIssue } from './issue.fixture'
 import { projectHandler } from '../../testing/project'
@@ -1068,6 +1069,35 @@ describe('IssueDetail', () => {
     renderDetail()
     expect(await screen.findByText('Tasks (2)')).toBeInTheDocument()
     expect(screen.getByText('1/3')).toBeInTheDocument()
+  })
+
+  // The search narrows the rows; the bar above them answers for the issue,
+  // so it keeps counting every task while a filter is active.
+  it('keeps the progress rollup over all tasks while the task list is filtered', async () => {
+    const children = Array.from({ length: SEARCH_MIN_ITEMS }, (_, n) => makeIssue({
+      id: `td-child${n}`, parent_id: 'td-6a0883',
+      title: n === 0 ? 'The only match here' : `Another task ${n}`,
+      status: n < 2 ? 'closed' : 'open',
+    }))
+    server.use(
+      http.get('/v1/issues/td-6a0883', () => HttpResponse.json({
+        ok: true, data: { ...detail, children },
+      })),
+      http.get('/v1/issues', () => HttpResponse.json({
+        ok: true,
+        data: { issues: children, limit: 1000, offset: 0, total: children.length, has_more: false },
+      })),
+    )
+
+    renderDetail()
+    const progress = `2/${SEARCH_MIN_ITEMS}`
+    expect(await screen.findByText(progress)).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'only match')
+
+    expect(screen.getByText('The only match here')).toBeInTheDocument()
+    expect(screen.queryByText('Another task 1')).not.toBeInTheDocument()
+    expect(screen.getByText(progress)).toBeInTheDocument()
+    expect(screen.getByText(`Tasks (${SEARCH_MIN_ITEMS})`)).toBeInTheDocument()
   })
 
   // The index already holds the title, and a bare id says nothing about what

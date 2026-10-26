@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { ClearIcon } from '../../components/Icon'
 import StatusTag from '../../components/StatusTag'
 import type { Related } from './issueIndex'
 
@@ -48,6 +49,23 @@ export function GroupHeading({ title, count }: { title: string; count: number })
 }
 
 /**
+ * The fewest rows a searchable group needs before it offers a search box. A
+ * list shorter than this is read faster than it is searched, and a box above
+ * three rows would be the biggest thing in the group. docs/issues.md names
+ * this number; keep the two in step.
+ */
+export const SEARCH_MIN_ITEMS = 6
+
+/**
+ * Case-insensitive substring match on the id and the title — the two things a
+ * row shows that a reader can type. An unresolved reference has only its id.
+ */
+function matches({ id, issue }: Related, needle: string) {
+  return id.toLowerCase().includes(needle)
+    || (issue?.title.toLowerCase().includes(needle) ?? false)
+}
+
+/**
  * One titled group of references — what this issue is blocked by, what it
  * blocks, or an epic's tasks.
  */
@@ -55,6 +73,7 @@ export default function RelatedIssues({
   title,
   items,
   lead,
+  searchable = false,
 }: {
   title: string
   items: Related[]
@@ -65,18 +84,69 @@ export default function RelatedIssues({
    * after having counted the list themselves.
    */
   lead?: ReactNode
+  /**
+   * Offers a box that filters the rows as you type, once the group holds
+   * SEARCH_MIN_ITEMS or more. The filter narrows the rows alone: the heading
+   * still counts the whole group and `lead` is the caller's, so a rollup
+   * passed there keeps reporting every task while a search is active.
+   */
+  searchable?: boolean
 }) {
+  const [text, setText] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+
   if (items.length === 0) return null
+
+  const search = searchable && items.length >= SEARCH_MIN_ITEMS
+  const needle = search ? text.trim().toLowerCase() : ''
+  const shown = needle ? items.filter(item => matches(item, needle)) : items
+  const noun = title.toLowerCase()
+
+  function clear() {
+    setText('')
+    input.current?.focus()
+  }
 
   return (
     <section className="mt-6">
       <GroupHeading title={title} count={items.length} />
       {lead && <div className="mb-2">{lead}</div>}
-      <ul>
-        {items.map(item => (
-          <RelatedRow key={item.id} {...item} />
-        ))}
-      </ul>
+      {search && (
+        // Chrome's own cancel button is hidden for the reason IssueFilters
+        // gives: it answers the mouse only, and two crosses would be one too
+        // many.
+        <div className="relative mb-2 flex items-center">
+          <input
+            ref={input}
+            type="search"
+            aria-label={`Search ${noun}`}
+            placeholder={`filter ${noun} by id or title`}
+            className="w-full rounded-sm border border-line bg-surface-inset py-1 pl-2.5 pr-8 text-[12px] text-ink placeholder:text-ink-faint [&::-webkit-search-cancel-button]:appearance-none"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setText('') }}
+          />
+          {text !== '' && (
+            <button
+              type="button"
+              aria-label={`Clear ${noun} search`}
+              onClick={clear}
+              className="absolute right-1.5 rounded-sm p-1 text-ink-faint hover:bg-transparent hover:text-ink"
+            >
+              <ClearIcon />
+            </button>
+          )}
+        </div>
+      )}
+      {shown.length > 0 ? (
+        <ul>
+          {shown.map(item => (
+            <RelatedRow key={item.id} {...item} />
+          ))}
+        </ul>
+      ) : (
+        <p className="py-1.5 text-ink-muted">No {noun} match "{text.trim()}".</p>
+      )}
     </section>
   )
 }

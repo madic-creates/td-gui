@@ -179,7 +179,11 @@ Click any row to open it. The detail page shows, from top to bottom:
 - **Dependencies**: what this issue is waiting for, with the resolved ones
   listed separately, plus a box for adding another. Below that, **Blocks**
   shows what is waiting for this issue, and for an epic, **Tasks** shows its
-  direct children, as td lists them. All of them are links.
+  direct children, as td lists them. All of them are links. Once an issue has
+  six or more tasks, a search box above them filters the list as you type,
+  matching the id or the title regardless of case. The clear button or Escape
+  resets it, and a search that matches nothing says so. The progress bar and
+  the count in the heading keep reporting every task while a search is active.
 - **Activity**: td's log, with each entry tagged by its kind (`progress`,
   `decision`, `blocker`, and so on).
 - **Comments**, with a box for adding one, and a delete button on each that
