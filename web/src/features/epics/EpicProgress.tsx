@@ -1,5 +1,4 @@
-import { STATUS_LABEL } from '../../components/statusLabel'
-import type { IssueStatus } from '../../api/types'
+import { statusLabel } from '../../components/statusLabel'
 import type { Rollup } from './epicRollup'
 
 /**
@@ -22,8 +21,6 @@ const SEGMENT: Record<string, string> = {
 
 const segmentClass = (status: string) => SEGMENT[status] ?? 'bg-ink-faint'
 
-const labelFor = (status: string) => STATUS_LABEL[status as IssueStatus] ?? status
-
 /**
  * How far the work under one issue has come: a bar segmented by status, the
  * closed-over-total count, and a legend naming what the segments are.
@@ -36,8 +33,20 @@ const labelFor = (status: string) => STATUS_LABEL[status as IssueStatus] ?? stat
  * The bar itself is `aria-hidden`. Everything it draws is also written beside
  * it in words, so labelling the graphic too would announce the same numbers
  * twice, once badly.
+ *
+ * With `onSelect`, each legend entry becomes a toggle that picks its status
+ * and `selected` marks the one picked. Without it, as in the overview, the
+ * legend stays plain text: a button there would filter nothing.
  */
-export default function EpicProgress({ rollup }: { rollup: Rollup }) {
+export default function EpicProgress({
+  rollup,
+  selected = null,
+  onSelect,
+}: {
+  rollup: Rollup
+  selected?: string | null
+  onSelect?: (status: string) => void
+}) {
   // Its own state, not zero percent. Twenty-four of thirty epics on the
   // measured project have no tasks at all, and a bar pinned empty would draw
   // every one of them as work that has failed to move rather than work nobody
@@ -73,15 +82,38 @@ export default function EpicProgress({ rollup }: { rollup: Rollup }) {
       {/* Only the statuses present, in the order the segments were drawn, so
           the legend is read against the bar left to right. */}
       <span className="flex flex-wrap items-center gap-x-2 text-[11px] text-ink-faint">
-        {rollup.buckets.map(bucket => (
-          <span key={bucket.status} className="inline-flex items-center gap-1 whitespace-nowrap">
+        {rollup.buckets.map(bucket => {
+          const swatch = (
             <span
               aria-hidden="true"
               className={`h-1.5 w-1.5 rounded-[1px] ${segmentClass(bucket.status)}`}
             />
-            {labelFor(bucket.status)} {bucket.count}
-          </span>
-        ))}
+          )
+          const text = `${statusLabel(bucket.status)} ${bucket.count}`
+          if (!onSelect) {
+            return (
+              <span key={bucket.status} className="inline-flex items-center gap-1 whitespace-nowrap">
+                {swatch}
+                {text}
+              </span>
+            )
+          }
+          const pressed = selected === bucket.status
+          return (
+            <button
+              key={bucket.status}
+              type="button"
+              aria-pressed={pressed}
+              onClick={() => onSelect(bucket.status)}
+              className={`inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1 hover:bg-surface-hover hover:text-ink ${
+                pressed ? 'bg-surface-hover text-ink' : selected ? 'opacity-60' : ''
+              }`}
+            >
+              {swatch}
+              {text}
+            </button>
+          )
+        })}
       </span>
     </span>
   )

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import EpicProgress from './EpicProgress'
 import type { Rollup } from './epicRollup'
 
@@ -58,5 +59,25 @@ describe('EpicProgress', () => {
     expect(screen.getByText('no tasks')).toBeInTheDocument()
     expect(screen.queryByText('0/0')).not.toBeInTheDocument()
     expect(container.querySelectorAll('[data-testid^="segment-"]')).toHaveLength(0)
+  })
+
+  it('keeps the legend as plain text without onSelect', () => {
+    show({ total: 1, done: 0, buckets: [{ status: 'open', count: 1 }] })
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('turns each legend entry into a toggle with onSelect', async () => {
+    const picked: string[] = []
+    render(<EpicProgress
+      rollup={{ total: 2, done: 1, buckets: [
+        { status: 'open', count: 1 }, { status: 'closed', count: 1 },
+      ] }}
+      selected="closed"
+      onSelect={status => picked.push(status)} />)
+
+    expect(screen.getByRole('button', { name: /Closed 1/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /Open 1/ })).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(screen.getByRole('button', { name: /Open 1/ }))
+    expect(picked).toEqual(['open'])
   })
 })

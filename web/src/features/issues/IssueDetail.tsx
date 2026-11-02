@@ -198,11 +198,14 @@ function IssueDetailView({ id }: { id: string }) {
           {!editing && <RelatedIssues title="Blocks" items={blocks} />}
           {/* Keyed by the issue so a search typed here does not follow the
               reader into a task they open from it. The rollup is computed
-              above over every task, so filtering the rows leaves it alone. */}
+              above over every task, so filtering the rows leaves it alone;
+              its legend picks the status the rows are narrowed to. */}
           {!editing && (
             <RelatedIssues
               key={issue.id} title="Tasks" items={tasks} searchable
-              lead={<EpicProgress rollup={progress} />} />
+              lead={({ status, toggle }) => (
+                <EpicProgress rollup={progress} selected={status} onSelect={toggle} />
+              )} />
           )}
 
           {/* Where Save and Cancel land while the editor is open. They close

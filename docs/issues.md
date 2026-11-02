@@ -182,8 +182,13 @@ Click any row to open it. The detail page shows, from top to bottom:
   direct children, as td lists them. All of them are links. Once an issue has
   six or more tasks, a search box above them filters the list as you type,
   matching the id or the title regardless of case. The clear button or Escape
-  resets it, and a search that matches nothing says so. The progress bar and
-  the count in the heading keep reporting every task while a search is active.
+  resets it, and a search that matches nothing says so. Each status in the
+  legend beside the progress bar is a toggle: click **In progress** to see only
+  the tasks in progress, click it again to see all of them. The status filter
+  combines with the search. The progress bar and the count in the heading keep
+  reporting every task while a search or a status filter is active. The bar
+  counts the whole subtree while the list shows direct tasks, so in a deeper
+  tree a status can count more than it lists.
 - **Activity**: td's log, with each entry tagged by its kind (`progress`,
   `decision`, `blocker`, and so on).
 - **Comments**, with a box for adding one, and a delete button on each that

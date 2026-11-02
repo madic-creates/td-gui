@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { ClearIcon } from '../../components/Icon'
 import StatusTag from '../../components/StatusTag'
+import { statusLabel } from '../../components/statusLabel'
 import type { Related } from './issueIndex'
 
 /**
@@ -66,6 +67,15 @@ function matches({ id, issue }: Related, needle: string) {
 }
 
 /**
+ * What a `lead` render function is handed: the status the rows are narrowed
+ * to, or null, and the toggle that picks one or, picked again, clears it.
+ */
+export interface StatusFilter {
+  status: string | null
+  toggle: (status: string) => void
+}
+
+/**
  * One titled group of references — what this issue is blocked by, what it
  * blocks, or an epic's tasks.
  */
@@ -82,8 +92,12 @@ export default function RelatedIssues({
    * progress bar here: above the whole section it would be a line belonging to
    * nothing, and under the rows it would be a summary the reader only reaches
    * after having counted the list themselves.
+   *
+   * As a function it receives the group's status filter, which is how the
+   * Tasks legend narrows the rows to one status. The filter lives here, beside
+   * the text search, so both reset together when the group is keyed afresh.
    */
-  lead?: ReactNode
+  lead?: ReactNode | ((filter: StatusFilter) => ReactNode)
   /**
    * Offers a box that filters the rows as you type, once the group holds
    * SEARCH_MIN_ITEMS or more. The filter narrows the rows alone: the heading
@@ -93,14 +107,24 @@ export default function RelatedIssues({
   searchable?: boolean
 }) {
   const [text, setText] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
   if (items.length === 0) return null
 
   const search = searchable && items.length >= SEARCH_MIN_ITEMS
   const needle = search ? text.trim().toLowerCase() : ''
-  const shown = needle ? items.filter(item => matches(item, needle)) : items
+  const shown = items.filter(item =>
+    (!needle || matches(item, needle)) && (!status || item.issue?.status === status))
   const noun = title.toLowerCase()
+  const toggle = (next: string) => setStatus(current => (current === next ? null : next))
+  const led = typeof lead === 'function' ? lead({ status, toggle }) : lead
+  const empty = [
+    'No',
+    status && statusLabel(status).toLowerCase(),
+    noun,
+    needle ? `match "${text.trim()}".` : '',
+  ].filter(Boolean).join(' ')
 
   function clear() {
     setText('')
@@ -110,7 +134,7 @@ export default function RelatedIssues({
   return (
     <section className="mt-6">
       <GroupHeading title={title} count={items.length} />
-      {lead && <div className="mb-2">{lead}</div>}
+      {led && <div className="mb-2">{led}</div>}
       {search && (
         // Chrome's own cancel button is hidden for the reason IssueFilters
         // gives: it answers the mouse only, and two crosses would be one too
@@ -145,7 +169,7 @@ export default function RelatedIssues({
           ))}
         </ul>
       ) : (
-        <p className="py-1.5 text-ink-muted">No {noun} match "{text.trim()}".</p>
+        <p className="py-1.5 text-ink-muted">{needle ? empty : `${empty}.`}</p>
       )}
     </section>
   )

@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import RelatedIssues, { SEARCH_MIN_ITEMS } from './RelatedIssues'
 import { makeIssue } from './issue.fixture'
+import EpicProgress from '../epics/EpicProgress'
+import { childIndex, rollup } from '../epics/epicRollup'
 
 const show = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>)
 
@@ -114,6 +116,57 @@ describe('RelatedIssues', () => {
     it('offers no box for a group that is not searchable', () => {
       show(<RelatedIssues title="Blocks" items={tasks} />)
       expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('status filter', () => {
+    const parent = 'td-epic'
+    const issues = [
+      makeIssue({ id: 'td-a', title: 'Alpha login', status: 'open', parent_id: parent }),
+      makeIssue({ id: 'td-b', title: 'Beta', status: 'in_progress', parent_id: parent }),
+      makeIssue({ id: 'td-c', title: 'Gamma login', status: 'in_progress', parent_id: parent }),
+      makeIssue({ id: 'td-d', title: 'Delta', status: 'closed', parent_id: parent }),
+      makeIssue({ id: 'td-e', title: 'Epsilon', status: 'closed', parent_id: parent }),
+      makeIssue({ id: 'td-f', title: 'Zeta', status: 'closed', parent_id: parent }),
+    ]
+    const tasks = issues.map(issue => ({ id: issue.id, issue }))
+    const progress = rollup(childIndex(issues), parent)
+    const group = () => show(
+      <RelatedIssues title="Tasks" items={tasks} searchable
+        lead={({ status, toggle }) => (
+          <EpicProgress rollup={progress} selected={status} onSelect={toggle} />
+        )} />,
+    )
+    const titles = () => screen.getAllByRole('listitem').map(row => row.textContent)
+
+    it('narrows the rows to the status picked in the legend', async () => {
+      group()
+      await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))
+
+      expect(titles()).toEqual([expect.stringContaining('Beta'), expect.stringContaining('Gamma')])
+      expect(screen.getByText('Tasks (6)')).toBeInTheDocument()
+    })
+
+    it('clears the filter when the same status is picked again', async () => {
+      group()
+      const entry = screen.getByRole('button', { name: /Closed 3/ })
+      await userEvent.click(entry)
+      expect(screen.getAllByRole('listitem')).toHaveLength(3)
+      await userEvent.click(entry)
+      expect(screen.getAllByRole('listitem')).toHaveLength(6)
+      expect(entry).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('combines with the text search', async () => {
+      group()
+      await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))
+      await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'login')
+      expect(titles()).toEqual([expect.stringContaining('Gamma login')])
+
+      await userEvent.clear(screen.getByRole('searchbox', { name: 'Search tasks' }))
+      await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'beta')
+      await userEvent.click(screen.getByRole('button', { name: /Closed 3/ }))
+      expect(screen.getByText('No closed tasks match "beta".')).toBeInTheDocument()
     })
   })
 })

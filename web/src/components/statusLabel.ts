@@ -16,3 +16,9 @@ export const STATUS_LABEL: Record<IssueStatus, string> = {
   in_review: 'In review',
   closed: 'Closed',
 }
+
+/**
+ * The reader's wording for any status, falling back to the wire spelling for
+ * one td adds later, which has no wording here yet.
+ */
+export const statusLabel = (status: string) => STATUS_LABEL[status as IssueStatus] ?? status
