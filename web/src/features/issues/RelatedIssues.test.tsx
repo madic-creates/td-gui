@@ -183,6 +183,41 @@ describe('RelatedIssues', () => {
       expect(screen.getByText('No open or closed tasks match "gamma".')).toBeInTheDocument()
     })
 
+    // The last in-review task is closed while the page is open: the legend
+    // loses its "In review" toggle, so the filter must not keep hiding rows
+    // behind a button that is no longer there to unpick.
+    it('drops a picked status once the legend no longer offers it', async () => {
+      const before = [...issues, makeIssue({ id: 'td-g', title: 'Eta', status: 'in_review', parent_id: parent })]
+      const after = before.map(issue => (issue.id === 'td-g' ? { ...issue, status: 'closed' as const } : issue))
+      const at = (list: typeof issues) => {
+        const progress = rollup(childIndex(list), parent)
+        return (
+          <MemoryRouter>
+            <RelatedIssues title="Tasks" searchable
+              items={list.map(issue => ({ id: issue.id, issue }))}
+              pickable={progress.buckets.map(bucket => bucket.status)}
+              lead={({ statuses, toggle }) => (
+                <EpicProgress rollup={progress} selected={statuses} onSelect={toggle} />
+              )} />
+          </MemoryRouter>
+        )
+      }
+
+      const { rerender } = render(at(before))
+      await userEvent.click(screen.getByRole('button', { name: /In review 1/ }))
+      expect(titles()).toEqual([expect.stringContaining('Eta')])
+
+      rerender(at(after))
+      expect(screen.queryByRole('button', { name: /In review/ })).not.toBeInTheDocument()
+      expect(screen.getAllByRole('listitem')).toHaveLength(7)
+
+      // It stays dropped: a task moving back into review does not bring the
+      // filter back with it.
+      rerender(at(before))
+      expect(screen.getByRole('button', { name: /In review 1/ })).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getAllByRole('listitem')).toHaveLength(7)
+    })
+
     it('combines with the text search', async () => {
       group()
       await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))

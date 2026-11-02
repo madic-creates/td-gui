@@ -199,10 +199,12 @@ function IssueDetailView({ id }: { id: string }) {
           {/* Keyed by the issue so a search typed here does not follow the
               reader into a task they open from it. The rollup is computed
               above over every task, so filtering the rows leaves it alone;
-              its legend picks the statuses the rows are narrowed to. */}
+              its legend picks the statuses the rows are narrowed to, and only
+              statuses the legend still shows can stay picked. */}
           {!editing && (
             <RelatedIssues
               key={issue.id} title="Tasks" items={tasks} searchable
+              pickable={progress.buckets.map(bucket => bucket.status)}
               lead={({ statuses, toggle }) => (
                 <EpicProgress rollup={progress} selected={statuses} onSelect={toggle} />
               )} />

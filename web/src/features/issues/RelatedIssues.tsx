@@ -84,6 +84,7 @@ export default function RelatedIssues({
   title,
   items,
   lead,
+  pickable,
   searchable = false,
 }: {
   title: string
@@ -101,6 +102,13 @@ export default function RelatedIssues({
    */
   lead?: ReactNode | ((filter: StatusFilter) => ReactNode)
   /**
+   * The statuses `lead` currently offers to pick. A picked status that drops
+   * out of it, because its last task moved on while the page was open, is
+   * dropped from the filter too: it has no toggle left to unpick it with, and
+   * a filter the reader cannot see or undo would hide every row for good.
+   */
+  pickable?: readonly string[]
+  /**
    * Offers a box that filters the rows as you type, once the group holds
    * SEARCH_MIN_ITEMS or more. The filter narrows the rows alone: the heading
    * still counts the whole group and `lead` is the caller's, so a rollup
@@ -111,6 +119,12 @@ export default function RelatedIssues({
   const [text, setText] = useState('')
   const [statuses, setStatuses] = useState<ReadonlySet<string>>(() => new Set())
   const input = useRef<HTMLInputElement>(null)
+
+  // Adjusted during render rather than in an effect, so the stale filter is
+  // never painted. It settles in one pass: after pruning, nothing is stale.
+  if (pickable && [...statuses].some(status => !pickable.includes(status))) {
+    setStatuses(new Set([...statuses].filter(status => pickable.includes(status))))
+  }
 
   if (items.length === 0) return null
 
