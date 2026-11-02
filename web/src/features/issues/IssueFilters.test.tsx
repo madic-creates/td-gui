@@ -13,7 +13,7 @@ const server = setupServer(
   http.get('/v1/boards', () =>
     HttpResponse.json({ ok: true, data: { boards: [makeBoard()] } })),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 

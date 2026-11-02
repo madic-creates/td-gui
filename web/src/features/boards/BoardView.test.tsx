@@ -12,7 +12,7 @@ import type { Board, BoardCard } from '../../api/types'
 
 const urls: string[] = []
 const server = setupServer()
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 beforeEach(() => localStorage.clear())
 afterEach(() => {
   server.resetHandlers()

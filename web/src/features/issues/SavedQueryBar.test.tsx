@@ -32,7 +32,7 @@ const server = setupServer(
     return HttpResponse.json({ ok: true, data: { board: makeBoard() } })
   }),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   server.resetHandlers()
   sent.length = 0

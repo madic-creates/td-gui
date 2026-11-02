@@ -16,7 +16,7 @@ const server = setupServer(
     ok: true, data: { issues: [], limit: 1000, offset: 0, total: 0, has_more: false },
   })),
 )
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
