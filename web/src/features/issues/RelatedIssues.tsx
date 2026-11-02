@@ -67,11 +67,12 @@ function matches({ id, issue }: Related, needle: string) {
 }
 
 /**
- * What a `lead` render function is handed: the status the rows are narrowed
- * to, or null, and the toggle that picks one or, picked again, clears it.
+ * What a `lead` render function is handed: the statuses the rows are
+ * narrowed to, empty for all of them, and the toggle that adds a status or,
+ * picked again, drops it.
  */
 export interface StatusFilter {
-  status: string | null
+  statuses: ReadonlySet<string>
   toggle: (status: string) => void
 }
 
@@ -94,8 +95,9 @@ export default function RelatedIssues({
    * after having counted the list themselves.
    *
    * As a function it receives the group's status filter, which is how the
-   * Tasks legend narrows the rows to one status. The filter lives here, beside
-   * the text search, so both reset together when the group is keyed afresh.
+   * Tasks legend narrows the rows to the statuses picked. The filter lives
+   * here, beside the text search, so both reset together when the group is
+   * keyed afresh.
    */
   lead?: ReactNode | ((filter: StatusFilter) => ReactNode)
   /**
@@ -107,7 +109,7 @@ export default function RelatedIssues({
   searchable?: boolean
 }) {
   const [text, setText] = useState('')
-  const [status, setStatus] = useState<string | null>(null)
+  const [statuses, setStatuses] = useState<ReadonlySet<string>>(() => new Set())
   const input = useRef<HTMLInputElement>(null)
 
   if (items.length === 0) return null
@@ -115,13 +117,17 @@ export default function RelatedIssues({
   const search = searchable && items.length >= SEARCH_MIN_ITEMS
   const needle = search ? text.trim().toLowerCase() : ''
   const shown = items.filter(item =>
-    (!needle || matches(item, needle)) && (!status || item.issue?.status === status))
+    (!needle || matches(item, needle)) && (statuses.size === 0 || statuses.has(item.issue?.status ?? '')))
   const noun = title.toLowerCase()
-  const toggle = (next: string) => setStatus(current => (current === next ? null : next))
-  const led = typeof lead === 'function' ? lead({ status, toggle }) : lead
+  const toggle = (status: string) => setStatuses(current => {
+    const next = new Set(current)
+    if (!next.delete(status)) next.add(status)
+    return next
+  })
+  const led = typeof lead === 'function' ? lead({ statuses, toggle }) : lead
   const empty = [
     'No',
-    status && statusLabel(status).toLowerCase(),
+    [...statuses].map(status => statusLabel(status).toLowerCase()).join(' or '),
     noun,
     needle ? `match "${text.trim()}".` : '',
   ].filter(Boolean).join(' ')

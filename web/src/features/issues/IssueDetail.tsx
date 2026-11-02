@@ -199,12 +199,12 @@ function IssueDetailView({ id }: { id: string }) {
           {/* Keyed by the issue so a search typed here does not follow the
               reader into a task they open from it. The rollup is computed
               above over every task, so filtering the rows leaves it alone;
-              its legend picks the status the rows are narrowed to. */}
+              its legend picks the statuses the rows are narrowed to. */}
           {!editing && (
             <RelatedIssues
               key={issue.id} title="Tasks" items={tasks} searchable
-              lead={({ status, toggle }) => (
-                <EpicProgress rollup={progress} selected={status} onSelect={toggle} />
+              lead={({ statuses, toggle }) => (
+                <EpicProgress rollup={progress} selected={statuses} onSelect={toggle} />
               )} />
           )}
 

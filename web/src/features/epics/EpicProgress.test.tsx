@@ -72,7 +72,7 @@ describe('EpicProgress', () => {
       rollup={{ total: 2, done: 1, buckets: [
         { status: 'open', count: 1 }, { status: 'closed', count: 1 },
       ] }}
-      selected="closed"
+      selected={new Set(['closed'])}
       onSelect={status => picked.push(status)} />)
 
     expect(screen.getByRole('button', { name: /Closed 1/ })).toHaveAttribute('aria-pressed', 'true')

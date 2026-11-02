@@ -19,6 +19,8 @@ const SEGMENT: Record<string, string> = {
   closed: 'bg-st-closed',
 }
 
+const NONE: ReadonlySet<string> = new Set()
+
 const segmentClass = (status: string) => SEGMENT[status] ?? 'bg-ink-faint'
 
 /**
@@ -34,17 +36,18 @@ const segmentClass = (status: string) => SEGMENT[status] ?? 'bg-ink-faint'
  * it in words, so labelling the graphic too would announce the same numbers
  * twice, once badly.
  *
- * With `onSelect`, each legend entry becomes a toggle that picks its status
- * and `selected` marks the one picked. Without it, as in the overview, the
- * legend stays plain text: a button there would filter nothing.
+ * With `onSelect`, each legend entry becomes a toggle for its status and
+ * `selected` marks the ones picked; several can be on at once. Without it, as
+ * in the overview, the legend stays plain text: a button there would filter
+ * nothing.
  */
 export default function EpicProgress({
   rollup,
-  selected = null,
+  selected = NONE,
   onSelect,
 }: {
   rollup: Rollup
-  selected?: string | null
+  selected?: ReadonlySet<string>
   onSelect?: (status: string) => void
 }) {
   // Its own state, not zero percent. Twenty-four of thirty epics on the
@@ -98,7 +101,7 @@ export default function EpicProgress({
               </span>
             )
           }
-          const pressed = selected === bucket.status
+          const pressed = selected.has(bucket.status)
           return (
             <button
               key={bucket.status}
@@ -106,7 +109,7 @@ export default function EpicProgress({
               aria-pressed={pressed}
               onClick={() => onSelect(bucket.status)}
               className={`inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1 hover:bg-surface-hover hover:text-ink ${
-                pressed ? 'bg-surface-hover text-ink' : selected ? 'opacity-60' : ''
+                pressed ? 'bg-surface-hover text-ink' : selected.size > 0 ? 'opacity-60' : ''
               }`}
             >
               {swatch}

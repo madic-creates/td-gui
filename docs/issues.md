@@ -184,8 +184,9 @@ Click any row to open it. The detail page shows, from top to bottom:
   matching the id or the title regardless of case. The clear button or Escape
   resets it, and a search that matches nothing says so. Each status in the
   legend beside the progress bar is a toggle: click **In progress** to see only
-  the tasks in progress, click it again to see all of them. The status filter
-  combines with the search. The progress bar and the count in the heading keep
+  the tasks in progress, add **Open** to see both, and click a status again to
+  drop it. With none picked, every task shows. The status filter combines
+  with the search. The progress bar and the count in the heading keep
   reporting every task while a search or a status filter is active. The bar
   counts the whole subtree while the list shows direct tasks, so in a deeper
   tree a status can count more than it lists.

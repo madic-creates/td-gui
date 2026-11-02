@@ -133,8 +133,8 @@ describe('RelatedIssues', () => {
     const progress = rollup(childIndex(issues), parent)
     const group = () => show(
       <RelatedIssues title="Tasks" items={tasks} searchable
-        lead={({ status, toggle }) => (
-          <EpicProgress rollup={progress} selected={status} onSelect={toggle} />
+        lead={({ statuses, toggle }) => (
+          <EpicProgress rollup={progress} selected={statuses} onSelect={toggle} />
         )} />,
     )
     const titles = () => screen.getAllByRole('listitem').map(row => row.textContent)
@@ -157,6 +157,32 @@ describe('RelatedIssues', () => {
       expect(entry).toHaveAttribute('aria-pressed', 'false')
     })
 
+    it('shows the rows of every status picked', async () => {
+      group()
+      await userEvent.click(screen.getByRole('button', { name: /Open 1/ }))
+      await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))
+
+      expect(titles()).toEqual([
+        expect.stringContaining('Alpha'),
+        expect.stringContaining('Beta'),
+        expect.stringContaining('Gamma'),
+      ])
+      expect(screen.getByRole('button', { name: /Open 1/ })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: /In progress 2/ })).toHaveAttribute('aria-pressed', 'true')
+
+      await userEvent.click(screen.getByRole('button', { name: /Open 1/ }))
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    })
+
+    it('names every status picked when nothing matches', async () => {
+      group()
+      await userEvent.click(screen.getByRole('button', { name: /Open 1/ }))
+      await userEvent.click(screen.getByRole('button', { name: /Closed 3/ }))
+      await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'gamma')
+
+      expect(screen.getByText('No open or closed tasks match "gamma".')).toBeInTheDocument()
+    })
+
     it('combines with the text search', async () => {
       group()
       await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))
@@ -165,6 +191,7 @@ describe('RelatedIssues', () => {
 
       await userEvent.clear(screen.getByRole('searchbox', { name: 'Search tasks' }))
       await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'beta')
+      await userEvent.click(screen.getByRole('button', { name: /In progress 2/ }))
       await userEvent.click(screen.getByRole('button', { name: /Closed 3/ }))
       expect(screen.getByText('No closed tasks match "beta".')).toBeInTheDocument()
     })
