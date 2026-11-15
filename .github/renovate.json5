@@ -14,6 +14,39 @@
   globalExtends: [
     'config:recommended',
   ],
+  labels: [
+    'dependencies',
+  ],
+  // Every merged `chore(deps)` commit cuts a patch release (.semrelrc), so a
+  // daily trickle of single-package PRs means a daily release of a binary that
+  // is behaviourally identical. One window a week batches them. This gates
+  // only branch *creation*: automergeSchedule stays "at any time" and
+  // updateNotScheduled keeps rebasing existing PRs on the daily cron, so a
+  // Monday PR still merges as soon as it is green. vulnerabilityAlerts below
+  // ignores the window entirely.
+  schedule: [
+    'before 9am on monday',
+  ],
+  // Security fixes skip the weekly window and the 5-day soak; Renovate's
+  // vulnerabilityAlerts defaults already clear schedule and minimumReleaseAge.
+  // They still automerge when CI is green: for a single-maintainer project,
+  // a tested fix landing unattended beats one waiting for a human. The label
+  // is there so they stand out in the PR list and the changelog.
+  vulnerabilityAlerts: {
+    addLabels: [
+      'security',
+    ],
+  },
+  // Renovate alone never refreshes transitive npm deps that sit inside an
+  // existing range, so package-lock.json drifts and picks up advisories
+  // nothing bumps. Monthly, not the weekly default, because every run is
+  // another release; automerge is inherited, CI (web/**) covers it.
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: [
+      'before 9am on the first day of the month',
+    ],
+  },
   'pre-commit': {
     enabled: true,
   },
