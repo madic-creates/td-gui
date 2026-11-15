@@ -2,7 +2,16 @@
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   onboarding: false,
   requireConfig: 'ignored',
-  extends: [
+  // globalExtends, not extends. This file is Renovate's *global* config (the
+  // workflow passes it as configurationFile, and requireConfig: 'ignored'
+  // means no repo config is ever read). A global `extends` is passed through
+  // unresolved and only expanded at repo level, i.e. *after* the packageRules
+  // below. config:recommended's group:monorepos rules therefore landed last
+  // and won: oxlint, vitest and tanstack-query each got their own
+  // `*-monorepo` branch instead of joining "web dependencies" (PRs #84, #85,
+  // #86, #88, #89, #91). globalExtends resolves the preset first, so our rules
+  // sit on top of it as they read.
+  globalExtends: [
     'config:recommended',
   ],
   'pre-commit': {
@@ -48,7 +57,9 @@
     {
       // web/ is a single frontend bundle: React, Vite, Vitest and their types
       // move together and are all covered by the same CI job. One grouped PR
-      // per update round beats a dozen individual ones.
+      // per update round beats a dozen individual ones. This only holds
+      // because config:recommended is in globalExtends (see top): with a
+      // plain `extends`, group:monorepos overrides this groupName.
       matchManagers: [
         'npm',
       ],
