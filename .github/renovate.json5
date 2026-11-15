@@ -47,6 +47,15 @@
       'before 9am on the first day of the month',
     ],
   },
+  // Workaround for npm/cli#9800. npm 12 defaults allow-remote to "none" and
+  // misclassifies registry tarballs of packages that declare
+  // bundleDependencies as "remote", so any lockfile update touching
+  // @tailwindcss/oxide-wasm32-wasi (Tailwind 4) fails with EALLOWREMOTE and
+  // Renovate pushes a branch with a stale package-lock.json (PR #83). Scoped
+  // to Renovate's own npm runs; local installs and CI keep npm's default.
+  // Delete once the npm in Renovate's image ships the fix (npm/cli#9818).
+  npmrc: 'allow-remote=all',
+  npmrcMerge: true,
   'pre-commit': {
     enabled: true,
   },
